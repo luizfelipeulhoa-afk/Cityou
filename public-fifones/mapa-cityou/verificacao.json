@@ -1,0 +1,15 @@
+{
+  "passed": [
+    "64 empty lots and six districts render without live-city state",
+    "Phases expose 12, 36, 52 and 64 lots; locked lots reject placement",
+    "Oversized building rejected; house reservation persists across reload",
+    "Large lot supports rotated landmark; removal and undo work; keyboard selection works",
+    "Export contains only the separate planning draft",
+    "Wheel zoom stays inside map; framing restores full view; district filter highlights correct lots",
+    "Portable file opens offline with all 64 lots and working phase controls",
+    "Mobile at 390px has no horizontal overflow; no API calls or real-city mutations"
+  ],
+  "consoleErrors": [],
+  "lotCount": 64,
+  "realCityWrites": 0
+}

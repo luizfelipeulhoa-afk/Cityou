@@ -1,0 +1,12 @@
+Cityou — Baía do Amanhã / estudo de mapa v1
+
+Abra index.html no navegador para explorar. A planta funciona localmente, com dados e fonte incluídos.
+Ou visite http://127.0.0.1:8766/mapa-cityou/ com o servidor do Cityou aberto.
+
+conceito.png = atmosfera visual gerada por IA; contagem de lotes ilustrativa.
+planta-tecnica.png e planta.svg = planta exata dos 64 lotes.
+planta.json = medidas, ruas, bairros e regras propostas.
+pesquisa-e-proposta.md = pesquisa e aplicação dos três jogos de referência.
+
+As reservas só ficam no armazenamento deste navegador. Use Exportar meu rascunho para guardar suas escolhas.
+Nenhuma ferramenta chama a API da cidade real ou altera moedas, tarefas ou prédios salvos.

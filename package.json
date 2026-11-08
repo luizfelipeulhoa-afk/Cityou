@@ -1,0 +1,29 @@
+{
+  "name": "cityou",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5177",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5177",
+    "start": "python -m backend",
+    "test": "node --test tests/progression.test.mjs",
+    "test:map": "node tools/verify-map-plan.mjs",
+    "test:ui": "node tools/personal-playtest.mjs && node tools/browser-playtest.mjs"
+  },
+  "dependencies": {
+    "vue": "^3.5.22",
+    "pinia": "^3.0.3",
+    "gsap": "^3.12.5",
+    "mitt": "^3.0.1",
+    "three": "0.172.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "vite": "^5.4.0",
+    "playwright": "1.62.1"
+  },
+  "description": "Organizacao pessoal gamificada e cidade 3D inspirada no Rio de Janeiro"
+}

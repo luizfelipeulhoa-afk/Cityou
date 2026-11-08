@@ -1,0 +1,66 @@
+import {spawn} from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
+import assert from 'node:assert/strict'
+import { chromium, python, browserOptions } from './runtime.mjs'
+const py = python
+fs.mkdirSync('.verification', {recursive:true})
+const temp=fs.mkdtempSync(path.resolve('.verification/personal-test-'))
+const upstream=spawn(py,['-m','uvicorn','tests.browser_source:app','--host','127.0.0.1','--port','8885','--log-level','warning'],{stdio:'ignore',windowsHide:true})
+const server=spawn(py,['-m','uvicorn','backend.app:app','--host','127.0.0.1','--port','8886','--log-level','warning'],{env:{...process.env,CITY_DATA_DIR:temp,FIFONES_UPSTREAM:'http://127.0.0.1:8885'},stdio:'ignore',windowsHide:true})
+let browser
+async function ready(url){for(let i=0;i<80;i++){try{if((await fetch(url)).ok)return}catch{}await new Promise(r=>setTimeout(r,150))}throw Error('server not ready: '+url)}
+const results=[]
+try{
+ await ready('http://127.0.0.1:8885/api/tasks');await ready('http://127.0.0.1:8886/api/health')
+ browser=await chromium.launch({...browserOptions})
+ const page=await browser.newPage({viewport:{width:1440,height:1000}})
+ const errors=[],requests=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()))
+ await page.goto('http://127.0.0.1:8886/',{waitUntil:'networkidle'});await page.waitForFunction(()=>!document.querySelector('.loading-state'))
+ assert.equal(await page.locator('.personal-nav-item').count(),13)
+ assert.equal(requests.some(u=>/assets\/city-/.test(u)),false);assert.equal(await page.locator('canvas').count(),0)
+ results.push('13 dedicated tabs; no city engine or canvas on personal start')
+ const go=async name=>{await page.getByRole('link',{name,exact:true}).click();await page.getByRole('heading',{name:name==='Seu dia'?/^(Bom dia|Boa tarde|Boa noite), Luiz\.$/:name,exact:true}).waitFor()}
+ await go('Hábitos');await page.getByRole('button',{name:'Novo hábito',exact:true}).click()
+ const dialog=()=>page.getByRole('dialog');await dialog().getByLabel('Qual hábito quer cultivar?',{exact:true}).fill('Leitura sintética')
+ await dialog().getByRole('button',{name:'Guardar',exact:true}).click();await page.getByRole('button',{name:'Marcar como feito',exact:true}).click()
+ await page.getByRole('button',{name:'Feito hoje',exact:true}).waitFor();await page.reload({waitUntil:'networkidle'});await page.getByRole('button',{name:'Feito hoje',exact:true}).waitFor()
+ await page.getByRole('button',{name:'Feito hoje',exact:true}).click();await page.getByRole('button',{name:'Marcar como feito',exact:true}).waitFor()
+ results.push('Habit creation, daily completion, reload and undo persist')
+ await go('Metas');await page.getByRole('button',{name:'Nova meta',exact:true}).click();await dialog().getByLabel('Título',{exact:true}).fill('Objetivo sintético')
+ await dialog().getByLabel('Quantos dias com um passo concreto?',{exact:true}).fill('3');await dialog().getByRole('button',{name:'Guardar',exact:true}).click()
+ await page.getByRole('button',{name:'Registrar um passo hoje',exact:true}).click();await page.getByText('1 / 3 dias com progresso',{exact:true}).waitFor()
+ results.push('Goals track a real daily step against the chosen target')
+ await go('Finanças');await page.getByRole('button',{name:'Novo lançamento',exact:true}).click();await dialog().getByLabel('Título',{exact:true}).fill('Entrada sintética')
+ await dialog().getByLabel('Tipo',{exact:true}).selectOption('income');await dialog().getByLabel('Valor em R$',{exact:true}).fill('123,45');await dialog().getByRole('button',{name:'Guardar',exact:true}).click()
+ await page.getByText('Entrada sintética',{exact:true}).waitFor();assert.ok((await page.locator('.finance-stats').innerText()).includes('123,45'))
+ results.push('Financial entry uses cents and updates monthly totals')
+ await go('Memórias');await page.getByRole('button',{name:'Nova memória',exact:true}).click();await dialog().getByLabel('Título',{exact:true}).fill('Nota sintética')
+ await dialog().getByLabel('Detalhes, se quiser',{exact:true}).fill('Registro de teste isolado.');await dialog().getByRole('button',{name:'Guardar',exact:true}).click();await page.getByRole('heading',{name:'Nota sintética',exact:true}).waitFor()
+ results.push('New notes coexist with prior source memories')
+ await go('Alimentação');await page.getByRole('button',{name:'Registrar refeição',exact:true}).click();await dialog().getByLabel('Título',{exact:true}).fill('Refeição sintética')
+ await dialog().getByLabel('Alimentos e quantidades',{exact:true}).fill('Alimentos descritos pelo usuário.');await dialog().getByRole('button',{name:'Guardar',exact:true}).click();await page.getByRole('heading',{name:'Refeição sintética',exact:true}).waitFor()
+ results.push('Food journal saves descriptions without invented nutrient estimates')
+ await go('Tarefas');await page.getByRole('button',{name:'Nova tarefa',exact:true}).click();await dialog().getByLabel('O que você quer fazer?',{exact:true}).fill('Tarefa criada pelo novo app')
+ await dialog().getByRole('button',{name:'Guardar',exact:true}).click();await page.getByText('Tarefa criada pelo novo app',{exact:true}).waitFor()
+ await page.getByRole('button',{name:'Concluir Tarefa criada pelo novo app',exact:true}).click();await page.getByRole('button',{name:'Concluídas',exact:true}).click();await page.getByText('Tarefa criada pelo novo app',{exact:true}).waitFor()
+ const city=await(await page.request.get('http://127.0.0.1:8886/api/city')).json();assert.equal(city.credits,60)
+ results.push('New task is created in original workspace; completion still rewards city once')
+ for(const name of ['Agenda','Fitness','Autoconhecimento','Estudos','Projetos','Biblioteca'])await go(name)
+ assert.equal(await page.locator('.document-card').count(),1)
+ await go('Seu dia');await page.getByRole('link',{name:/Minha cidade/}).click();await page.getByTitle('Minha cidade Cityou').waitFor()
+ const frame=page.frameLocator('iframe[title="Minha cidade Cityou"]');await frame.getByRole('button',{name:'Como jogar',exact:true}).waitFor()
+ assert.equal((await(await page.request.get('http://127.0.0.1:8886/api/city')).json()).credits,60)
+ await go('Seu dia');assert.equal(await page.locator('iframe').count(),0)
+ results.push('City opens separately with preserved ledger and unmounts on return')
+ await page.getByRole('button',{name:'Recolher menu',exact:true}).click();assert.ok(await page.locator('.personal-app').evaluate(el=>el.classList.contains('sidebar-compact')))
+ await page.getByRole('button',{name:'Expandir menu',exact:true}).click();results.push('Sidebar collapses to icons and expands again')
+ await page.setViewportSize({width:390,height:844});await page.waitForFunction(()=>document.querySelector('.sidebar').getBoundingClientRect().right<=0)
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390)
+ await page.getByRole('button',{name:'Abrir menu',exact:true}).click();await go('Hábitos');assert.equal(await page.locator('.personal-app.mobile-nav-open').count(),0)
+ await page.screenshot({path:'.verification/personal-test-mobile.png',fullPage:true})
+ const reduced=await browser.newContext({reducedMotion:'reduce',viewport:{width:1024,height:768}});const rp=await reduced.newPage();await rp.goto('http://127.0.0.1:8886/',{waitUntil:'networkidle'})
+ assert.equal(await rp.locator('.personal-content').evaluate(el=>getComputedStyle(el).animationName),'none');await reduced.close()
+ results.push('Mobile navigation has no overflow; reduced motion respected')
+ assert.deepEqual(errors,[]);fs.writeFileSync('.verification/personal-results.json',JSON.stringify({passed:results,consoleErrors:errors,isolatedData:temp},null,2));console.log(JSON.stringify({passed:results,consoleErrors:errors},null,2))
+}finally{await browser?.close();server.kill();upstream.kill()}
