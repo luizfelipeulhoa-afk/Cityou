@@ -1,0 +1,9 @@
+# Assets e marcas
+
+A licença MIT na raiz preserva o aviso do código CubeCity e não é uma licença para as marcas de terceiros.
+
+- `public-fifones/models/`: modelos fornecidos pelo responsável deste projeto para os prédios Cityou/Fifones. Não se presume uma licença aberta de redistribuição dos modelos separadamente do projeto.
+- Logos de ChatGPT/OpenAI, Claude/Anthropic, Gemini/Google e Grok/xAI: marcas de seus respectivos titulares; uso de identificação, sem afiliação ou endosso.
+- `public-fifones/mapa-cityou/conceito.png`: conceito visual ilustrativo gerado para o projeto; a planta SVG/JSON é a fonte das dimensões e da contagem de lotes.
+- Figtree e Newsreader: SIL OFL, textos completos nas pastas de licenças.
+- Pacotes legados de áudio, fontes 3D e modelos não usados do CubeCity foram omitidos desta cópia pública.
