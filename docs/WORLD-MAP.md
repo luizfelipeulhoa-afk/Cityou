@@ -20,12 +20,15 @@ Testes: `npm test` (progresso, lat/lon, terra/mar, geometria do globo).
 | Arquivo | Papel |
 | --- | --- |
 | `src/world/WorldGlobe.js` | Cena: renderer, câmera, OrbitControls (sem pan, zoom limitado, inclinação com o zoom), globo com shader (ondas, florescer, borda atmosférica), nuvens, atmosfera em fresnel, estrelas, caminho pontilhado, raycast, fila de animações GSAP. |
-| `src/world/terrain.js` | Gera o globo: icosaedro subdividido, terra/mar por polígonos, relevo, biomas, cor por face e a cor "florescida". |
+| `src/world/terrainCore.js` | Gera o globo sem depender do three: icosaedro subdividido, terra/mar por polígonos, relevo, biomas, cor por face e a cor "florescida". |
+| `src/world/terrain.worker.js`, `terrainClient.js`, `terrain.js` | Rodam o núcleo num Web Worker (com reserva síncrona) e montam a geometria do three. |
 | `src/world/continents.js` | Contornos simplificados dos continentes, mares interiores, cordilheiras e zonas de bioma (em lon/lat). |
 | `src/world/geo.js` | `latLonToVector3(lat, lon, raio)` e a orientação na superfície (`surfaceQuaternion`). |
 | `src/world/worldSpaces.js` | Dados dos 8 espaços `{ id, nome, lat, lon, glbPath, desbloqueado, concluido, ... }`. |
 | `src/world/SpaceMarker.js` | Marcador: carrega o GLB (ou placeholder), normaliza a escala e cuida dos estados e animações de cada espaço. |
-| `src/world/progress.js` | Progresso em `localStorage` (`unlock`, `complete`, `reset`, mais funções puras). |
+| `src/world/progress.js` | Progresso em `localStorage` (`unlock`, `complete`, `reset`, mais funções puras de fusão). |
+| `src/world/progressSync.js` | Sincronização local-first com o backend. |
+| `backend/world.py` | `GET` e `PUT /api/world/progress` (SQLite). |
 | `src/components/WorldMap.vue` | Componente: monta a cena, recebe o progresso por props, emite eventos e tem o painel de debug. |
 | `src/WorldApp.vue`, `world.html` | Página de demonstração que liga tudo e simula "concluir fase". |
 
@@ -47,9 +50,9 @@ const abrirFase = id => { /* navegar para a fase `id` */ }
 </template>
 ```
 
-- **Props**: `progress` (`{ desbloqueados, concluidos }`), `spaces` (opcional, padrão `WORLD_SPACES`), `debug` (abre o painel).
-- **Eventos**: `open-world` (id, depois que a câmera foca um espaço desbloqueado), `locked` (`{ id, previousId }`), `update:progress` (emitido pelo debug), `ready`.
-- **Métodos** (via `ref`): `focusSpace(id)`, `resetView()`.
+- **Props**: `progress` (`{ epoca, desbloqueados, concluidos }`), `spaces` (opcional, padrão `WORLD_SPACES`), `debug` (abre o painel).
+- **Eventos**: `select` (id, no instante do toque num espaço desbloqueado), `open-world` (id, quando a câmera termina de focar), `locked` (`{ id, previousId }`), `interact` (primeiro gesto no globo), `update:progress` (emitido pelo debug), `ready` (terreno e marcadores prontos).
+- **Métodos** (via `ref`): `focusSpace(id)`, `activateSpace(id)` (mesmo efeito de tocar), `resetView()`.
 
 As animações saem da diferença entre o progresso anterior e o novo, venha a mudança do debug, do backend ou de `completeSpace`. Concluir N toca a estrela e o florescer em N, depois o desbloqueio de N+1 (feixe de luz, partículas, câmera girando até lá).
 
@@ -99,13 +102,39 @@ Para comparar: os GLB dos prédios da cidade (`public-fifones/models/`) têm 10�
 3. Recarregue a página. No debug (tecla D), a linha do espaço passa de "placeholder" para "GLB".
 4. Ajuste fino em `src/world/worldSpaces.js`, se precisar: `escala` (1 = padrão; 1.2 = 20% maior) e `rotacaoY` (graus; 180 se o modelo vier de costas).
 
-Não é preciso mexer no código. Enquanto o arquivo não existe, o placeholder aparece. No console, um 404 de `HEAD /models/world/<id>.glb` é esperado para arquivos que ainda não existem.
+Não é preciso mexer no código. Enquanto o arquivo não existe, o placeholder aparece. O Vite mantém `public-fifones/models/world/manifest.json` com a lista dos GLB (ao iniciar o dev server, a cada arquivo adicionado e no build); se você copiar um GLB sem o Vite rodando, gere a lista com `node tools/world-models-manifest.mjs`.
+
+## Progresso e sincronização
+
+- O progresso vive no `localStorage` e a tela nunca espera a rede.
+- Quando a página roda em endereço local (o backend só aceita acesso local), `src/world/progressSync.js` envia o progresso ao FastAPI em segundo plano: `PUT /api/world/progress` junta o que o navegador mandou ao que está guardado e devolve o resultado. O progresso só avança.
+- `epoca` conta os resets. Entre épocas diferentes vence a mais nova, então um reset num navegador vale no servidor e nos outros navegadores.
+- No site publicado não há sincronização nem requisições à API.
+
+## Testes e ferramentas
+
+| Comando | O que faz |
+|---|---|
+| `npm test` | progresso, fusão, sincronização, lat/lon, terra/mar, geometria |
+| `pytest tests -q` | backend, incluindo `tests/test_world.py` |
+| `npm run test:world` | ponta a ponta com o backend real, dois navegadores e uma tela de celular |
+| `npm run perf:world` | mede a abertura num celular médio simulado (`docs/WORLD-PERF.md`) |
+| `node tools/check-world-models.mjs` | orçamento de triângulos, tamanho e textura dos GLB |
+| `node tools/optimize-world-models.mjs <glb> <id>` | compacta um GLB e o grava na pasta pública |
+
+`npm run test:world` e `npm run perf:world` pedem `npm run build` antes. Em sessão na nuvem, prefixe com `CITYOU_CHROME=/opt/pw-browsers/chromium`.
+
+Os prompts do Tripo para os 8 modelos estão em `docs/TRIPO-PROMPTS.md`.
 
 ## Notas de desempenho
 
-- Globo: ~16,8 mil triângulos num único draw call. As ondas, o florescer e o brilho da borda rodam no shader.
+Medições de antes e depois em `docs/WORLD-PERF.md`.
+
+- Globo: ~16,8 mil triângulos num único draw call. Ondas, florescer e brilho da borda rodam no shader.
+- O terreno é gerado num Web Worker; o primeiro quadro sai com uma esfera de oceano.
 - `IcosahedronGeometry` no three r172 subdivide de forma linear: `detail` 4–5 dá só 500–720 faces. Por isso o globo usa `detail` 28, que continua low poly.
 - Luzes: hemisfério + 1 direcional presa à câmera. Sem sombras.
 - Pixel ratio até 1,75. Se o FPS cair abaixo de 48, ele desce sozinho até 1.
+- Ocioso, o mapa desenha metade dos quadros; fora da tela, nenhum.
 - Os placeholders juntam as peças por cor (poucos draw calls). O debug mostra fps, draws e triângulos.
 - Com `prefers-reduced-motion`, as animações ficam mais curtas e não há rotação automática.

@@ -6,26 +6,27 @@ Em sessão na nuvem: `CITYOU_CHROME=/opt/pw-browsers/chromium npm run perf:world
 
 | Medida | Antes | Depois | Ganho |
 |---|---|---|---|
-| Primeiro quadro na tela | 4.487 ms | 2.076 ms | 2,2x |
-| Globo completo (terreno, nuvens, 8 marcadores) | 4.487 ms | 3.247 ms | 1,4x |
-| Bloqueio da thread principal na abertura | 2.767 ms | 594 ms | 4,7x |
-| Maior tarefa longa | 2.160 ms | 255 ms | 8,5x |
+| Primeiro quadro na tela | 4.487 ms | 2.094 ms | 2,1x |
+| Globo completo (terreno, nuvens, 8 marcadores) | 4.487 ms | 3.237 ms | 1,4x |
+| Bloqueio da thread principal na abertura | 2.767 ms | 551 ms | 5x |
+| Maior tarefa longa | 2.160 ms | 276 ms | 7,8x |
 | Geração do terreno na thread principal | 802 ms | 0 (Web Worker) | |
-| Maior passo de JavaScript na montagem do globo | 1.281 ms (terreno + marcadores num bloco só, antes do primeiro quadro) | 105 ms (depois do primeiro quadro) | 12x |
-| Sondagem dos 8 GLB | 1.903 ms (em série) | 331 ms (em paralelo) | 5,7x |
-| Requisições na abertura | 15 | 16 (o Worker) | |
-| JavaScript transferido (gzip) | 249 KB | 241 KB | |
+| Maior passo de JavaScript na montagem do globo | 1.281 ms (terreno + marcadores num bloco só, antes do primeiro quadro) | 56 ms (depois do primeiro quadro) | 23x |
+| Descobrir quais GLB existem | 1.903 ms (8 requisições em série) | 166 ms (1 requisição) | 11x |
+| Requisições na abertura | 15 | 10 | |
+| JavaScript transferido (gzip) | 249 KB | 244 KB | |
 
-"Antes" é o commit `36fcbd9` com as marcas de tempo adicionadas. "Depois" é a Fase 1.
+"Antes" é o commit `36fcbd9` com as marcas de tempo adicionadas. "Depois" é o estado atual do branch.
 
 O que mudou:
 
 - O terreno é gerado num Web Worker (`terrain.worker.js`), com um núcleo sem three (`terrainCore.js`, 20 KB).
 - O primeiro quadro sai com uma esfera de oceano; nuvens e marcadores entram depois, um por quadro.
 - `GLTFLoader`, Meshopt e o ambiente PBR só são baixados e montados quando existe um GLB.
-- As 8 sondagens de GLB saem juntas.
+- Um `manifest.json` gerado pelo Vite diz quais GLB existem: uma requisição no lugar de oito, e sem erros 404 no console. Sem manifesto, as 8 sondagens saem em paralelo.
 - `world.html` mostra fundo e aviso antes de o JavaScript chegar.
 - Ocioso, o mapa desenha metade dos quadros; fora da tela, nenhum.
+- O quadro é desenhado no relógio do GSAP, logo depois de os tweens atualizarem (antes eram dois relógios e a animação podia atrasar um quadro). Essa parte é garantida pela ordem de execução, não por medição.
 - `public-fifones/_headers` dá cache de um ano aos arquivos com hash no Cloudflare (antes, uma revalidação por arquivo a cada visita).
 
 Limite desta medição: depois do primeiro quadro, as tarefas longas que restam (~250 ms cada) são os próprios quadros, desenhados por software com a CPU 4x mais lenta. Num aparelho com GPU isso não acontece, mas não dá para medir aqui. Uma tentativa de pré-compilar os shaders (`compileAsync`) não trouxe ganho mensurável e foi desfeita.
