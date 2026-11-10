@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Icon from './personal/Icon.vue'
-import { loadTasks, loadProjects, completeTask } from './fifones/api.js'
+import { ApiError, loadTasks, loadProjects, completeTask } from './fifones/api.js'
 const sections=[
 {id:'inicio',label:'Seu dia',icon:'home',group:'SEU ESPAÇO',description:'O que importa, sem carregar tudo na cabeça.'},
 {id:'tarefas',label:'Tarefas',icon:'tasks',group:'SEU ESPAÇO',description:'Uma coisa de cada vez.'},
@@ -57,11 +57,47 @@ const areaCards=computed(()=>[
 {id:'fitness',icon:'fitness',tone:'peach',title:'Cuide de você',value:fitness.value.weights?.length?`${fitness.value.weights[0].kg} kg`:'Sua evolução',detail:'Treino, trajetória e recuperação'},
 {id:'financas',icon:'finance',tone:'purple',title:'Respire mais leve',value:transactions.value.length?money(income.value-expenses.value):'Sua vida financeira',detail:transactions.value.length?'saldo dos registros deste mês':'Entradas e saídas, com clareza'},
 {id:'estudos',icon:'study',tone:'blue',title:'Continue aprendendo',value:`${documents.value.length} materiais`,detail:'Leia com o Fifones ao seu lado'}])
-async function api(path,method='GET',body){const res=await fetch(path,{method,headers:{Accept:'application/json',...(method!=='GET'?{'Content-Type':'application/json','X-Fifones-City':'1'}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})});const val=await res.json().catch(()=>null);if(!res.ok)throw Error(typeof val?.detail==='string'?val.detail:val?.message||'Não foi possível salvar. Tente novamente.');return val}
+async function api(path, method = 'GET', body) {
+  const res = await fetch(path, {
+    method,
+    headers: {
+      Accept: 'application/json',
+      ...(method !== 'GET' ? { 'Content-Type': 'application/json', 'X-Fifones-City': '1' } : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  })
+  const value = await res.json().catch(() => null)
+  if (!res.ok) {
+    throw new ApiError(typeof value?.detail === 'string' ? value.detail : value?.message || 'Não foi possível salvar. Tente novamente.', res.status, value)
+  }
+  return value
+}
 function notify(text,kind='success'){notice.value={text,kind};clearTimeout(timer);timer=setTimeout(()=>notice.value='',4500)}
 function parseRoute(){const id=location.hash.replace(/^#\/?/,'').split('/')[0];route.value=sections.some(i=>i.id===id)||id==='cidade'||id==='mundo'?id:'inicio';search.value='';mobileMenu.value=false;document.title=(route.value==='cidade'?'Minha cidade':route.value==='mundo'?'Mapa-mundo':active.value?.label||'Seu espaço')+' · Cityou'}
 function navigate(id){location.hash='/'+id}
-async function refresh(){if(refreshing.value)return;refreshing.value=true;now.value=Date.now();error.value='';const result=await Promise.allSettled([api('/api/personal'),loadTasks(),loadProjects()]);if(result[0].status==='fulfilled')data.value=result[0].value;else error.value='Não foi possível carregar seus registros. Tente atualizar.';if(result[1].status==='fulfilled'){tasks.value=result[1].value.tasks||[];connected.value=result[1].value.connected}else connected.value=false;if(result[2].status==='fulfilled')projects.value=result[2].value.projects||[];loading.value=false;refreshing.value=false}
+async function refresh() {
+  if (refreshing.value) return
+  refreshing.value = true
+  now.value = Date.now()
+  error.value = ''
+  const [personal, taskResult, projectResult] = await Promise.allSettled([api('/api/personal'), loadTasks(), loadProjects()])
+  if (personal.status === 'fulfilled') {
+    data.value = personal.value
+  } else {
+    error.value = personal.reason?.status === 404
+      ? 'Os registros pessoais precisam do servidor Cityou, que não está disponível neste endereço.'
+      : 'Não foi possível carregar seus registros. Tente atualizar.'
+  }
+  if (taskResult.status === 'fulfilled') {
+    tasks.value = taskResult.value.tasks || []
+    connected.value = taskResult.value.connected
+  } else {
+    connected.value = false
+  }
+  if (projectResult.status === 'fulfilled') projects.value = projectResult.value.projects || []
+  loading.value = false
+  refreshing.value = false
+}
 function showForm(kind){previousFocus=document.activeElement;modal.value=kind;form.value={title:'',body:'',amount:'',direction:'expense',category:'pessoal',day:today(),due_date:'',target:1};nextTick(()=>document.querySelector('.entry-dialog input')?.focus())}
 function closeForm(){if(saving.value)return;modal.value=null;previousFocus?.focus?.()}
 async function save(){if(saving.value)return;saving.value=true;try{if(modal.value==='task'){await api('/api/personal/tasks','POST',{title:form.value.title,due_date:form.value.due_date||null});notify('Tarefa salva no seu Fifones.')}else{const raw=String(form.value.amount).trim().replace(/^R\$\s*/, '').replace(/\s/g,'');const normalized=/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(raw)?raw.replace(/\./g,'').replace(',','.'):/^\d+(?:[,.]\d{1,2})?$/.test(raw)?raw.replace(',','.'):'invalid';const cents=Math.round(Number(normalized)*100);if(modal.value==='transaction'&&(!Number.isFinite(cents)||cents<1))throw Error('Informe um valor válido.');await api('/api/personal/entries','POST',{kind:modal.value,title:form.value.title,body:form.value.body,category:form.value.category,day:form.value.day,direction:form.value.direction,amount_cents:modal.value==='transaction'?cents:0,target:modal.value==='goal'?Number(form.value.target):1});notify('Registro salvo.')}modal.value=null;await refresh();previousFocus?.focus?.()}catch(e){notify(e.message,'error')}finally{saving.value=false}}
@@ -85,7 +121,7 @@ onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);clearTimeout(bridgeTime
   </aside>
   <section class="app-main">
     <header class="personal-topbar"><div class="topbar-left"><button class="mobile-menu icon-btn" aria-label="Abrir menu" @click="mobileMenu=!mobileMenu"><Icon name="menu" /></button><span class="breadcrumb">Meu espaço <Icon name="chevron" :size="13" /><strong>{{ active?.label||(route==='mundo'?'Mapa-mundo':'Minha cidade') }}</strong></span></div><div class="topbar-actions"><span class="local-status"><i :class="{offline:!connected}" />{{ connected?'Conectado ao Fifones':'Fonte original offline' }}</span><button class="icon-btn" aria-label="Atualizar meus dados" :disabled="refreshing" @click="refresh"><Icon name="refresh" :class="{spinning:refreshing}" :size="18" /></button><button class="new-entry" @click="showForm(route==='habitos'?'habit':route==='metas'?'goal':route==='financas'?'transaction':route==='nutricao'?'meal':route==='memorias'||route==='autoconhecimento'?'note':'task')"><Icon name="plus" :size="17" /><span>Novo registro</span></button></div></header>
-    <div v-if="error" class="page-error" role="alert">{{ error }}<button @click="refresh">Tentar novamente</button></div>
+    <div v-if="error && route !== 'mundo'" class="page-error" role="alert">{{ error }}<button @click="refresh">Tentar novamente</button></div>
     <div v-if="route==='mundo'" class="city-space"><div class="city-space-bar"><span><Icon name="globe" :size="17" />Seu mapa-mundo, em um espaço próprio.</span><a href="/world.html" target="_blank" rel="noopener">Abrir só o mapa <Icon name="arrow" :size="15" /></a></div><iframe src="/world.html" title="Mapa-mundo BuildU" /></div>
     <div v-else-if="route==='cidade'" class="city-space"><div class="city-space-bar"><span><Icon name="city" :size="17" />Sua cidade, em um espaço próprio.</span><a href="/city.html" target="_blank" rel="noopener">Abrir só a cidade <Icon name="arrow" :size="15" /></a></div><iframe src="/city.html" title="Minha cidade Cityou" /></div>
     <div v-else class="personal-content">
