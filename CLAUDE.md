@@ -38,6 +38,14 @@ Limites de desempenho: uma luz direcional + hemisfério, sem sombras, globo em u
 - Módulos novos seguem `backend/personal.py`: `register(application, root, clock)` com SQLite próprio em `data/`.
 - Testes no padrão de `tests/test_personal.py` (`TestClient` com `base_url='http://127.0.0.1:8766'`).
 
+## Backend novo (em especificação)
+
+O FastAPI acima é local e sem usuário. O destino é um Worker do Cloudflare com D1, login e tabelas próprias (sem o Fifones). Antes de mexer em rota, tabela ou botão, leia:
+
+- `docs/DATA-MODEL.md`: tabelas, quem preenche cada uma, regras de crédito, decisões pendentes.
+- `docs/INTERACTIONS.md`: cada tela, botão e atalho, com a rota e a tabela que toca.
+- `docs/API.md`: contrato das rotas e o destino de cada rota atual.
+
 ## Skills do projeto (`.claude/skills/`)
 
 Procedência e revisão em `.claude/skills/SOURCES.md`. Use por assunto:

@@ -1,0 +1,247 @@
+# Mapa de interações do Cityou
+
+Para cada tela: a ação principal, cada botão com a rota e a tabela que ele toca, os atalhos, o celular, o estado vazio, o erro e o desfazer. As tabelas estão em `DATA-MODEL.md` e as rotas em `API.md`.
+
+Coluna "Hoje": o que o botão faz no código atual (`src/App.vue`). "Fifones" quer dizer que ele abre um iframe para `127.0.0.1:8765`, que não existe no site publicado.
+
+## Regras gerais
+
+1. **Resposta imediata.** A tela muda no toque; o servidor confirma depois. Se a gravação falhar, a tela volta ao estado anterior e o aviso diz o motivo.
+2. **Desfazer, não confirmar.** Apagar, concluir e desmarcar mostram um aviso com "Desfazer" por 5 segundos. Não há caixa de "tem certeza?". A única exceção é apagar a conta.
+3. **Tudo pode ser corrigido.** Todo cartão e toda linha abrem o formulário de edição (clique, `Enter` ou `E`). O formulário de edição é o mesmo de criação, com o botão "Apagar".
+4. **Uma ação principal por tela.** "Novo registro", no topo, cria o item da tela atual. É o comportamento que `showForm` já tem.
+5. **Só o título é obrigatório.** A data vem com hoje. Campos opcionais ficam recolhidos em "Mais detalhes".
+6. **Estado vazio ensina.** Lista vazia mostra uma frase e o botão da primeira ação.
+7. **Erro diz o que fazer.** Campo inválido: mensagem junto do campo. Sem conexão: "Sem conexão. Tentaremos de novo." e o item fica marcado como pendente. Sessão expirada: volta ao login e preserva o que estava sendo digitado.
+8. **Crédito visível.** O contador de créditos fica no topo de todas as telas e anima quando muda. Clicar nele abre o extrato.
+9. **Sem culpa.** Nada some, zera ou fica vermelho por falta de uso. Revisão da fase B6 com as skills `gamificacao-saude-etica` e `behavior-design-etico`.
+
+## Teclado (desktop)
+
+Os atalhos de uma tecla ficam desligados enquanto o foco está em campo de texto ou com um diálogo aberto. A tecla aparece ao lado do rótulo do botão e na lista aberta por `?`.
+
+| Tecla | Ação |
+|---|---|
+| `N` | Novo registro da tela atual |
+| `/` | Foco na busca da tela |
+| `Ctrl` ou `Cmd` + `K` | Paleta de comandos: ir para uma área, criar qualquer registro, buscar |
+| `G` e depois uma letra | Ir para uma área: `D` Seu dia, `T` Tarefas, `A` Agenda, `H` Hábitos, `M` Metas, `F` Finanças, `P` Projetos, `C` Cidade, `W` Mapa-mundo |
+| `↑` `↓` ou `J` `K` | Mover o foco na lista |
+| `Espaço` | Concluir a tarefa ou marcar o hábito em foco |
+| `E` ou `Enter` | Editar o item em foco |
+| `Delete` | Apagar o item em foco (com desfazer) |
+| `Ctrl` ou `Cmd` + `Enter` | Salvar o formulário |
+| `Ctrl` ou `Cmd` + `Z` | Desfazer a última ação, enquanto o aviso estiver na tela |
+| `R` | Atualizar os dados |
+| `Esc` | Fechar diálogo, menu ou paleta (já existe) |
+| `?` | Mostrar os atalhos |
+
+`Tab` continua preso dentro do diálogo aberto, como já acontece em `keydown`.
+
+## Celular
+
+- Barra inferior fixa: Seu dia, Tarefas, Hábitos, Mapa e "Mais" (abre o menu completo).
+- Botão flutuante "+" acima da barra: novo registro da tela atual.
+- Alvos de toque com 44 px ou mais. Formulário abre como folha que sobe da base, com o teclado certo por campo (`inputmode="decimal"` no valor, `type="date"` na data).
+- Deslizar um item para a esquerda mostra "Apagar"; para a direita, conclui. Os mesmos comandos existem como botões, para quem não usa gestos.
+- Dicas de atalho de teclado não aparecem em telas de toque.
+
+## Entrar e conta (telas novas)
+
+| Botão | Rota | Tabela | Retorno |
+|---|---|---|---|
+| Criar conta | `POST /api/auth/signup` | `users`, `sessions`, `city`, `ledger` | Entra no app; saudação com o nome; 50 créditos de boas-vindas |
+| Entrar | `POST /api/auth/login` | `sessions`, `login_attempts` | Entra no app. Senha errada: "E-mail ou senha incorretos." |
+| Sair (em Conta) | `POST /api/auth/logout` | `sessions` | Volta ao login |
+| Salvar nome e fuso | `PATCH /api/me` | `users` | Saudação atualizada |
+| Exportar meus dados (B7) | `GET /api/me/export` | leitura de todas | Baixa um arquivo JSON |
+| Apagar minha conta (B7) | `DELETE /api/me` | todas | Pede a senha de novo; depois volta ao cadastro |
+
+Erros: e-mail já cadastrado, senha com menos de 10 caracteres, muitas tentativas ("Aguarde alguns minutos e tente de novo.").
+
+## Estrutura comum (menu e topo)
+
+| Elemento | Hoje | Passa a ser |
+|---|---|---|
+| Itens do menu, marca "Cityou" | Trocam a rota (`#/…`) | Igual |
+| Recolher menu, abrir menu no celular, fechar menu | Estado local | Igual; no celular entra a barra inferior |
+| "Mapa-mundo", "Minha cidade", "Abrir só o mapa", "Abrir só a cidade" | Abrem `world.html` e `city.html` (em iframe ou em outra aba) | Igual |
+| "Tentar novamente" (faixa de erro) | Recarrega os dados | Igual, com `GET /api/overview` |
+| Perfil "Luiz Felipe" → Configurações | Fifones | Abre a tela Conta, com o nome de `users.display_name` |
+| "Conectado ao Fifones" / "Fonte original offline" | Estado do Fifones | Estado da gravação: "Salvo", "Salvando…", "Sem conexão" |
+| Atualizar meus dados | `GET /api/personal` + 2 chamadas | `GET /api/overview` (uma chamada), atalho `R` |
+| Novo registro | `showForm` da tela | Igual, atalho `N` |
+| "Falar sobre isso" (em todas as áreas) | Fifones | **Sai** |
+| Contador de créditos | Não existe no painel | Novo: saldo de `city.credits`; abre o extrato (`ledger`) |
+| Formulário: "Guardar", "Agora não", fechar | `POST` de criação | Igual, mais "Apagar" na edição |
+| Aviso: fechar | Estado local | Igual, mais "Desfazer" |
+| Diálogo do Fifones ("Voltar ao Cityou", "Verificar conexão") | Iframe | **Sai** |
+
+## Telas
+
+### Seu dia
+
+Ação principal: "Anotar" (tirar algo da cabeça).
+
+| Botão | Hoje | Rota | Tabela | Retorno |
+|---|---|---|---|---|
+| Anotar | Cria nota | `POST /api/notes` | `notes` | Aviso "Guardado."; nota em Memórias |
+| Microfone (conversa por voz) | Fifones | | | **Sai** |
+| Círculo da tarefa | Conclui no Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `city` | Tarefa sai da lista; +10 no contador; "Desfazer" |
+| Criar uma tarefa | Cria no Fifones | `POST /api/tasks` | `tasks` | Tarefa na lista |
+| Adicionar compromisso | Fifones | `POST /api/events` | `events` | Compromisso em "Na sua agenda" |
+| Ver tarefas, seta da agenda, cartões de área, "Registrar meu momento" | Navegação | | | Igual |
+
+Vazio: "Espaço para o que vem agora." com "Criar uma tarefa".
+
+### Tarefas
+
+Ação principal: "Nova tarefa".
+
+| Botão | Hoje | Rota | Tabela | Retorno |
+|---|---|---|---|---|
+| Nova tarefa | Cria no Fifones | `POST /api/tasks` | `tasks` | Linha no topo de "A fazer" |
+| Círculo | Conclui no Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `city` | Vai para "Concluídas"; +10; "Desfazer" |
+| Círculo de tarefa concluída | Desligado | `POST /api/tasks/{id}/reopen` | `tasks` | Volta para "A fazer"; os créditos ficam |
+| Linha da tarefa | Nada | `PATCH /api/tasks/{id}` | `tasks` | Formulário de edição (título, descrição, prazo, prioridade, projeto) |
+| Apagar (no formulário) | Não existe | `DELETE /api/tasks/{id}` | `tasks` | Some da lista; "Desfazer" chama `POST /api/tasks/{id}/restore` |
+| Filtros "A fazer", "Concluídas", "Todas" e busca | Filtro local | | | Igual; busca com `/` |
+
+Vazio: "Nada nesta lista." com "Nova tarefa".
+
+### Agenda
+
+Ação principal: "Novo compromisso".
+
+| Botão | Hoje | Rota | Tabela | Retorno |
+|---|---|---|---|---|
+| Novo compromisso | Fifones | `POST /api/events` | `events` | Cartão na ordem da data |
+| Ver compromisso | Fifones | `PATCH /api/events/{id}` | `events` | Formulário de edição, com "Apagar" |
+| Abrir agenda completa | Fifones | | | **Sai**: a própria tela passa a ser a agenda completa |
+
+Vazio: "Sua agenda tem espaço." com "Novo compromisso".
+
+### Hábitos
+
+Ação principal: "Marcar como feito". Criar é a segunda.
+
+| Botão | Hoje | Rota | Tabela | Retorno |
+|---|---|---|---|---|
+| Novo hábito, "Criar meu próximo hábito" | Cria em `entries` | `POST /api/habits` | `habits` | Cartão novo; o total do anel aumenta |
+| Marcar como feito / Feito hoje | `PUT …/checkin` | `PUT /api/habits/{id}/checkins/{dia}` | `habit_checkins`, `ledger`, `city` | Botão vira "Feito hoje"; anel avança; +5 na primeira vez do dia |
+| Cartão do hábito | Nada | `PATCH /api/habits/{id}` | `habits` | Edição (título, detalhe, dias da semana), "Arquivar" e "Apagar" |
+
+Desmarcar não tira créditos. Vazio: "Escolha algo pequeno o suficiente para caber no dia." com "Novo hábito".
+
+### Metas
+
+Ação principal: "Registrar um passo hoje".
+
+| Botão | Hoje | Rota | Tabela | Retorno |
+|---|---|---|---|---|
+| Nova meta, "Qual é sua próxima conquista?" | Cria em `entries` | `POST /api/goals` | `goals` | Cartão com barra em 0 |
+| Registrar um passo hoje | `PUT …/checkin` | `PUT /api/goals/{id}/steps/{dia}` | `goal_steps` | Barra avança; botão vira "Passo de hoje registrado" |
+| Cartão da meta | Nada | `PATCH /api/goals/{id}` | `goals` | Edição e "Apagar" |
+
+### Fitness
+
+Ação principal: "Registrar peso".
+
+| Botão | Hoje | Rota | Tabela | Retorno |
+|---|---|---|---|---|
+| Registrar peso | Fifones | `PUT /api/weights/{dia}` | `weights` | "Última pesagem" e a lista atualizam |
+| Linha de pesagem | Nada | `PUT` ou `DELETE /api/weights/{dia}` | `weights` | Edição e "Apagar" |
+| Continuar avaliação (voz Gemini) | Fifones | | | **Sai** |
+
+"Retornos registrados" sai junto com a avaliação. Vazio: "Seu gráfico começa com a primeira pesagem."
+
+### Alimentação
+
+Ação principal: "Registrar refeição".
+
+| Botão | Hoje | Rota | Tabela | Retorno |
+|---|---|---|---|---|
+| Registrar refeição | Cria em `entries` | `POST /api/meals` | `meals` | Cartão na lista |
+| Cartão da refeição | Nada | `PATCH /api/meals/{id}` | `meals` | Edição e "Apagar" |
+| Continuar entrevista sobre alimentação | Fifones | | | **Sai** |
+
+Erro próprio: data futura ("Registre uma refeição já realizada.").
+
+### Autoconhecimento
+
+Ação principal: "Registrar meu momento".
+
+| Botão | Hoje | Rota | Tabela | Retorno |
+|---|---|---|---|---|
+| Registrar meu momento | Cria nota | `POST /api/notes` com `kind: reflection` | `notes` | Cartão em "Seus registros" |
+| Cartão | Nada | `PATCH /api/notes/{id}` | `notes` | Edição e "Apagar" |
+| Conversar | Fifones | | | **Sai** |
+| Ver memórias | Navegação | | | Igual |
+
+### Estudos e Biblioteca
+
+Ficam para a fase B7, porque dependem de guardar arquivos (R2). Até lá, a tela mostra "Em breve" e nenhum botão quebrado.
+
+| Botão | Hoje | Rota (B7) | Tabela | Retorno |
+|---|---|---|---|---|
+| Adicionar material | Fifones | `POST /api/documents` | `documents` | Capa na grade |
+| Cartão do material | Fifones | `GET /api/documents/{id}/file` | `documents` | Abre o arquivo |
+| Busca | Filtro local | | | Igual |
+| Abrir professor | Fifones | | | **Sai** |
+
+### Finanças
+
+Ação principal: "Novo lançamento".
+
+| Botão | Hoje | Rota | Tabela | Retorno |
+|---|---|---|---|---|
+| Novo lançamento, "Adicionar entrada ou saída" | Cria em `entries` | `POST /api/transactions` | `transactions` | Linha no topo; os três totais do mês recalculam |
+| Linha do lançamento | Nada | `PATCH /api/transactions/{id}` | `transactions` | Edição e "Apagar" |
+| Minhas planilhas | Fifones | | | **Sai** |
+
+Erro próprio: valor zero ou inválido ("Informe um valor maior que zero."). O campo aceita `1.234,56` e `1234.56`, como `save` já trata.
+
+### Projetos
+
+Ação principal: "Novo projeto".
+
+| Botão | Hoje | Rota | Tabela | Retorno |
+|---|---|---|---|---|
+| Gerenciar projetos, "Abrir meus projetos" | Fifones | `POST /api/projects` (vira "Novo projeto") | `projects` | Cartão novo |
+| Cartão do projeto | Fifones | `GET /api/tasks?project_id=…` | `tasks` | Abre o projeto com as tarefas dele; edição e "Arquivar" |
+
+### Memórias
+
+Ação principal: "Nova memória".
+
+| Botão | Hoje | Rota | Tabela | Retorno |
+|---|---|---|---|---|
+| Nova memória | Cria nota | `POST /api/notes` com `kind: memory` | `notes` | Cartão no topo |
+| Cartão | Nada | `PATCH /api/notes/{id}` | `notes` | Edição e "Apagar" |
+| Memórias e Obsidian | Fifones | | | **Sai** |
+
+A tela mostra as três espécies de nota, com um filtro por tipo.
+
+## Minha cidade (`city.html`)
+
+| Botão | Hoje | Passa a ser |
+|---|---|---|
+| Construir, mover, girar, melhorar, remover | `POST /api/city/actions` | Igual, por usuário (`placements`, `ledger`, `city`, `requests`) |
+| Saldo → histórico de moedas | `history` | Lê o `ledger` |
+| Missões: concluir tarefa | Fifones | `POST /api/tasks/{id}/complete` |
+| Atualizar tarefas e recompensas | `POST /api/rewards/sync` | Só recarrega (`GET /api/city`); a recompensa já foi gravada na ação |
+| Catálogo, filtros, luz do dia, entardecer, girar câmera, vista inicial, ajuda | Local | Igual |
+| Prédios com destino (`/#/hoje`, `/#/tarefas`, …) | Abrem o Fifones | Abrem a área do Cityou (`#/inicio`, `#/tarefas`, `#/agenda`, `#/memorias`, `#/projetos`) |
+| Indicador de escritórios ativos, prédios de IA | Atividade do Fifones | Indicador **sai**; os prédios ficam decorativos (decisão pendente) |
+
+## Mapa-mundo (`world.html`)
+
+| Botão | Hoje | Passa a ser |
+|---|---|---|
+| Tocar num monumento, "Ir", lista de espaços, "Voltar ao mapa" | Local | Igual |
+| Concluir fase (simulação) | Marca o espaço como concluído, sem critério | **Sai**. O servidor abre o próximo espaço ao atingir o marco (decisão pendente) e o globo anima o desbloqueio |
+| Painel de debug (tecla `D` ou `?debug=1`) | Desbloqueia, conclui e reseta | Só em desenvolvimento; no site publicado não existe |
+
+## Botões que saem
+
+Todos dependiam do Fifones: "Falar sobre isso", microfone de voz, "Conversar", "Abrir professor", "Continuar avaliação", "Continuar entrevista sobre alimentação", "Minhas planilhas", "Memórias e Obsidian", "Abrir agenda completa", o diálogo do Fifones e o indicador de escritórios ativos. Voltam se e quando o Cityou tiver essas funções.
