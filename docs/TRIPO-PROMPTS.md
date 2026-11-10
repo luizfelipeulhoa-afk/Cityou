@@ -6,15 +6,20 @@ Estão em inglês, o idioma em que essas ferramentas costumam responder melhor. 
 
 ## Ajustes no Tripo (iguais para todos)
 
+Painel "Geometria e texturas" da interface web (conta sem 8K):
+
 | Ajuste | Valor | Por quê |
 |---|---|---|
-| Limite de faces | o da tabela de cada modelo | a redução feita depois não chega ao orçamento (veja `docs/WORLD-MAP.md`) |
-| Low poly inteligente | ligado, se a sua conta oferecer | malha mais limpa com poucas faces |
-| Textura | ligada, qualidade padrão | o mapa reduz para 1024 px de qualquer forma |
-| Quads | desligado | com quads a exportação sai em FBX, não em GLB |
+| Qualidade de malha Ultra | desligado | com poucas faces o modelo precisa de malha limpa, não de detalhe; se o resultado vier grosseiro, teste ligado numa geração |
+| Textura | ligada | o modelo precisa de cor |
+| Qualidade da textura | 2K | o mapa reduz para 1024 px de qualquer forma; 4K só gasta créditos e peso de arquivo. 8K fica fora |
+| Remover iluminação | ligado | tira a luz e a sombra pintadas na textura; o mapa tem a sua própria luz |
+| PBR | desligado | o visual é pintado e fosco; PBR acrescenta mapas e peso |
+| Topologia | Triângulo | com Quad a exportação sai em FBX, não em GLB |
+| Contagem de polígonos | a da tabela de cada modelo (6.000 a 10.000) | o painel começa em 500; a redução feita depois não chega ao orçamento (veja `docs/WORLD-MAP.md`) |
 | Exportação | GLB | é o formato que o mapa carrega |
 
-Os nomes vêm das notas da API do Tripo (`face_limit`, `smart_low_poly`, `texture`, `quad`); na interface web os rótulos podem ser outros, e não conferi a tela.
+Os rótulos vêm da interface em português; os efeitos de cada ajuste nos créditos não foram conferidos.
 
 **Prompt negativo** (o mesmo nos oito):
 
