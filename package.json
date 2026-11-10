@@ -12,6 +12,7 @@
     "test": "node --test tests/progression.test.mjs tests/world.test.mjs",
     "test:map": "node tools/verify-map-plan.mjs",
     "test:ui": "node tools/personal-playtest.mjs && node tools/browser-playtest.mjs",
+    "test:world": "node tools/world-playtest.mjs",
     "perf:world": "node tools/world-perf.mjs"
   },
   "dependencies": {

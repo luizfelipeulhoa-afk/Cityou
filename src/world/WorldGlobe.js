@@ -7,6 +7,7 @@ import { geometryFromGlobeData } from './terrain.js'
 import { OCEAN_COLOR } from './terrainCore.js'
 import { loadGlobeData } from './terrainClient.js'
 import { DEG, angularDistance, latLonToVector3, slerpDirections, surfaceFrame, surfaceQuaternion } from './geo.js'
+import { WORLD_MODELS_MANIFEST } from './worldSpaces.js'
 
 export const GLOBE_RADIUS = 5
 const GLOBE_DETAIL = 28
@@ -410,6 +411,18 @@ if (diffuseColor.a < 0.02) discard;`)
     gsap.from(marker.vis, { pop: 0.001, duration: 0.55 / this.timeScale, ease: 'back.out(1.7)' })
   }
 
+  async readManifest() {
+    try {
+      const response = await fetch(WORLD_MODELS_MANIFEST, { cache: 'no-cache' })
+      if (!response.ok || !(response.headers.get('content-type') || '').includes('json')) return null
+      const ids = await response.json()
+      return Array.isArray(ids) ? ids : null
+    }
+    catch {
+      return null
+    }
+  }
+
   /** Ordem de carga dos modelos: o espaço atual, os seguintes e depois os anteriores. */
   loadOrder() {
     const list = this.orderedMarkers()
@@ -420,8 +433,9 @@ if (diffuseColor.a < 0.02) discard;`)
   async loadModels() {
     const t0 = performance.now()
     const order = this.loadOrder()
-    // Uma ida e volta: as 8 sondagens saem juntas.
-    const available = await Promise.all(order.map(marker => marker.probe()))
+    // Uma requisição: o manifesto diz quais GLB existem. Sem manifesto, sonda os 8 em paralelo.
+    const listed = await this.readManifest()
+    const available = listed ? order.map(marker => listed.includes(marker.id)) : await Promise.all(order.map(marker => marker.probe()))
     if (this.disposed) return
     measure('world:model-probe', t0)
     const found = order.filter((marker, i) => available[i])

@@ -7,7 +7,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { method = 'GET', body, retry = false } = {}) {
+async function request(path, { method = 'GET', body, retry = false, keepalive = false } = {}) {
   let lastError
   for (let attempt = 0; attempt < (retry ? 2 : 1); attempt++) {
     const controller = new AbortController()
@@ -17,6 +17,7 @@ async function request(path, { method = 'GET', body, retry = false } = {}) {
         method,
         signal: controller.signal,
         cache: 'no-store',
+        keepalive,
         headers: { Accept: 'application/json', ...(method !== 'GET' ? { 'Content-Type': 'application/json', 'X-Fifones-City': '1' } : {}) },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       })
@@ -47,3 +48,6 @@ export const cityAction = action => request('/api/city/actions', {
   body: { ...action, request_id: action.request_id || crypto.randomUUID() },
   retry: true,
 })
+export const loadWorldProgress = () => request('/api/world/progress')
+// O servidor junta o progresso enviado ao guardado e devolve o resultado (idempotente).
+export const saveWorldProgress = (progress, { keepalive = false } = {}) => request('/api/world/progress', { method: 'PUT', body: progress, keepalive })

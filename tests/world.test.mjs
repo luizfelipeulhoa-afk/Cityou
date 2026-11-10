@@ -5,9 +5,12 @@ import { WORLD_SPACES, SPACE_ORDER, latLonToVector3, previousSpace } from '../sr
 import { vector3ToLatLon, surfaceQuaternion } from '../src/world/geo.js'
 import { isLand, buildGlobeGeometry } from '../src/world/terrain.js'
 import {
-  applyProgress, complete, completeSpace, currentSpaceId, initialProgress, loadProgress,
-  normalizeProgress, reset, unlock, unlockSpace, PROGRESS_STORAGE_KEY,
+  applyProgress, complete, completeSpace, currentSpaceId, initialProgress, loadProgress, mergeProgress,
+  normalizeProgress, reset, resetProgress, sameProgress, unlock, unlockSpace, PROGRESS_STORAGE_KEY,
 } from '../src/world/progress.js'
+import { createProgressSync, hasLocalBackend } from '../src/world/progressSync.js'
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 function fakeStorage() {
   const data = new Map()
@@ -93,6 +96,71 @@ test('progresso salvo em localStorage com unlock/complete/reset', () => {
   assert.deepEqual(loadProgress(storage).concluidos, ['ilha-inicial'])
   storage.setItem(PROGRESS_STORAGE_KEY, '{quebrado')
   assert.deepEqual(loadProgress(storage), initialProgress())
-  assert.deepEqual(reset(storage), initialProgress())
-  assert.equal(storage.getItem(PROGRESS_STORAGE_KEY), null)
+  complete('ilha-inicial', storage)
+  // O reset recomeça numa época nova, para o progresso antigo não voltar na sincronização.
+  assert.deepEqual(reset(storage), { ...initialProgress(), epoca: 1 })
+  assert.deepEqual(loadProgress(storage), { ...initialProgress(), epoca: 1 })
+})
+
+test('fusão de progresso: união na mesma época, o mais novo vence entre épocas', () => {
+  const a = completeSpace(initialProgress(), 'ilha-inicial')
+  const b = unlockSpace(initialProgress(), 'petra')
+  const merged = mergeProgress(a, b)
+  assert.deepEqual(merged.desbloqueados, ['ilha-inicial', 'cristo-redentor', 'petra'])
+  assert.deepEqual(merged.concluidos, ['ilha-inicial'])
+  assert.ok(sameProgress(mergeProgress(b, a), merged))
+  const wiped = resetProgress(a)
+  assert.deepEqual(wiped, { ...initialProgress(), epoca: 1 })
+  assert.ok(sameProgress(mergeProgress(a, wiped), wiped))
+  assert.ok(sameProgress(mergeProgress(wiped, a), wiped))
+  assert.equal(completeSpace(wiped, 'ilha-inicial').epoca, 1)
+})
+
+test('sincronização local-first: envia o local, recebe o fundido e não repete à toa', async () => {
+  let local = completeSpace(initialProgress(), 'ilha-inicial')
+  let server = unlockSpace(initialProgress(), 'petra')
+  const calls = []
+  const sync = createProgressSync({
+    getProgress: () => local,
+    applyProgress: (p) => { local = p },
+    save: async (p) => { calls.push(p); server = mergeProgress(server, p); return { ...server, atualizado_em: 'agora' } },
+    debounceMs: 0,
+  })
+  sync.start()
+  await wait(30)
+  assert.equal(calls.length, 1)
+  assert.ok(local.desbloqueados.includes('petra'), 'o avanço do servidor chegou ao navegador')
+  assert.ok(server.concluidos.includes('ilha-inicial'), 'o avanço local chegou ao servidor')
+  sync.push()
+  await wait(30)
+  assert.equal(calls.length, 1, 'sem mudança, sem requisição')
+  local = completeSpace(local, 'cristo-redentor')
+  sync.push()
+  await wait(30)
+  assert.equal(calls.length, 2)
+  assert.ok(sameProgress(local, server))
+  sync.stop()
+})
+
+test('sincronização: sem backend desliga em silêncio; reset em outro aparelho vence', async () => {
+  const statuses = []
+  let local = initialProgress()
+  const offline = createProgressSync({
+    getProgress: () => local, applyProgress: () => {}, debounceMs: 0, onStatus: s => statuses.push(s),
+    save: async () => { throw Object.assign(new Error('não existe'), { status: 404 }) },
+  })
+  assert.equal(hasLocalBackend('127.0.0.1'), true)
+  assert.equal(hasLocalBackend('cityou.example.com'), false)
+  offline.start()
+  await wait(30)
+  assert.equal(offline.state.available, false)
+  assert.equal(statuses.at(-1), 'local')
+
+  local = completeSpace(initialProgress(), 'ilha-inicial')
+  const newer = { ...initialProgress(), epoca: 3 }
+  const sync = createProgressSync({ getProgress: () => local, applyProgress: (p) => { local = p }, save: async () => newer, debounceMs: 0 })
+  sync.start()
+  await wait(30)
+  assert.deepEqual(local, newer)
+  sync.stop()
 })

@@ -1,13 +1,26 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import WorldMap from '@/components/WorldMap.vue'
 import { WORLD_SPACES, findSpace } from '@/world/worldSpaces.js'
 import { applyProgress, completeSpace, loadProgress, saveProgress } from '@/world/progress.js'
+import { createProgressSync, hasLocalBackend } from '@/world/progressSync.js'
 
-// Página de demonstração: o progresso vive aqui (localStorage) e desce por props.
-// Num app real, troque loadProgress/saveProgress pela API do backend.
+// O progresso vive aqui e desce por props. A tela usa o localStorage na hora;
+// a cópia no backend (FastAPI) é sincronizada em segundo plano e nunca bloqueia.
+// O backend só aceita acesso local, então no site publicado não há sincronização (nem requisições).
 const progress = ref(loadProgress())
-watch(progress, p => saveProgress(p), { deep: true })
+const syncStatus = ref('local')
+const sync = hasLocalBackend()
+  ? createProgressSync({
+      getProgress: () => progress.value,
+      applyProgress: (merged) => { progress.value = merged },
+      onStatus: (status) => { syncStatus.value = status },
+    })
+  : null
+watch(progress, (p) => { saveProgress(p); sync?.push() }, { deep: true })
+const onPageHide = () => sync?.flushOnExit()
+onMounted(() => { sync?.start(); window.addEventListener('pagehide', onPageHide) })
+onBeforeUnmount(() => { window.removeEventListener('pagehide', onPageHide); sync?.stop() })
 
 const spaces = computed(() => applyProgress(WORLD_SPACES, progress.value))
 const done = computed(() => spaces.value.filter(s => s.concluido).length)

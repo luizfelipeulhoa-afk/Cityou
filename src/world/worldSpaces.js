@@ -6,6 +6,8 @@
 export { latLonToVector3 } from './geo.js'
 
 export const WORLD_MODELS_DIR = '/models/world'
+// Lista dos GLB existentes, gerada por tools/world-models-manifest.mjs (o Vite mantém em dia).
+export const WORLD_MODELS_MANIFEST = `${WORLD_MODELS_DIR}/manifest.json`
 
 function space(data) {
   return {

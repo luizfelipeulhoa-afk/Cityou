@@ -11,3 +11,8 @@
 # Modelos do mapa-mundo não têm hash no nome: uma hora de cache e revalidação em segundo plano.
 /models/world/*
   Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+
+# A lista de modelos precisa estar sempre em dia.
+/models/world/manifest.json
+  ! Cache-Control
+  Cache-Control: no-cache

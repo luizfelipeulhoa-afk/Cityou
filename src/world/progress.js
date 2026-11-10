@@ -1,7 +1,8 @@
 // Progresso do mapa-mundo, salvo em localStorage.
-// Formato: { versao: 1, desbloqueados: string[], concluidos: string[] }
+// Formato: { versao: 1, epoca: number, desbloqueados: string[], concluidos: string[] }
 // Regras: o primeiro espaço está sempre desbloqueado; concluir N desbloqueia N+1;
 // concluído implica desbloqueado. As funções puras não tocam em armazenamento.
+// `epoca` conta os resets: ao juntar dois progressos de épocas diferentes, vence o mais novo.
 import { SPACE_ORDER } from './worldSpaces.js'
 
 export const PROGRESS_STORAGE_KEY = 'buildu:world-progress:v1'
@@ -25,14 +26,15 @@ function defaultStorage() {
 }
 
 export function initialProgress(order = SPACE_ORDER) {
-  return { versao: 1, desbloqueados: order.slice(0, 1), concluidos: [] }
+  return { versao: 1, epoca: 0, desbloqueados: order.slice(0, 1), concluidos: [] }
 }
 
 export function normalizeProgress(raw, order = SPACE_ORDER) {
   const list = value => (Array.isArray(value) ? value : [])
   const concluidos = order.filter(id => list(raw?.concluidos).includes(id))
   const desbloqueados = order.filter((id, i) => i === 0 || list(raw?.desbloqueados).includes(id) || concluidos.includes(id))
-  return { versao: 1, desbloqueados, concluidos }
+  const epoca = Number.isInteger(raw?.epoca) && raw.epoca > 0 ? raw.epoca : 0
+  return { versao: 1, epoca, desbloqueados, concluidos }
 }
 
 export function unlockSpace(progress, id, order = SPACE_ORDER) {
@@ -47,9 +49,31 @@ export function completeSpace(progress, id, order = SPACE_ORDER) {
   if (i < 0) return p
   const next = order[i + 1]
   return normalizeProgress({
+    epoca: p.epoca,
     desbloqueados: [...p.desbloqueados, id, ...(next ? [next] : [])],
     concluidos: [...p.concluidos, id],
   }, order)
+}
+
+/** Recomeça do zero numa época nova, para o progresso antigo não voltar de outro aparelho ou do servidor. */
+export function resetProgress(progress, order = SPACE_ORDER) {
+  return { ...initialProgress(order), epoca: normalizeProgress(progress, order).epoca + 1 }
+}
+
+/** Junta dois progressos. Na mesma época é uma união (só avança); em épocas diferentes vence o mais novo. */
+export function mergeProgress(a, b, order = SPACE_ORDER) {
+  const x = normalizeProgress(a, order), y = normalizeProgress(b, order)
+  if (x.epoca !== y.epoca) return x.epoca > y.epoca ? x : y
+  return normalizeProgress({
+    epoca: x.epoca,
+    desbloqueados: [...x.desbloqueados, ...y.desbloqueados],
+    concluidos: [...x.concluidos, ...y.concluidos],
+  }, order)
+}
+
+export function sameProgress(a, b, order = SPACE_ORDER) {
+  const x = normalizeProgress(a, order), y = normalizeProgress(b, order)
+  return x.epoca === y.epoca && x.desbloqueados.join() === y.desbloqueados.join() && x.concluidos.join() === y.concluidos.join()
 }
 
 /** Espaços com os campos `desbloqueado` e `concluido` preenchidos pelo progresso. */
@@ -90,7 +114,5 @@ export function complete(id, storage = defaultStorage()) {
 }
 
 export function reset(storage = defaultStorage()) {
-  try { storage.removeItem(PROGRESS_STORAGE_KEY) }
-  catch { /* Nada a limpar. */ }
-  return initialProgress()
+  return saveProgress(resetProgress(loadProgress(storage)), storage)
 }

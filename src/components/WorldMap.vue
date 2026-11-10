@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import WorldGlobe from '@/world/WorldGlobe.js'
 import { WORLD_SPACES } from '@/world/worldSpaces.js'
-import { applyProgress, completeSpace, currentSpaceId, initialProgress, normalizeProgress, unlockSpace } from '@/world/progress.js'
+import { applyProgress, completeSpace, currentSpaceId, initialProgress, normalizeProgress, resetProgress, unlockSpace } from '@/world/progress.js'
 
 const props = defineProps({
   /** { desbloqueados: string[], concluidos: string[] } — use v-model:progress para o debug salvar. */
@@ -149,7 +149,7 @@ function commit(next) {
 }
 const debugUnlock = id => commit(unlockSpace(localProgress.value, id, order.value))
 const debugComplete = id => commit(completeSpace(localProgress.value, id, order.value))
-const debugReset = () => { hideTooltip(); commit(initialProgress(order.value)) }
+const debugReset = () => { hideTooltip(); commit(resetProgress(localProgress.value, order.value)) }
 const debugCompleteCurrent = () => debugComplete(currentId.value)
 const debugReplay = id => globe.value?.replayUnlock(id)
 const focus = id => globe.value?.focusSpace(id)

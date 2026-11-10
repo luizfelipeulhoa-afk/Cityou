@@ -9,6 +9,7 @@
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { WORLD_MODELS_DIR, writeWorldManifest } from './world-models-manifest.mjs'
 
 const args = process.argv.slice(2)
 const flag = (name, fallback) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args.splice(i, 2)[1] : fallback }
@@ -26,4 +27,5 @@ const run = spawnSync('npx', ['--yes', '@gltf-transform/cli@4', 'optimize', path
 if (run.status !== 0) process.exit(run.status ?? 1)
 const kb = file => Math.round(fs.statSync(file).size / 1024)
 console.log(`\n${path.basename(input)}: ${kb(input)} KB → ${path.relative('.', output)}: ${kb(output)} KB`)
+if (outDir === WORLD_MODELS_DIR) writeWorldManifest()
 console.log('Confira com: node tools/check-world-models.mjs')
