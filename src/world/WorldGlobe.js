@@ -15,6 +15,10 @@ const MAX_SPACES = 8
 const PITCH_MAX = 28 * DEG // inclinação da câmera quando bem perto da superfície
 const NOOP = () => {}
 
+// Marcas de tempo (User Timing) lidas por tools/world-perf.mjs.
+const mark = (name) => { try { performance.mark(name) } catch { /* sem Performance API */ } }
+const measure = (name, start) => { try { performance.measure(name, { start, end: performance.now() }) } catch { /* idem */ } }
+
 function mulberry32(seed) {
   return () => {
     seed |= 0
@@ -161,11 +165,15 @@ export default class WorldGlobe {
     this.loader = new GLTFLoader()
     this.loader.setMeshoptDecoder(MeshoptDecoder)
 
+    const t0 = performance.now()
     this.buildGlobe()
+    measure('world:terrain', t0)
     this.buildAtmosphere()
     this.buildClouds()
     this.buildStars()
+    const t1 = performance.now()
     this.buildMarkers()
+    measure('world:markers', t1)
     this.trail = new DottedArc(this.R, { color: '#ffffff', dotRadius: this.R * 0.0065, opacity: 0.55, spacing: this.R * 0.034 })
     this.activePath = new DottedArc(this.R, { color: '#ffe08a', dotRadius: this.R * 0.008, opacity: 0.95, spacing: this.R * 0.03 })
     this.scene.add(this.trail.mesh, this.activePath.mesh)
@@ -371,6 +379,7 @@ if (diffuseColor.a < 0.02) discard;`)
   }
 
   async loadModels() {
+    const t0 = performance.now()
     for (const marker of this.markers.values()) {
       const ok = await marker.loadModel(this.loader)
       if (this.disposed) return
@@ -381,6 +390,7 @@ if (diffuseColor.a < 0.02) discard;`)
       }
       this.callbacks.onModel({ id: marker.id, source: marker.modelSource })
     }
+    measure('world:model-probe', t0)
   }
 
   setupControls() {
@@ -773,6 +783,7 @@ if (diffuseColor.a < 0.02) discard;`)
     }
 
     this.renderer.render(this.scene, this.camera)
+    if (!this.firstFrameMarked) { this.firstFrameMarked = true; mark('world:first-frame') }
     this.measure(dt)
   }
 
