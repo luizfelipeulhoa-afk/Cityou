@@ -11,7 +11,7 @@ Em sessão na nuvem: `CITYOU_CHROME=/opt/pw-browsers/chromium npm run perf:world
 | Bloqueio da thread principal na abertura | 2.767 ms | 594 ms | 4,7x |
 | Maior tarefa longa | 2.160 ms | 255 ms | 8,5x |
 | Geração do terreno na thread principal | 802 ms | 0 (Web Worker) | |
-| Maior passo de JavaScript depois do primeiro quadro | 1.281 ms (terreno + marcadores, num bloco só) | 105 ms | 12x |
+| Maior passo de JavaScript na montagem do globo | 1.281 ms (terreno + marcadores num bloco só, antes do primeiro quadro) | 105 ms (depois do primeiro quadro) | 12x |
 | Sondagem dos 8 GLB | 1.903 ms (em série) | 331 ms (em paralelo) | 5,7x |
 | Requisições na abertura | 15 | 16 (o Worker) | |
 | JavaScript transferido (gzip) | 249 KB | 241 KB | |

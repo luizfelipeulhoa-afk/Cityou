@@ -11,7 +11,7 @@ const props = defineProps({
   /** Abre o painel de debug (também abre com a tecla D ou ?debug=1). */
   debug: { type: Boolean, default: false },
 })
-const emit = defineEmits(['open-world', 'update:progress', 'locked', 'ready'])
+const emit = defineEmits(['open-world', 'select', 'update:progress', 'locked', 'ready'])
 
 const root = ref(null)
 const canvas = ref(null)
@@ -77,12 +77,14 @@ const callbacks = {
   onTap(hit) {
     if (!hit) { hideTooltip(); return }
     const { space, locked, previous } = hit
+    try { navigator.vibrate?.(locked ? [10, 50, 10] : 12) } catch { /* sem vibração neste aparelho */ }
     if (locked) {
       const text = previous ? `Complete ${previous.nome} para desbloquear` : 'Ainda bloqueado'
       showTooltip({ id: space.id, title: space.nome, text, kind: 'locked', ms: 2800, sticky: true })
       emit('locked', { id: space.id, previousId: previous?.id || null })
     }
     else {
+      emit('select', space.id) // imediato; `open-world` vem quando a câmera termina de focar
       showTooltip({ id: space.id, title: space.nome, text: space.concluido ? 'Concluído ★' : 'Abrindo…', kind: 'open', ms: 1800, sticky: true })
     }
   },

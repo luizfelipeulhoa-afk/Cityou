@@ -132,6 +132,7 @@ export default class WorldGlobe {
     this.tmp2 = new THREE.Vector3()
     this.overviewDistance = this.R * 3.2
     this.focusDistance = this.R * 1.9
+    this.viewportHeight = 600
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' })
     this.pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75)
@@ -175,7 +176,10 @@ export default class WorldGlobe {
     this.placeCameraAt(this.currentSpaceId(), this.overviewDistance)
     this.scene.updateMatrixWorld(true)
     this.clock = new THREE.Clock()
-    this.renderer.setAnimationLoop(() => this.tick())
+    // Um relógio só: o GSAP atualiza os tweens e chama o tick em seguida, então cada
+    // quadro já sai com a animação daquele instante (dois rAF separados podiam atrasar um quadro).
+    this.tickBound = () => this.tick()
+    gsap.ticker.add(this.tickBound)
     this.ready = this.init().catch(error => console.error('[BuildU] falha ao montar o globo', error))
   }
 
@@ -752,8 +756,16 @@ if (diffuseColor.a < 0.02) discard;`)
     if (!hits.length) return null
     const globeHit = this.raycaster.ray.intersectSphere(this.occluder, this.tmp)
     const globeDistance = globeHit ? globeHit.distanceTo(this.raycaster.ray.origin) : Infinity
-    const hit = hits.find(h => h.distance < globeDistance)
-    return hit ? this.markers.get(hit.object.userData.spaceId) : null
+    // Alvos ampliados podem se sobrepor na tela: vence o marcador cujo centro está mais perto do toque.
+    let best = null, bestDistance = Infinity
+    for (const hit of hits) {
+      if (hit.distance >= globeDistance) continue
+      const marker = this.markers.get(hit.object.userData.spaceId)
+      const p = marker.root.localToWorld(this.tmp2.set(0, marker.modelHeight / 2, 0)).project(this.camera)
+      const d = Math.hypot((p.x + 1) / 2 * rect.width + rect.left - clientX, (1 - p.y) / 2 * rect.height + rect.top - clientY)
+      if (d < bestDistance) { bestDistance = d; best = marker }
+    }
+    return best
   }
 
   handleTap(clientX, clientY) {
@@ -767,6 +779,7 @@ if (diffuseColor.a < 0.02) discard;`)
     const m = this.markers.get(id)
     if (!m) return
     const space = this.spaceInfo(m)
+    m.press() // resposta visível já no próximo quadro, antes de a câmera se mover
     if (m.state.desbloqueado) {
       this.focusedId = id
       this.callbacks.onTap({ space, locked: false })
@@ -810,6 +823,7 @@ if (diffuseColor.a < 0.02) discard;`)
     const w = el.clientWidth, h = el.clientHeight
     if (!w || !h) return
     this.renderer.setSize(w, h, false)
+    this.viewportHeight = h
     this.camera.aspect = w / h
     this.camera.fov = this.camera.aspect < 0.8 ? 46 : 35
     this.camera.updateProjectionMatrix()
@@ -855,7 +869,14 @@ if (diffuseColor.a < 0.02) discard;`)
     }
     this.stars.rotation.y += dt * 0.002
 
-    for (const m of this.markers.values()) m.update(t, dt)
+    const pxPerUnit = this.viewportHeight / (2 * Math.tan(this.camera.fov * DEG / 2))
+    for (const m of this.markers.values()) {
+      m.update(t, dt)
+      // Alvo de toque com pelo menos 44 px na tela, em qualquer zoom.
+      const px = m.proxyRadius * 2 * pxPerUnit / this.camera.position.distanceTo(m.root.position)
+      const k = THREE.MathUtils.clamp(44 / px, 1, 3)
+      m.hitProxy.scale.set(k, Math.min(k, 1.5), k)
+    }
     this.pathPhase = (this.pathPhase + dt * 1.4) % 1
     this.activePath.update(this.pathPhase)
 
@@ -892,7 +913,7 @@ if (diffuseColor.a < 0.02) discard;`)
   dispose() {
     if (this.disposed) return
     this.disposed = true
-    this.renderer.setAnimationLoop(null)
+    gsap.ticker.remove(this.tickBound)
     this.cancelFly()
     for (const b of this.globeUniforms.uBloom.value) gsap.killTweensOf(b)
     const canvas = this.canvas

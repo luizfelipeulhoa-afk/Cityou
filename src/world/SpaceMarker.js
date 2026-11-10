@@ -538,6 +538,7 @@ totalEmissiveRadiance += uGlowColor * uGlow;`)
 
   updateProxy() {
     const s = this.size
+    this.proxyRadius = s * 0.72
     const h = (this.modelHeight || s) + s * 0.55
     const geo = new THREE.CylinderGeometry(s * 0.72, s * 0.72, h, 8)
     geo.translate(0, h / 2, 0)
@@ -611,6 +612,12 @@ totalEmissiveRadiance += uGlowColor * uGlow;`)
       tl.timeScale(timeScale)
       this.timeline = tl
     })
+  }
+
+  /** Resposta imediata ao toque: um pulso curto, já visível no quadro seguinte. */
+  press() {
+    gsap.killTweensOf(this.vis, 'pop,flash')
+    gsap.fromTo(this.vis, { pop: 0.9, flash: 0.35 }, { pop: 1, flash: 0, duration: 0.45, ease: 'back.out(3)' })
   }
 
   /** "Não" balançando o cadeado ao tocar num espaço bloqueado. */
