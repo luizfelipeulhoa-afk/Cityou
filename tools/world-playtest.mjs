@@ -97,12 +97,14 @@ try {
 
   // 6. Celular: toque e alvos de pelo menos 44 px
   const m = await open({ ...devices['Pixel 7'] })
-  const targets = await m.page.evaluate(() => {
+  // Os alvos são ajustados a cada quadro: espera a condição em vez de medir uma única vez.
+  const measure = () => {
     const g = window.__buildUWorld
     const pxPerUnit = g.viewportHeight / (2 * Math.tan(g.camera.fov * Math.PI / 360))
     return [...g.markers.values()].map(k => k.proxyRadius * 2 * k.hitProxy.scale.x * pxPerUnit / g.camera.position.distanceTo(k.root.position))
-  })
-  assert.ok(targets.every(px => px >= 43.5), `alvos de toque: ${targets.map(Math.round).join(', ')}`)
+  }
+  await m.page.waitForFunction(`(${measure})().every(px => px >= 43.5)`, null, { timeout: 15000 })
+    .catch(async () => assert.fail(`alvos de toque abaixo de 44 px: ${(await m.page.evaluate(measure)).map(Math.round).join(', ')}`))
   await tap(m.page, 'ilha-inicial', true)
   await m.page.waitForSelector('.world-app__sheet')
   results.push('no celular os 8 alvos têm 44 px e o toque abre o painel')

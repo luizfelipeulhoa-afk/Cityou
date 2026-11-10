@@ -11,7 +11,7 @@ const props = defineProps({
   /** Abre o painel de debug (também abre com a tecla D ou ?debug=1). */
   debug: { type: Boolean, default: false },
 })
-const emit = defineEmits(['open-world', 'select', 'update:progress', 'locked', 'ready'])
+const emit = defineEmits(['open-world', 'select', 'interact', 'update:progress', 'locked', 'ready'])
 
 const root = ref(null)
 const canvas = ref(null)
@@ -104,6 +104,7 @@ const callbacks = {
   },
   onInteract() {
     if (tooltip.sticky) hideTooltip()
+    emit('interact')
   },
   onCinematic(on) { cinematic.value = on },
   onUnlocked(space) { showBanner('✦', `${space.nome} desbloqueado!`) },
@@ -156,7 +157,7 @@ const focus = id => globe.value?.focusSpace(id)
 const overview = () => globe.value?.resetView()
 const activate = id => globe.value?.activate(id)
 
-defineExpose({ focusSpace: focus, resetView: overview })
+defineExpose({ focusSpace: focus, resetView: overview, activateSpace: activate })
 </script>
 
 <template>
@@ -411,6 +412,7 @@ defineExpose({ focusSpace: focus, resetView: overview })
   cursor: pointer;
 }
 .world-map__debug button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+.world-map__debug button:focus-visible { outline: 2px solid #ffd166; outline-offset: 1px; }
 .world-map__debug button:disabled { opacity: 0.35; cursor: default; }
 .world-map__debug button.is-primary { background: #ffd166; color: #2b1d00; border-color: transparent; font-weight: 700; }
 .world-map__debug button.is-danger { color: #ff9aa5; }
