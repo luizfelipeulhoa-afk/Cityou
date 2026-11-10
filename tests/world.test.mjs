@@ -9,6 +9,7 @@ import {
   normalizeProgress, reset, resetProgress, sameProgress, unlock, unlockSpace, PROGRESS_STORAGE_KEY,
 } from '../src/world/progress.js'
 import { createProgressSync, hasLocalBackend } from '../src/world/progressSync.js'
+import { buildPlaceholder, MONUMENT_KINDS } from '../src/world/monuments.js'
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -163,4 +164,17 @@ test('sincronização: sem backend desliga em silêncio; reset em outro aparelho
   await wait(30)
   assert.deepEqual(local, newer)
   sync.stop()
+})
+
+test('monumentos em código: um por espaço, com a base em Y=0 e dentro do orçamento de triângulos', () => {
+  for (const s of WORLD_SPACES) assert.ok(MONUMENT_KINDS.includes(s.placeholder), `${s.id} sem monumento '${s.placeholder}'`)
+  for (const kind of MONUMENT_KINDS) {
+    const model = buildPlaceholder(kind)
+    const box = new THREE.Box3().setFromObject(model)
+    let tris = 0
+    model.traverse(o => { if (o.isMesh) tris += o.geometry.attributes.position.count / 3 })
+    assert.ok(tris > 200 && tris <= 4000, `${kind}: ${tris} triângulos`)
+    assert.ok(Math.abs(box.min.y) < 0.02, `${kind}: base em Y=${box.min.y}`)
+    assert.ok(box.max.y > 0.4 && Math.max(box.max.x - box.min.x, box.max.z - box.min.z) < 1.2, `${kind}: tamanho fora do esperado`)
+  }
 })

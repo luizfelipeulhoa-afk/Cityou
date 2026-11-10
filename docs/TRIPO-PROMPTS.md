@@ -4,6 +4,8 @@ Escritos com a skill **prompt-master** (`.claude/skills/prompt-master`), na rota
 
 Estão em inglês, o idioma em que essas ferramentas costumam responder melhor. Cole um prompt por geração.
 
+> **Situação atual:** só a Ilha Inicial usa um modelo do Tripo. Os outros sete monumentos são feitos em código (`src/world/monuments.js`) porque, em teste com o Cristo Redentor (5,7 mil faces), o Tripo devolveu malha mole e textura borrada. Os prompts abaixo continuam válidos para quem quiser tentar um GLB de substituição (ele tem prioridade sobre o monumento em código); para melhores resultados, use um limite de faces de 12 a 15 mil e imagem-para-3D a partir de uma imagem de referência no estilo.
+
 ## Ajustes no Tripo (iguais para todos)
 
 Painel "Geometria e texturas" da interface web (conta sem 8K):
