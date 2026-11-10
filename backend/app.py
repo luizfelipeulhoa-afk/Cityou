@@ -579,6 +579,8 @@ def create_app(*, data_dir: str | Path | None = None, upstream_url: str | None =
 
     from .personal import register as register_personal
     register_personal(application, Path(data_dir or os.environ.get('CITY_DATA_DIR', str(ROOT / 'data'))).resolve(), clock)
+    from .world import register as register_world
+    register_world(application, Path(data_dir or os.environ.get('CITY_DATA_DIR', str(ROOT / 'data'))).resolve(), clock)
 
     # Keep APIs above mounts. A missing build never falls back to the old app.
     @application.get('/')

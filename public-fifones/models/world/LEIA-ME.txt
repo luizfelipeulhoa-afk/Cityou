@@ -1,0 +1,16 @@
+Modelos do mapa-mundo do BuildU.
+
+Coloque aqui os GLB exportados do Tripo, com estes nomes:
+
+  ilha-inicial.glb
+  cristo-redentor.glb
+  machu-picchu.glb
+  chichen-itza.glb
+  coliseu.glb
+  petra.glb
+  taj-mahal.glb
+  grande-muralha.glb
+
+Frente para +Z, +Y para cima, base em Y=0. A escala é normalizada automaticamente.
+Enquanto um arquivo não existir, o mapa mostra um placeholder low poly.
+Detalhes e limites de polígonos: docs/WORLD-MAP.md

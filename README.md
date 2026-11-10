@@ -13,6 +13,7 @@ Organize sua vida e transforme progresso real em uma cidade sua, inspirada no Ri
 - Moedas por conclusões verificadas na fonte Fifones conectada; nenhuma renda automática por tempo aberto.
 - Prédios GLB, LEDs e logos que reagem aos sinais disponíveis de atividade; ausência de sinal não é tratada como trabalho real.
 - Planta interativa com 64 lotes em seis bairros: seleção, dimensões, rotação, teste de encaixe, rascunho local e exportação.
+- Mapa-mundo BuildU: globo low poly com 8 espaços desbloqueados em sequência (ilha inicial + sete maravilhas), progresso em localStorage e modo debug. Veja [docs/WORLD-MAP.md](docs/WORLD-MAP.md).
 
 ## Executar no computador
 
@@ -33,6 +34,7 @@ Abra:
 - Painel pessoal: http://127.0.0.1:8766/
 - Cidade jogável: http://127.0.0.1:8766/city.html
 - Proposta do mapa: http://127.0.0.1:8766/mapa-cityou/
+- Mapa-mundo BuildU: http://127.0.0.1:8766/world.html (debug: `?debug=1` ou tecla D)
 
 No Linux/macOS, use `.venv/bin/python` no lugar do caminho Windows.
 

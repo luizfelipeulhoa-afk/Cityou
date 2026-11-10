@@ -9,9 +9,11 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 5177",
     "start": "python -m backend",
-    "test": "node --test tests/progression.test.mjs",
+    "test": "node --test tests/progression.test.mjs tests/world.test.mjs",
     "test:map": "node tools/verify-map-plan.mjs",
-    "test:ui": "node tools/personal-playtest.mjs && node tools/browser-playtest.mjs"
+    "test:ui": "node tools/personal-playtest.mjs && node tools/browser-playtest.mjs",
+    "test:world": "node tools/world-playtest.mjs",
+    "perf:world": "node tools/world-perf.mjs"
   },
   "dependencies": {
     "vue": "^3.5.22",
