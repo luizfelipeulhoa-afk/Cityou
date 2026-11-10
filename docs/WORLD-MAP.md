@@ -25,7 +25,8 @@ Testes: `npm test` (progresso, lat/lon, terra/mar, geometria do globo).
 | `src/world/continents.js` | Contornos simplificados dos continentes, mares interiores, cordilheiras e zonas de bioma (em lon/lat). |
 | `src/world/geo.js` | `latLonToVector3(lat, lon, raio)` e a orientação na superfície (`surfaceQuaternion`). |
 | `src/world/worldSpaces.js` | Dados dos 8 espaços `{ id, nome, lat, lon, glbPath, desbloqueado, concluido, ... }`. |
-| `src/world/SpaceMarker.js` | Marcador: carrega o GLB (ou placeholder), normaliza a escala e cuida dos estados e animações de cada espaço. |
+| `src/world/SpaceMarker.js` | Marcador: carrega o GLB (ou o monumento em código), normaliza a escala e cuida dos estados e animações de cada espaço. |
+| `src/world/monuments.js` | Os 8 monumentos low poly construídos em código (caixas, cilindros, cones), nítidos, de 300 a 2.500 triângulos e poucos KB. |
 | `src/world/progress.js` | Progresso em `localStorage` (`unlock`, `complete`, `reset`, mais funções puras de fusão). |
 | `src/world/progressSync.js` | Sincronização local-first com o backend. |
 | `backend/world.py` | `GET` e `PUT /api/world/progress` (SQLite). |
@@ -56,22 +57,28 @@ const abrirFase = id => { /* navegar para a fase `id` */ }
 
 As animações saem da diferença entre o progresso anterior e o novo, venha a mudança do debug, do backend ou de `completeSpace`. Concluir N toca a estrela e o florescer em N, depois o desbloqueio de N+1 (feixe de luz, partículas, câmera girando até lá).
 
-## Modelos para gerar no Tripo
+## Monumentos em código e modelos do Tripo
+
+Cada espaço tem um monumento feito em código (`src/world/monuments.js`). Ele aparece sempre que não há GLB e é o visual final dos monumentos geométricos: Cristo Redentor, Machu Picchu, Chichén Itzá, Coliseu, Petra, Taj Mahal e Grande Muralha. A razão: o Tripo, com 6 mil faces, entrega malha mole e textura borrada (testado com o Cristo), enquanto formas geométricas em código saem facetadas e nítidas, no estilo do globo, sem gastar crédito. A Ilha Inicial usa o modelo do Tripo (`ilha-inicial.glb`), que ficou bom por ser uma forma orgânica.
+
+Se um GLB com o id do espaço existir em `public-fifones/models/world/`, ele tem prioridade sobre o monumento em código. Para voltar ao monumento em código, apague o GLB e rode `node tools/world-models-manifest.mjs`.
+
+## Modelos para gerar no Tripo (opcional)
 
 Salve em `public-fifones/models/world/` (servido em `/models/world/`). Nome do arquivo = `id` do espaço.
 
 | # | Arquivo | O que modelar | Triângulos (máx.) |
 | --- | --- | --- | --- |
 | 1 | `ilha-inicial.glb` | Ilhota de areia clara com 2–3 coqueiros e pedras, sobre um disco/hexágono raso de água turquesa | 6.000 |
-| 2 | `cristo-redentor.glb` | Estátua de braços abertos sobre o morro do Corcovado (morro verde, pedestal) | 8.000 |
-| 3 | `machu-picchu.glb` | Terraços em degraus, ruínas de pedra e o pico Huayna Picchu ao fundo | 10.000 |
-| 4 | `chichen-itza.glb` | Pirâmide El Castillo (degraus, escadarias, templo no topo) num gramado | 6.000 |
-| 5 | `coliseu.glb` | Anfiteatro oval com parte do anel superior quebrada | 10.000 |
-| 6 | `petra.glb` | Fachada do Tesouro (Al-Khazneh) esculpida num penhasco rosado | 8.000 |
-| 7 | `taj-mahal.glb` | Mausoléu branco com cúpula, 4 minaretes, plataforma e espelho d'água | 10.000 |
-| 8 | `grande-muralha.glb` | Trecho da muralha subindo morros, com 2–3 torres de vigia | 10.000 |
+| 2 | `cristo-redentor.glb` | Estátua de braços abertos sobre o morro do Corcovado (morro verde, pedestal) | 20.000 |
+| 3 | `machu-picchu.glb` | Terraços em degraus, ruínas de pedra e o pico Huayna Picchu ao fundo | 25.000 |
+| 4 | `chichen-itza.glb` | Pirâmide El Castillo (degraus, escadarias, templo no topo) num gramado | 15.000 |
+| 5 | `coliseu.glb` | Anfiteatro oval com parte do anel superior quebrada | 25.000 |
+| 6 | `petra.glb` | Fachada do Tesouro (Al-Khazneh) esculpida num penhasco rosado | 20.000 |
+| 7 | `taj-mahal.glb` | Mausoléu branco com cúpula, 4 minaretes, plataforma e espelho d'água | 25.000 |
+| 8 | `grande-muralha.glb` | Trecho da muralha subindo morros, com 2–3 torres de vigia | 25.000 |
 
-Total ≈ 68 mil triângulos: cabe folgado em celulares médios.
+Total ≈ 160 mil triângulos se todos tiverem GLB. Só os marcadores na tela são desenhados, o que cabe em desktop e em celulares recentes; em celular médio, meça com `npm run perf:world` e reduza o limite se faltar fôlego.
 
 Para todos:
 

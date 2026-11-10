@@ -22,7 +22,8 @@ Organização pessoal gamificada. O repositório tem três páginas Vite e um ba
 
 - `WorldGlobe.js`: cena, câmera, controles, shader do globo, nuvens, atmosfera, caminho, raycast, fila de animações.
 - `terrain.js` + `continents.js`: geração do globo (terra/mar, relevo, biomas, cor por face).
-- `SpaceMarker.js`: GLB ou placeholder, normalização de escala, estados e animações de cada espaço.
+- `SpaceMarker.js`: GLB ou monumento em código, normalização de escala, estados e animações de cada espaço.
+- `monuments.js`: os 8 monumentos low poly feitos em código (sem GLB). Ilha Inicial e Cristo Redentor usam GLB do Tripo; o GLB, quando existe, tem prioridade.
 - `worldSpaces.js`: os 8 espaços. `progress.js`: progresso (funções puras + localStorage). `geo.js`: `latLonToVector3`.
 - `src/components/WorldMap.vue`: componente (`v-model:progress`, evento `open-world`, painel de debug com a tecla D ou `?debug=1`).
 - Guia: `docs/WORLD-MAP.md`.
