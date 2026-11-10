@@ -1,13 +1,12 @@
 import * as THREE from 'three'
 import { gsap } from 'gsap'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import SpaceMarker from './SpaceMarker.js'
-import { buildGlobeGeometry } from './terrain.js'
-import { DEG, angularDistance, latLonToVector3, slerpDirections, surfaceQuaternion } from './geo.js'
+import { geometryFromGlobeData } from './terrain.js'
+import { OCEAN_COLOR } from './terrainCore.js'
+import { loadGlobeData } from './terrainClient.js'
+import { DEG, angularDistance, latLonToVector3, slerpDirections, surfaceFrame, surfaceQuaternion } from './geo.js'
 
 export const GLOBE_RADIUS = 5
 const GLOBE_DETAIL = 28
@@ -18,6 +17,7 @@ const NOOP = () => {}
 // Marcas de tempo (User Timing) lidas por tools/world-perf.mjs.
 const mark = (name) => { try { performance.mark(name) } catch { /* sem Performance API */ } }
 const measure = (name, start) => { try { performance.measure(name, { start, end: performance.now() }) } catch { /* idem */ } }
+const nextFrame = () => new Promise(resolve => requestAnimationFrame(() => resolve()))
 
 function mulberry32(seed) {
   return () => {
@@ -51,7 +51,7 @@ class DottedArc {
       const angle = angularDistance(a, b)
       const length = angle * this.R * (1 + 0.25 * angle)
       const count = Math.max(6, Math.round(length / this.spacing))
-      const lift = this.R * Math.min(0.03 + angle * 0.14, 0.32)
+      const lift = this.R * Math.min(0.03 + angle * 0.07, 0.12) // arcos longos contornam o globo em vez de subir
       return { a: a.clone(), b: b.clone(), ha, hb, lift, count }
     }).filter((seg) => {
       if (total + seg.count > this.maxDots) return false
@@ -98,7 +98,7 @@ export default class WorldGlobe {
     this.canvas = canvas
     this.callbacks = {
       onTap: NOOP, onOpen: NOOP, onHover: NOOP, onTrack: NOOP, onCinematic: NOOP,
-      onUnlocked: NOOP, onCompleted: NOOP, onModel: NOOP, onStats: NOOP, onInteract: NOOP, ...callbacks,
+      onUnlocked: NOOP, onCompleted: NOOP, onModel: NOOP, onStats: NOOP, onInteract: NOOP, onReady: NOOP, ...callbacks,
     }
     this.R = GLOBE_RADIUS
     this.spaces = spaces.slice(0, MAX_SPACES)
@@ -153,47 +153,76 @@ export default class WorldGlobe {
     this.camera.add(this.sun)
     this.scene.add(this.hemi)
 
-    // Ambiente PBR leve para os GLB (Tripo exporta MeshStandardMaterial).
-    const pmrem = new THREE.PMREMGenerator(this.renderer)
-    const room = new RoomEnvironment()
-    this.envTexture = pmrem.fromScene(room, 0.04).texture
-    room.dispose?.()
-    pmrem.dispose()
-    this.scene.environment = this.envTexture
-    this.scene.environmentIntensity = 0.55
+    // GLTFLoader, Meshopt e o ambiente PBR só são baixados quando existir um GLB.
+    this.loader = null
+    this.envTexture = null
+    this.clouds = null
+    this.isReady = false
+    this.visible = true
+    this.frameParity = false
+    this.spaceState = new Map(this.spaces.map(s => [s.id, { desbloqueado: !!s.desbloqueado, concluido: !!s.concluido }]))
 
-    this.loader = new GLTFLoader()
-    this.loader.setMeshoptDecoder(MeshoptDecoder)
-
-    const t0 = performance.now()
     this.buildGlobe()
-    measure('world:terrain', t0)
     this.buildAtmosphere()
-    this.buildClouds()
     this.buildStars()
-    const t1 = performance.now()
-    this.buildMarkers()
-    measure('world:markers', t1)
     this.trail = new DottedArc(this.R, { color: '#ffffff', dotRadius: this.R * 0.0065, opacity: 0.55, spacing: this.R * 0.034 })
     this.activePath = new DottedArc(this.R, { color: '#ffe08a', dotRadius: this.R * 0.008, opacity: 0.95, spacing: this.R * 0.03 })
     this.scene.add(this.trail.mesh, this.activePath.mesh)
-    this.updatePaths()
 
     this.setupControls()
     this.bindEvents()
     this.resize()
-    this.placeCameraAt(this.currentMarker()?.id, this.overviewDistance)
+    this.placeCameraAt(this.currentSpaceId(), this.overviewDistance)
     this.scene.updateMatrixWorld(true)
     this.clock = new THREE.Clock()
     this.renderer.setAnimationLoop(() => this.tick())
+    this.ready = this.init().catch(error => console.error('[BuildU] falha ao montar o globo', error))
+  }
+
+  // O primeiro quadro sai com uma esfera de oceano. O terreno vem do Web Worker;
+  // nuvens e marcadores entram depois, um por quadro, sem travar a thread principal.
+  async init() {
+    const t0 = performance.now()
+    const data = await loadGlobeData({ radius: this.R, detail: GLOBE_DETAIL, spaces: this.spaces })
+    if (this.disposed) return
+    measure('world:terrain', t0)
+    const ts = performance.now()
+    this.globe.geometry.dispose()
+    this.globe.geometry = geometryFromGlobeData(data)
+    measure('world:step:terrain-swap', ts)
+    gsap.to(this.globeUniforms.uReveal, { value: 1, duration: 0.7 / this.timeScale, ease: 'power2.out' })
+    await nextFrame()
+    if (this.disposed) return
+    const tc = performance.now()
+    this.buildClouds()
+    measure('world:step:clouds', tc)
+    const t1 = performance.now()
+    for (const [index, space] of this.spaces.entries()) {
+      await nextFrame()
+      if (this.disposed) return
+      const tm = performance.now()
+      this.addMarker(new SpaceMarker(space, { index, surfaceRadius: (data.surface[space.id] ?? this.R) - this.R * 0.002, size: this.R * 0.12 }))
+      measure(`world:step:marker-${space.id}`, tm)
+    }
+    measure('world:markers', t1)
+    this.updatePaths()
+    this.isReady = true
+    mark('world:ready')
+    this.callbacks.onReady()
     this.loadModels()
   }
 
   // ---------- Construção da cena ----------
   buildGlobe() {
-    const { geometry } = buildGlobeGeometry({ radius: this.R, detail: GLOBE_DETAIL, spaces: this.spaces })
+    // Esfera provisória na cor do mar; a geometria real substitui esta quando o Worker responde.
+    const geometry = new THREE.IcosahedronGeometry(this.R, 10)
+    const colors = new Float32Array(geometry.attributes.position.count * 3)
+    for (let i = 0; i < colors.length; i += 3) colors.set(OCEAN_COLOR, i)
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
     this.globeUniforms = {
       uTime: { value: 0 },
+      uReveal: { value: 0 },
+      uOcean: { value: new THREE.Color(OCEAN_COLOR[0], OCEAN_COLOR[1], OCEAN_COLOR[2]) },
       uWaveAmp: { value: this.R * 0.0036 },
       uBloom: { value: Array.from({ length: MAX_SPACES }, () => new THREE.Vector4(0, 1, 0, 0)) },
       uBloomRadius: { value: 11 * DEG },
@@ -212,6 +241,8 @@ uniform float uTime;
 uniform float uWaveAmp;
 uniform vec4 uBloom[${MAX_SPACES}];
 uniform float uBloomRadius;
+uniform float uReveal;
+uniform vec3 uOcean;
 varying vec3 vSphereNormal;`)
         .replace('#include <color_vertex>', `#include <color_vertex>
 float buHash = fract(sin(dot(aCenter, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
@@ -224,7 +255,8 @@ for (int i = 0; i < ${MAX_SPACES}; i++) {
   buBloom = max(buBloom, w);
 }
 vColor.xyz = mix(vColor.xyz, aVivid, buBloom);
-vColor.xyz *= 1.0 + aWave * 0.05 * sin(uTime * 1.7 + buHash * 6.2831);`)
+vColor.xyz *= 1.0 + aWave * 0.05 * sin(uTime * 1.7 + buHash * 6.2831);
+vColor.xyz = mix(uOcean, vColor.xyz, uReveal);`)
         .replace('#include <begin_vertex>', `#include <begin_vertex>
 vec3 buDir = normalize(position);
 transformed += buDir * aWave * uWaveAmp * sin(uTime * 1.2 + dot(position, vec3(3.1, 2.3, 1.7)) * 1.4);
@@ -242,6 +274,10 @@ outgoingLight += uRimColor * pow(buRim, 3.0) * uRimStrength;
     this.globe = new THREE.Mesh(geometry, material)
     this.globe.name = 'globe'
     this.scene.add(this.globe)
+    this.spaces.forEach((space, index) => {
+      const n = latLonToVector3(space.lat, space.lon, 1)
+      this.globeUniforms.uBloom.value[index].set(n.x, n.y, n.z, space.concluido ? 1 : 0)
+    })
   }
 
   buildAtmosphere() {
@@ -360,27 +396,52 @@ if (diffuseColor.a < 0.02) discard;`)
     this.scene.add(this.stars)
   }
 
-  buildMarkers() {
-    const down = new THREE.Vector3()
-    this.globe.updateMatrixWorld(true)
-    this.spaces.forEach((space, index) => {
-      const n = latLonToVector3(space.lat, space.lon, 1)
-      // Raio exato da superfície (relevo + platô) por raycast ao longo da normal.
-      this.raycaster.set(n.clone().multiplyScalar(this.R * 2), down.copy(n).negate())
-      const hit = this.raycaster.intersectObject(this.globe, false)[0]
-      const surface = hit ? hit.point.length() : this.R
-      const marker = new SpaceMarker(space, { index, surfaceRadius: surface - this.R * 0.002, size: this.R * 0.12 })
-      marker.setState(space, { animate: false })
-      this.markers.set(space.id, marker)
-      this.hitProxies.push(marker.hitProxy)
-      this.scene.add(marker.root)
-      this.globeUniforms.uBloom.value[index].set(n.x, n.y, n.z, space.concluido ? 1 : 0)
-    })
+  addMarker(marker) {
+    const space = marker.space
+    marker.setState(this.spaceState.get(space.id) || space, { animate: false })
+    this.markers.set(space.id, marker)
+    this.hitProxies.push(marker.hitProxy)
+    this.scene.add(marker.root)
+    marker.root.updateMatrixWorld(true)
+    gsap.from(marker.vis, { pop: 0.001, duration: 0.55 / this.timeScale, ease: 'back.out(1.7)' })
+  }
+
+  /** Ordem de carga dos modelos: o espaço atual, os seguintes e depois os anteriores. */
+  loadOrder() {
+    const list = this.orderedMarkers()
+    const current = Math.max(0, list.findIndex(m => m.id === this.currentSpaceId()))
+    return [...list.slice(current), ...list.slice(0, current).reverse()]
   }
 
   async loadModels() {
     const t0 = performance.now()
-    for (const marker of this.markers.values()) {
+    const order = this.loadOrder()
+    // Uma ida e volta: as 8 sondagens saem juntas.
+    const available = await Promise.all(order.map(marker => marker.probe()))
+    if (this.disposed) return
+    measure('world:model-probe', t0)
+    const found = order.filter((marker, i) => available[i])
+    for (const marker of order) if (!found.includes(marker)) this.callbacks.onModel({ id: marker.id, source: marker.modelSource })
+    if (!found.length) return
+
+    const [{ GLTFLoader }, { MeshoptDecoder }, { RoomEnvironment }] = await Promise.all([
+      import('three/addons/loaders/GLTFLoader.js'),
+      import('three/addons/libs/meshopt_decoder.module.js'),
+      import('three/addons/environments/RoomEnvironment.js'),
+    ])
+    if (this.disposed) return
+    // Ambiente PBR leve para os GLB (o Tripo exporta MeshStandardMaterial).
+    const pmrem = new THREE.PMREMGenerator(this.renderer)
+    const room = new RoomEnvironment()
+    this.envTexture = pmrem.fromScene(room, 0.04).texture
+    room.dispose?.()
+    pmrem.dispose()
+    this.scene.environment = this.envTexture
+    this.scene.environmentIntensity = 0.55
+    this.loader = new GLTFLoader()
+    this.loader.setMeshoptDecoder(MeshoptDecoder)
+
+    for (const marker of found) {
       const ok = await marker.loadModel(this.loader)
       if (this.disposed) return
       if (ok) {
@@ -390,7 +451,6 @@ if (diffuseColor.a < 0.02) discard;`)
       }
       this.callbacks.onModel({ id: marker.id, source: marker.modelSource })
     }
-    measure('world:model-probe', t0)
   }
 
   setupControls() {
@@ -447,6 +507,11 @@ if (diffuseColor.a < 0.02) discard;`)
     canvas.addEventListener('pointerleave', this.onPointerLeave)
     this.resizeObserver = new ResizeObserver(() => this.resize())
     this.resizeObserver.observe(canvas.parentElement || canvas)
+    // Fora da tela (rolagem, aba de outro painel): não desenha.
+    if (typeof IntersectionObserver === 'function') {
+      this.visibilityObserver = new IntersectionObserver(([entry]) => { this.visible = entry.isIntersecting })
+      this.visibilityObserver.observe(canvas)
+    }
   }
 
   // ---------- Estado ----------
@@ -454,10 +519,10 @@ if (diffuseColor.a < 0.02) discard;`)
     return this.spaces.map(s => this.markers.get(s.id)).filter(Boolean)
   }
 
-  currentMarker() {
-    const list = this.orderedMarkers()
-    let current = list[0]
-    for (const m of list) if (m.state.desbloqueado) current = m
+  /** Espaço mais avançado já desbloqueado (vale antes de os marcadores existirem). */
+  currentSpaceId() {
+    let current = this.spaces[0]?.id
+    for (const space of this.spaces) if (this.spaceState.get(space.id)?.desbloqueado) current = space.id
     return current
   }
 
@@ -472,10 +537,16 @@ if (diffuseColor.a < 0.02) discard;`)
   setSpaces(list, { animate = true } = {}) {
     const events = []
     for (const s of list) {
-      const m = this.markers.get(s.id)
-      if (!m) continue
-      const prev = m.state
+      const index = this.spaces.findIndex(space => space.id === s.id)
+      if (index < 0) continue
       const next = { desbloqueado: !!s.desbloqueado, concluido: !!s.concluido }
+      this.spaceState.set(s.id, next)
+      const m = this.markers.get(s.id)
+      if (!m) { // globo ainda montando: aplica sem animação quando o marcador nascer
+        this.globeUniforms.uBloom.value[index].w = next.concluido ? 1 : 0
+        continue
+      }
+      const prev = m.state
       const regress = (prev.desbloqueado && !next.desbloqueado) || (prev.concluido && !next.concluido)
       if (!animate || regress) {
         m.setState(next, { animate: false })
@@ -582,9 +653,12 @@ if (diffuseColor.a < 0.02) discard;`)
   /** Direção da câmera para que, com a inclinação daquela distância, o espaço fique no centro da tela. */
   focusDirection(id, distance, target = new THREE.Vector3()) {
     const m = this.markers.get(id)
-    if (!m) return target.set(0, 0, 1)
+    const space = this.spaces.find(item => item.id === id)
+    if (!m && !space) return target.set(0, 0, 1)
+    const normal = m ? m.normal : latLonToVector3(space.lat, space.lon, 1)
+    const east = m ? m.east : surfaceFrame(normal).east
     const k = Math.tan(this.pitchFor(distance))
-    const r = m.surfaceRadius + m.modelHeight * 0.45
+    const r = m ? m.surfaceRadius + m.modelHeight * 0.45 : this.R * 1.03
     // Ângulo α ao sul do espaço em que ele aparece exatamente "pitch" acima do eixo de visão.
     const f = a => r * Math.sin(a) - k * (distance - r * Math.cos(a))
     let lo = 0, hi = 1.3
@@ -596,7 +670,7 @@ if (diffuseColor.a < 0.02) discard;`)
       }
     }
     else hi = 0
-    return target.copy(m.normal).applyAxisAngle(m.east, hi).normalize()
+    return target.copy(normal).applyAxisAngle(east, hi).normalize()
   }
 
   placeCameraAt(id, distance) {
@@ -608,8 +682,7 @@ if (diffuseColor.a < 0.02) discard;`)
   /** Gira a câmera ao redor do globo até o espaço e aproxima. Resolve true se completou. */
   flyTo(id, { distance = this.focusDistance, duration } = {}) {
     this.cancelFly()
-    const m = this.markers.get(id)
-    if (!m) return Promise.resolve(false)
+    if (!this.spaces.some(space => space.id === id)) return Promise.resolve(false)
     const fromDir = this.camera.position.clone().normalize()
     const fromDist = this.camera.position.length()
     const toDist = THREE.MathUtils.clamp(distance, this.controls.minDistance, this.controls.maxDistance)
@@ -666,7 +739,7 @@ if (diffuseColor.a < 0.02) discard;`)
   /** Volta para a visão geral, centrada no espaço atual. */
   resetView() {
     this.focusedId = null
-    return this.flyTo(this.currentMarker()?.id, { distance: this.overviewDistance })
+    return this.flyTo(this.currentSpaceId(), { distance: this.overviewDistance })
   }
 
   // ---------- Interação ----------
@@ -749,9 +822,18 @@ if (diffuseColor.a < 0.02) discard;`)
     this.focusDistance = THREE.MathUtils.clamp(this.R + (this.R * 0.17) / Math.tan(minFov / 2), this.controls.minDistance, this.controls.maxDistance)
   }
 
+  /** Nada acontecendo além de nuvens e ondas: dá para desenhar metade dos quadros. */
+  isIdle() {
+    return this.isReady && !this.flying && !this.cinematic && !this.hoveredId && !this.activePointers.size
+      && performance.now() - this.lastInteraction > 4000
+  }
+
   tick() {
-    if (this.disposed) return
-    const dt = Math.min(this.clock.getDelta(), 0.05)
+    if (this.disposed || !this.visible) return
+    this.frameParity = !this.frameParity
+    this.throttled = this.isIdle()
+    if (this.throttled && this.frameParity) return
+    const dt = Math.min(this.clock.getDelta(), 0.1)
     this.elapsed += dt
     const t = this.elapsed
     const now = performance.now()
@@ -767,9 +849,10 @@ if (diffuseColor.a < 0.02) discard;`)
     this.controls.rotateSpeed = 0.16 + 0.5 * zoom
 
     this.globeUniforms.uTime.value = t
-    this.clouds.rotation.y += dt * 0.012
-    const cloudOpacity = 0.12 + 0.83 * THREE.MathUtils.smoothstep(dist, this.R * 1.75, this.R * 2.6)
-    this.cloudMaterial.opacity = cloudOpacity
+    if (this.clouds) {
+      this.clouds.rotation.y += dt * 0.012
+      this.cloudMaterial.opacity = 0.12 + 0.83 * THREE.MathUtils.smoothstep(dist, this.R * 1.75, this.R * 2.6)
+    }
     this.stars.rotation.y += dt * 0.002
 
     for (const m of this.markers.values()) m.update(t, dt)
@@ -795,7 +878,7 @@ if (diffuseColor.a < 0.02) discard;`)
     if (this.statsTime >= 0.5) {
       const info = this.renderer.info.render
       this.callbacks.onStats({ fps: Math.round(this.frames / this.frameTime), pixelRatio: this.pixelRatio, calls: info.calls, triangles: info.triangles })
-      if (this.elapsed > 4 && this.frames / this.frameTime < 48 && this.pixelRatio > 1) {
+      if (this.isReady && !this.throttled && this.elapsed > 4 && this.frames / this.frameTime < 48 && this.pixelRatio > 1) {
         this.pixelRatio = Math.max(1, this.pixelRatio - 0.25)
         this.renderer.setPixelRatio(this.pixelRatio)
         this.resize()
@@ -824,11 +907,14 @@ if (diffuseColor.a < 0.02) discard;`)
     this.markers.clear()
     this.trail.dispose()
     this.activePath.dispose()
+    gsap.killTweensOf(this.globeUniforms.uReveal)
+    this.visibilityObserver?.disconnect()
     for (const mesh of [this.globe, this.atmosphere, this.clouds, this.stars]) {
+      if (!mesh) continue
       mesh.geometry.dispose()
       mesh.material.dispose()
     }
-    this.envTexture.dispose()
+    this.envTexture?.dispose()
     this.renderer.dispose()
     this.renderer.forceContextLoss()
   }

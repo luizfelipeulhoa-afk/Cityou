@@ -76,13 +76,19 @@ Para todos:
 - **Base em Y = 0**, centrado na origem em X/Z. O normalizador centraliza e apoia no chão sozinho, mas a orientação precisa estar certa.
 - **Proporção**: pense numa base quadrada. A escala é ajustada pelo maior lado em X/Z (e por um limite de altura), então um modelo muito comprido fica fino. Faça a Grande Muralha em zigue-zague dentro de um quadrado.
 - **Material**: 1 material com textura base de 1024 px (512 px se quiser economizar), sem transparência.
-- **Arquivo**: até ~2 MB. Se o Tripo exportar mais pesado, reduza:
+- **Arquivo**: até ~2 MB. Defina o limite de faces **no Tripo, na hora de gerar**: a redução posterior não chega lá (veja abaixo).
+
+Conferir e compactar:
 
 ```bash
-npx @gltf-transform/cli optimize entrada.glb public-fifones/models/world/coliseu.glb --simplify --compress meshopt --texture-compress webp --texture-size 1024
+node tools/check-world-models.mjs
 ```
 
-  O loader já aceita Meshopt e WebP. Draco não está configurado.
+```bash
+node tools/optimize-world-models.mjs meu-modelo.glb coliseu
+```
+
+O primeiro lista triângulos, tamanho e texturas de cada GLB e falha se algum passar do orçamento. O segundo grava `public-fifones/models/world/coliseu.glb` com meshopt e texturas WebP de até 1024 px (num teste, 10,6 MB viraram 1,2 MB). A simplificação da malha preserva as costuras de textura e, em modelos gerados por IA, costuma parar perto da metade dos triângulos (184 mil → 88 mil no teste), por isso o limite de faces precisa vir do Tripo. O mapa decodifica meshopt e WebP; Draco não está configurado.
 
 Para comparar: os GLB dos prédios da cidade (`public-fifones/models/`) têm 10–15 MB e cerca de 200 mil triângulos cada. Dois deles no globo já somam mais de 460 mil triângulos, pesado demais para o mapa.
 

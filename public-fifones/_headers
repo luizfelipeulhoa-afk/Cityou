@@ -1,0 +1,13 @@
+# Cabeçalhos dos arquivos estáticos no Cloudflare Workers (lido no deploy; não é servido como arquivo).
+# Sem isto, tudo sai com "max-age=0, must-revalidate": uma ida ao servidor por arquivo a cada visita.
+
+# O Vite põe hash no nome de tudo em /assets, então o conteúdo nunca muda: cache de um ano.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/fonts/*
+  Cache-Control: public, max-age=2592000
+
+# Modelos do mapa-mundo não têm hash no nome: uma hora de cache e revalidação em segundo plano.
+/models/world/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400

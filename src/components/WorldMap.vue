@@ -107,6 +107,7 @@ const callbacks = {
   onUnlocked(space) { showBanner('✦', `${space.nome} desbloqueado!`) },
   onCompleted(space) { showBanner('★', `${space.nome} concluído!`) },
   onModel({ id, source }) { modelSources[id] = source },
+  onReady() { emit('ready') },
   onStats(s) { if (debugOpen.value) stats.value = s },
 }
 
@@ -121,8 +122,7 @@ function onKeydown(e) {
 onMounted(() => {
   try {
     globe.value = new WorldGlobe(canvas.value, { spaces: spacesState.value, callbacks })
-    ready.value = true
-    emit('ready')
+    ready.value = true // a cena já desenha; o evento `ready` sai quando terreno e marcadores estiverem prontos
   }
   catch (e) {
     console.error(e)

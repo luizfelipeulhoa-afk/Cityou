@@ -67,11 +67,16 @@ try {
         longTaskMs: Math.round(tasks.reduce((sum, t) => sum + t.duration, 0)),
         blockingMs: Math.round(tasks.reduce((sum, t) => sum + Math.max(0, t.duration - 50), 0)),
         longestTaskMs: Math.round(Math.max(0, ...tasks.map(t => t.duration))),
+        // Maior passo de JavaScript depois do primeiro quadro (troca do terreno, nuvens, cada marcador).
+        maxInitStepMs: Math.round(Math.max(0, ...performance.getEntriesByType('measure').filter(m => m.name.startsWith('world:step:')).map(m => m.duration))),
+        readyMs: Math.round(one('world:ready')?.startTime ?? -1),
         modelProbeMs: Math.round(one('world:model-probe').duration),
         modelRequests: probes.length,
         requests: resources.length + 1,
         jsKB: Math.round(scripts.reduce((sum, r) => sum + r.transferSize, 0) / 1024),
         totalKB: Math.round((resources.reduce((sum, r) => sum + r.transferSize, 0) + performance.getEntriesByType('navigation')[0].transferSize) / 1024),
+        // Detalhe para diagnóstico (fica no JSON, fora da tabela): [início, duração] de cada tarefa longa.
+        detail: { tasks: window.__longTasks.map(t => [Math.round(t.start), Math.round(t.duration)]), measures: performance.getEntriesByType('measure').map(m => [m.name, Math.round(m.startTime), Math.round(m.duration)]) },
       }
     }))
     await context.close()
@@ -82,7 +87,7 @@ finally {
   server.close()
 }
 
-const result = Object.fromEntries(Object.keys(runs[0]).map(key => [key, median(runs.map(r => r[key]))]))
+const result = Object.fromEntries(Object.keys(runs[0]).filter(key => key !== 'detail').map(key => [key, median(runs.map(r => r[key]))]))
 fs.mkdirSync('.verification', { recursive: true })
 fs.writeFileSync(`.verification/world-perf-${LABEL}.json`, JSON.stringify({ label: LABEL, runs, median: result }, null, 2))
 console.log(`Mapa-mundo, ${LABEL} (mediana de ${RUNS}; CPU 4x, Slow 4G, 412x915):`)

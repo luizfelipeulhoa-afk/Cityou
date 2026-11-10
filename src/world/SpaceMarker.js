@@ -238,9 +238,7 @@ function buildPlaceholder(kind) {
     const merged = mergeGeometries(list, false)
     list.forEach(geo => geo.dispose())
     merged.computeVertexNormals()
-    const mesh = new THREE.Mesh(merged, new THREE.MeshStandardMaterial({
-      color, flatShading: true, roughness: 0.8, metalness: 0, side: THREE.DoubleSide,
-    }))
+    const mesh = new THREE.Mesh(merged, new THREE.MeshLambertMaterial({ color, flatShading: true, side: THREE.DoubleSide }))
     out.add(mesh)
   }
   return out
@@ -413,10 +411,15 @@ totalEmissiveRadiance += uGlowColor * uGlow;`)
     this.updateProxy()
   }
 
-  /** Tenta carregar o GLB em glbPath; se não existir, mantém o placeholder. */
+  /** Existe um GLB para este espaço? (uma requisição HEAD) */
+  probe() {
+    return this.space.glbPath ? glbAvailable(this.space.glbPath) : Promise.resolve(false)
+  }
+
+  /** Carrega o GLB em glbPath; se falhar, mantém o placeholder. Chame probe() antes. */
   async loadModel(loader) {
     const url = this.space.glbPath
-    if (!url || !(await glbAvailable(url))) return false
+    if (!url) return false
     try {
       const gltf = await loader.loadAsync(url)
       if (this.disposed) { disposeObject(gltf.scene, { textures: true }); return false }
@@ -449,8 +452,8 @@ totalEmissiveRadiance += uGlowColor * uGlow;`)
     this.root.add(this.ring, this.ripple)
 
     // Cadeado low poly flutuando acima do modelo.
-    const lockMat = new THREE.MeshStandardMaterial({ color: '#e1e7f4', metalness: 0.35, roughness: 0.45, emissive: '#6f82b3', emissiveIntensity: 0.25, flatShading: true })
-    const keyMat = new THREE.MeshStandardMaterial({ color: '#56607a', flatShading: true })
+    const lockMat = new THREE.MeshLambertMaterial({ color: '#e1e7f4', emissive: '#6f82b3', emissiveIntensity: 0.25, flatShading: true })
+    const keyMat = new THREE.MeshLambertMaterial({ color: '#56607a', flatShading: true })
     this.lock = new THREE.Group()
     const shackleGeo = new THREE.TorusGeometry(s * 0.095, s * 0.03, 5, 10, Math.PI).translate(0, s * 0.12, 0)
     const bodyGeo = new THREE.BoxGeometry(s * 0.3, s * 0.24, s * 0.12)
@@ -492,7 +495,7 @@ totalEmissiveRadiance += uGlowColor * uGlow;`)
     starGeo.center()
     this.star = new THREE.Group()
     this.starSpin = new THREE.Group()
-    this.starSpin.add(new THREE.Mesh(starGeo, new THREE.MeshStandardMaterial({ color: '#ffd23f', emissive: '#ffae00', emissiveIntensity: 0.6, metalness: 0.25, roughness: 0.35, flatShading: true })))
+    this.starSpin.add(new THREE.Mesh(starGeo, new THREE.MeshLambertMaterial({ color: '#ffd23f', emissive: '#ffae00', emissiveIntensity: 0.6, flatShading: true })))
     this.halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: getDotTexture(), color: GOLD, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }))
     this.halo.scale.setScalar(s * 0.9)
     this.star.add(this.halo, this.starSpin)
