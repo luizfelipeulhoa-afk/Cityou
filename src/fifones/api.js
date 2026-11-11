@@ -37,17 +37,31 @@ async function request(path, { method = 'GET', body, retry = false, keepalive = 
   throw lastError
 }
 
-export const loadCity = () => request('/api/city')
+const cityLocation = new URLSearchParams(globalThis.location?.search).get('local')
+const cityQuery = cityLocation ? '?' + new URLSearchParams({ local: cityLocation }) : ''
+
+export const loadCity = async () => {
+  const city = await request('/api/city' + cityQuery)
+  if (cityLocation && cityLocation !== 'ilha-inicial' && city.location_id !== cityLocation) {
+    throw new ApiError('Este servidor ainda não oferece cidades regionais.')
+  }
+  return city
+}
 export const loadTasks = () => request('/api/workspace/tasks')
 export const loadProjects = () => request('/api/workspace/projects')
 export const loadActivity = () => request('/api/workspace/activity')
-export const syncRewards = () => request('/api/rewards/sync', { method: 'POST', body: {} })
+export const syncRewards = () => request('/api/rewards/sync' + cityQuery, { method: 'POST', body: {} })
 export const completeTask = id => request(`/api/workspace/tasks/${encodeURIComponent(id)}/complete`, { method: 'POST', body: {} })
-export const cityAction = action => request('/api/city/actions', {
+export const cityAction = action => request('/api/city/actions' + cityQuery, {
   method: 'POST',
   body: { ...action, request_id: action.request_id || crypto.randomUUID() },
   retry: true,
 })
 export const loadWorldProgress = () => request('/api/world/progress')
+export const travelTo = local => request('/api/world/travel', {
+  method: 'POST',
+  body: { local, request_id: crypto.randomUUID() },
+  retry: true,
+})
 // O servidor junta o progresso enviado ao guardado e devolve o resultado (idempotente).
 export const saveWorldProgress = (progress, { keepalive = false } = {}) => request('/api/world/progress', { method: 'PUT', body: progress, keepalive })

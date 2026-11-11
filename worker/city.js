@@ -7,17 +7,22 @@ const core = new Set(['plaza', 'headquarters'])
 const actionTypes = ['build', 'move', 'rotate', 'remove', 'upgrade']
 const actionFields = ['type', 'expected_revision', 'request_id', 'kind', 'x', 'y', 'rotation', 'placement_id']
 
-export function newCity() {
+export function newTown() {
   const started_at = new Date().toISOString()
-  const credits = RULES.rewards.welcome.credits
   const placements = [
     { id: 'core-plaza', kind: 'plaza', x: 8, y: 8 },
     { id: 'core-headquarters', kind: 'headquarters', x: 8, y: 7 },
     ...[6, 7, 8, 9, 10].map(x => ({ id: `seed-road-${x}`, kind: 'road', x, y: 9 })),
   ].map(item => ({ ...item, rotation: 0, level: 1 }))
+  return { revision: 0, started_at, placements }
+}
+
+export function newCity() {
+  const town = newTown()
+  const credits = RULES.rewards.welcome.credits
   return {
-    revision: 0, credits, earned: 0, reward_count: 0, started_at, placements,
-    history: [{ label: 'Boas-vindas à cidade', amount: credits, created_at: started_at }],
+    ...town, credits, earned: 0, reward_count: 0,
+    history: [{ label: 'Boas-vindas à cidade', amount: credits, created_at: town.started_at }],
   }
 }
 
@@ -40,11 +45,19 @@ function integerIn(value, max) {
   return Number.isSafeInteger(value) && value >= 0 && value <= max
 }
 
+export function validRequestId(id) {
+  return typeof id === 'string' && /^[A-Za-z0-9_.:-]{1,100}$/.test(id)
+}
+
+export function countsForTravel(placement) {
+  return kinds.has(placement.kind) && !core.has(placement.kind) && placement.kind !== 'road' && placement.kind !== 'tree'
+}
+
 export function normalizeAction(input) {
   const action = Object.fromEntries(actionFields.map(field => [field, input[field] ?? null]))
   if (Object.keys(input).some(field => !actionFields.includes(field)) ||
       !actionTypes.includes(action.type) || !integerIn(action.expected_revision, Number.MAX_SAFE_INTEGER) ||
-      typeof action.request_id !== 'string' || !/^[A-Za-z0-9_.:-]{1,100}$/.test(action.request_id) ||
+      !validRequestId(action.request_id) ||
       (action.kind !== null && (typeof action.kind !== 'string' || action.kind.length > 40)) ||
       (action.placement_id !== null && (typeof action.placement_id !== 'string' || !action.placement_id || action.placement_id.length > 100)) ||
       [action.x, action.y].some(value => value !== null && !integerIn(value, 16)) ||

@@ -1,3 +1,5 @@
+import { buildPlaceholder } from '../world/monuments.js'
+import { fitModel } from '../world/SpaceMarker.js'
 import * as THREE from 'three'
 
 const palette = {
@@ -84,20 +86,20 @@ function palm(parent, x, z, scale = 1) {
   parent.add(g)
 }
 
-function mountain(parent, x, z, width, height, depth, gray = false) {
+function mountain(parent, x, z, width, height, depth, colors = [0x6c926d, 0x91ac85]) {
   const geometry = new THREE.SphereGeometry(1, 22, 15, 0, Math.PI * 2, 0, Math.PI / 2)
   const positions = geometry.attributes.position
-  const colors = []
-  const base = new THREE.Color(gray ? 0x728b88 : 0x6c926d)
-  const peak = new THREE.Color(gray ? 0xa2aaa0 : 0x91ac85)
+  const vertexColors = []
+  const base = new THREE.Color(colors[0])
+  const peak = new THREE.Color(colors[1])
   for (let i = 0; i < positions.count; i++) {
     const h = positions.getY(i)
     const variation = 1 + 0.035 * Math.sin(positions.getX(i) * 9 + positions.getZ(i) * 6)
     positions.setXYZ(i, positions.getX(i) * width * variation, h * height, positions.getZ(i) * depth * variation)
     const color = base.clone().lerp(peak, Math.max(0, h - 0.25))
-    colors.push(color.r, color.g, color.b)
+    vertexColors.push(color.r, color.g, color.b)
   }
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(vertexColors, 3))
   geometry.computeVertexNormals()
   const mesh = new THREE.Mesh(geometry, material(0xffffff, { vertexColors: true, flatShading: false }))
   mesh.position.set(x, -0.5, z)
@@ -159,19 +161,76 @@ function sailboat(parent, x, z, scale, angle = 0) {
   return g
 }
 
-export function createEnvironment(scene) {
+const regionalTerrain = {
+  'ilha-inicial': { ground: 0xaac583, backdrop: 0x247e96, palms: true },
+  'cristo-redentor': { ground: 0x8faf74 },
+  'machu-picchu': { ground: 0x8f9c62, backdrop: 0x748653, hills: [0x688064, 0xa1ad87], hillHeight: 6, trees: 4 },
+  'chichen-itza': { ground: 0xa0ad68, backdrop: 0x7f9a59, trees: 8 },
+  coliseu: { ground: 0xb5a887, backdrop: 0xa3a180, trees: 3 },
+  petra: { ground: 0xc89674, backdrop: 0xb38261, hills: [0x9b6957, 0xca987b], hillHeight: 4.6 },
+  'taj-mahal': { ground: 0x9fb77f, backdrop: 0x88a36d, river: true, trees: 4 },
+  'grande-muralha': { ground: 0x91a276, backdrop: 0x788b60, hills: [0x597756, 0x93a56b], hillHeight: 4.2, trees: 6 },
+}
+
+export const LANDMARK_FOOTPRINT = 5.4
+export const LANDMARK_HEIGHT = 4.5
+
+function addLandmark(parent, region, x, y, z) {
+  const landmark = new THREE.Group()
+  landmark.name = `landmark:${region.id}`
+  landmark.position.set(x, y, z)
+  landmark.add(fitModel(buildPlaceholder(region.placeholder), LANDMARK_FOOTPRINT, LANDMARK_HEIGHT))
+  parent.add(landmark)
+  return landmark
+}
+
+function addRegionalScenery(group, terrain) {
+  const surroundings = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), material(terrain.backdrop))
+  surroundings.rotation.x = -Math.PI / 2
+  surroundings.position.y = -0.65
+  surroundings.receiveShadow = true
+  group.add(surroundings)
+
+  if (terrain.hills) {
+    mountain(group, -11, -15, 5, terrain.hillHeight, 4, terrain.hills)
+    mountain(group, 10, -17, 6, terrain.hillHeight * 0.8, 4, terrain.hills)
+  }
+  if (terrain.palms) {
+    for (const x of [-8, -5, 5, 8]) palm(group, x, -9, 1.2)
+  }
+  for (let i = 0; i < (terrain.trees ?? 0); i++) {
+    const x = (i % 2 ? 1 : -1) * (4.4 + Math.floor(i / 2) * 1.75)
+    const planted = tree(group, x, -11 - i % 3, 1 + 0.12 * (i % 3))
+    planted.position.y = -0.65
+  }
+  if (terrain.river) {
+    box(group, 5, 0.04, 100, 13, -0.64, 0, material(0x4e8994))
+  }
+}
+
+export function createEnvironment(scene, region) {
+  const locationId = region?.id
+  const terrain = regionalTerrain[locationId]
+  const groundColor = terrain?.ground ?? palette.grass
+  const tileColor = terrain ? new THREE.Color(groundColor).lerp(new THREE.Color(0xede2c3), 0.55) : 0xc9d5ae
   const group = new THREE.Group()
-  group.name = 'Rio 2035 · Baía de Guanabara'
+  group.name = region?.nome ?? 'Rio 2035 · Baía de Guanabara'
   scene.add(group)
 
-  const land = new THREE.Mesh(roundedBlock(19, 19, 0.85, 1.05), [material(palette.grass), material(palette.sandstone)])
+  const land = new THREE.Mesh(roundedBlock(19, 19, 0.85, 1.05), [material(groundColor), material(palette.sandstone)])
   land.position.y = -0.84
   land.receiveShadow = true
   group.add(land)
-  const ground = new THREE.Mesh(roundedBlock(18.72, 18.72, 0.08, 0.9), material(palette.grass))
+  const ground = new THREE.Mesh(roundedBlock(18.72, 18.72, 0.08, 0.9), material(groundColor))
   ground.position.y = -0.03
   ground.receiveShadow = true
   group.add(ground)
+
+  if (terrain?.backdrop) {
+    addRegionalScenery(group, terrain)
+    const landmark = addLandmark(group, region, 0, -0.65, -13.5)
+    return { group, landmark, tileColor, animate() {}, lamps: [], setDusk() {} }
+  }
 
   const oceanMat = material(0x247e96, { roughness: 0.4, metalness: 0.08 })
   oceanMat.onBeforeCompile = (shader) => {
@@ -190,13 +249,14 @@ export function createEnvironment(scene) {
   group.add(ocean)
 
   // Rio's granite silhouettes are geometry, including the open-armed summit statue.
-  mountain(group, 0, -14, 2.4, 5.2, 2.7, true)
+  mountain(group, 0, -14, 2.4, 5.2, 2.7, [0x728b88, 0xa2aaa0])
   mountain(group, -4.5, -14.8, 3.3, 2.1, 3.2)
   mountain(group, -12, -11, 4.3, 3.6, 3.4)
   mountain(group, -17, -18, 5.1, 2.5, 4.3)
   mountain(group, -4, -24, 7, 2.2, 4.6)
   mountain(group, 20, -23, 6, 2.8, 4.4)
-  christ(group, -12, 3.08, -11)
+  const landmark = region && addLandmark(group, region, -12, 3.08, -11)
+  if (!landmark) christ(group, -12, 3.08, -11)
 
   // A walkable mosaic strip around the waterfront uses real, narrow stone ribbons.
   box(group, 18.8, 0.16, 1.35, 0, -0.01, 9.48, material(palette.cream))
@@ -269,7 +329,7 @@ export function createEnvironment(scene) {
     heads.instanceMatrix.needsUpdate = true
   }
   animate(0, true)
-  return { group, animate, lamps, setDusk(value) { lampLight.emissiveIntensity = value ? 1.3 : 0.4 } }
+  return { group, landmark, tileColor, animate, lamps, setDusk(value) { lampLight.emissiveIntensity = value ? 1.3 : 0.4 } }
 }
 
 export function createCoreBuilding(kind, definition = {}) {

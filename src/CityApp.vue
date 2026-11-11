@@ -1,5 +1,6 @@
 <script setup>
 import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { findSpace } from './world/worldSpaces.js'
 import CityWorld from './fifones/CityWorld.js'
 import { progression } from './fifones/progression.js'
 import { cityAction, completeTask, loadActivity, loadCity, loadProjects, loadTasks, syncRewards } from './fifones/api.js'
@@ -44,6 +45,7 @@ const nav = [
   { id: 'settings', icon: 'settings', label: 'Conexões', path: '/#/configuracoes' },
 ]
 const canvas = ref(null)
+const region = findSpace(new URLSearchParams(window.location.search).get('local'))
 const state = ref(null)
 const tasks = ref([])
 const projects = ref([])
@@ -139,6 +141,7 @@ function applySnapshot(value) {
   if (disposed) return false
   const snapshot = value?.city || value
   if (!snapshot || !Array.isArray(snapshot.placements)) return false
+  if (region && region.id !== 'ilha-inicial' && snapshot.location_id !== region.id) return false
   if (state.value && Number(snapshot.revision) < Number(state.value.revision)) return false
   const previous = state.value
   state.value = snapshot
@@ -224,8 +227,9 @@ async function performAction(action, message) {
     return true
   }
   catch (error) {
+    const refreshed = applySnapshot(error.details?.city)
     if (error.status === 409) {
-      if (!applySnapshot(error.details?.city)) {
+      if (!refreshed) {
         try { applySnapshot(await loadCity()) } catch { /* Keep the last confirmed state. */ }
       }
       notify(error.message || 'A cidade foi atualizada. Escolha o terreno novamente.', 'info')
@@ -278,7 +282,8 @@ async function finishTask(task) {
   saving.value = true
   const before = Number(state.value?.earned || 0)
   try {
-    applySnapshot(await completeTask(task.id))
+    const result = await completeTask(task.id)
+    if (!applySnapshot(result)) applySnapshot(await loadCity())
     await reloadWorkspace()
     const earned = Number(state.value?.earned || 0) - before
     notify(earned > 0 ? `Tarefa concluída · +${coins(earned)} moedas` : 'Tarefa concluída. Progresso sincronizado.')
@@ -376,7 +381,7 @@ onMounted(async () => {
   document.addEventListener('keydown', onKeydown)
   document.addEventListener('visibilitychange', onVisibility)
   try {
-    engine = new CityWorld(canvas.value, { onSelect, onTile, onError: error => { sceneError.value = error?.message || String(error) }, onReady: () => { if (state.value) engine?.setState(state.value); engine?.setActivity?.(activity.value) } })
+    engine = new CityWorld(canvas.value, { region, onSelect, onTile, onError: error => { sceneError.value = error?.message || String(error) }, onReady: () => { if (state.value) engine?.setState(state.value); engine?.setActivity?.(activity.value) } })
     window.__fifonesCity = { get state() { return state.value }, get activity() { return activity.value }, get engine() { return engine } }
   }
   catch (error) { sceneError.value = error.message }
@@ -406,16 +411,16 @@ onUnmounted(() => {
 
 <template>
   <main class="city-app" :class="{ 'is-dusk': lighting === 'dusk', 'catalog-hidden': !catalogOpen }">
-    <canvas ref="canvas" class="city-canvas" aria-label="Sua cidade 3D no Rio de Janeiro. Arraste para explorar e use a roda do mouse para aproximar." />
+    <canvas ref="canvas" class="city-canvas" :aria-label="`Cidade 3D em ${region?.nome ?? 'Rio de Janeiro'}. Arraste para explorar e use a roda do mouse para aproximar.`" />
     <div class="scene-vignette" aria-hidden="true" />
 
     <header class="topbar">
       <button class="brand" aria-label="Cityou, voltar para minha cidade" @click="useNav(nav[0])">
         <span class="brand-mark" aria-hidden="true">c<span>.</span></span>
-        <span class="brand-copy"><strong>Cityou</strong><small>Sua vida, em construção.</small></span>
+        <span class="brand-copy"><strong>Cityou</strong><small>{{ region?.nome ?? 'Sua vida, em construção.' }}</small></span>
       </button>
-      <div class="city-location"><span class="location-dot" /><span>Rio de Janeiro <strong>2035</strong></span><span class="location-line" /><span class="city-day">Dia {{ day }}</span></div>
-      <div class="topbar-right"><span v-if="activeOfficeCount > 0" class="office-activity-count" title="Execuções detectadas/observadas em seus escritórios" :aria-label="`${activeOfficeCount} escritórios com execuções detectadas ou observadas`"><span />{{ activeOfficeCount }}<span class="office-activity-caption">em atividade</span></span>
+      <div class="city-location"><span class="location-dot" /><span>{{ region?.nome ?? 'Rio de Janeiro' }}</span><span class="location-line" /><span class="city-day">Dia {{ day }}</span></div>
+      <div class="topbar-right"><a class="city-world-link" href="./world.html">Voltar ao globo</a><span v-if="activeOfficeCount > 0" class="office-activity-count" title="Execuções detectadas/observadas em seus escritórios" :aria-label="`${activeOfficeCount} escritórios com execuções detectadas ou observadas`"><span />{{ activeOfficeCount }}<span class="office-activity-caption">em atividade</span></span>
         <div class="save-status" role="status"><span :class="{ busy: saving || refreshing }" />{{ saving ? 'Salvando…' : refreshing ? 'Sincronizando…' : state ? 'Salvo no servidor' : 'Conectando…' }}</div>
         <button class="balance" :aria-label="`Saldo: ${coins(state?.credits)} moedas. Ver histórico`" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen"><span class="coin-glyph"><Icon name="coin" :size="18" /></span><strong>{{ coins(state?.credits) }}</strong><span class="balance-label">moedas</span></button>
         <div class="level-badge" :title="`${progress.remaining} ações recompensadas para o próximo nível`"><span>NÍVEL</span><strong>{{ state?.level || 1 }}</strong><span class="level-track" role="progressbar" aria-label="Progresso para o próximo nível" :aria-valuenow="progress.withinLevel" :aria-valuemin="0" :aria-valuemax="10"><i :style="{ transform: `scaleX(${progress.withinLevel / 10})` }" /></span></div>

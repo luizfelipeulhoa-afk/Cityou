@@ -17,7 +17,11 @@
   "observability": {
     "enabled": true
   },
-  "previews": {}
+  "previews": {
+    "durable_objects": {
+      "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
+    }
+  }
   // O banco D1 ainda não está ligado em produção: falta criar o banco e pôr aqui
   // "d1_databases": [{ "binding": "DB", "database_name": "cityou", "database_id": "<id>", "migrations_dir": "migrations" }]
   // Até lá, GET /api/health responde db: "not_configured". Os testes usam wrangler.test.jsonc.

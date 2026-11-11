@@ -8,6 +8,7 @@ const props = defineProps({
   /** { desbloqueados: string[], concluidos: string[] } — use v-model:progress para o debug salvar. */
   progress: { type: Object, default: () => initialProgress() },
   spaces: { type: Array, default: () => WORLD_SPACES },
+  regional: Boolean,
   /** Abre o painel de debug (também abre com a tecla D ou ?debug=1). */
   debug: { type: Boolean, default: false },
 })
@@ -79,7 +80,8 @@ const callbacks = {
     const { space, locked, previous } = hit
     try { navigator.vibrate?.(locked ? [10, 50, 10] : 12) } catch { /* sem vibração neste aparelho */ }
     if (locked) {
-      const text = previous ? `Complete ${previous.nome} para desbloquear` : 'Ainda bloqueado'
+      const text = props.regional ? 'Veja as condições para abrir uma cidade'
+        : previous ? `Complete ${previous.nome} para desbloquear` : 'Ainda bloqueado'
       showTooltip({ id: space.id, title: space.nome, text, kind: 'locked', ms: 2800, sticky: true })
       emit('locked', { id: space.id, previousId: previous?.id || null })
     }
@@ -145,6 +147,7 @@ onBeforeUnmount(() => {
 
 // ---------- Ações (debug e acessibilidade) ----------
 function commit(next) {
+  if (props.regional) return
   localProgress.value = normalizeProgress(next, order.value)
   emit('update:progress', localProgress.value)
 }
@@ -156,6 +159,12 @@ const debugReplay = id => globe.value?.replayUnlock(id)
 const focus = id => globe.value?.focusSpace(id)
 const overview = () => globe.value?.resetView()
 const activate = id => globe.value?.activate(id)
+
+function activateFromKeyboard(space) {
+  if (!props.regional) { activate(space.id); return }
+  if (space.desbloqueado) emit('open-world', space.id)
+  else emit('locked', { id: space.id })
+}
 
 defineExpose({ focusSpace: focus, resetView: overview, activateSpace: activate })
 </script>
@@ -191,7 +200,7 @@ defineExpose({ focusSpace: focus, resetView: overview, activateSpace: activate }
     <!-- Alternativa por teclado / leitor de tela aos cliques no 3D. -->
     <ul class="world-map__sr">
       <li v-for="space in spacesState" :key="space.id">
-        <button type="button" @click="activate(space.id)">
+        <button type="button" @click="activateFromKeyboard(space)">
           {{ space.ordem }}. {{ space.nome }} — {{ space.concluido ? 'concluído' : space.desbloqueado ? 'desbloqueado' : 'bloqueado' }}
         </button>
       </li>
@@ -215,17 +224,17 @@ defineExpose({ focusSpace: focus, resetView: overview, activateSpace: activate }
               </small>
             </div>
             <div class="world-map__row-actions">
-              <button type="button" :disabled="space.desbloqueado" @click="debugUnlock(space.id)">Desbloquear</button>
-              <button type="button" :disabled="space.concluido" @click="debugComplete(space.id)">Concluir</button>
+              <button type="button" v-if="!regional" :disabled="space.desbloqueado" @click="debugUnlock(space.id)">Desbloquear</button>
+              <button type="button" v-if="!regional" :disabled="space.concluido" @click="debugComplete(space.id)">Concluir</button>
               <button type="button" title="Focar a câmera" @click="focus(space.id)">◎</button>
               <button type="button" title="Repetir animação de desbloqueio" :disabled="!space.desbloqueado" @click="debugReplay(space.id)">↻</button>
             </div>
           </li>
         </ol>
         <footer>
-          <button type="button" class="is-primary" :disabled="completedCount === spacesState.length" @click="debugCompleteCurrent">Concluir atual</button>
+          <button type="button" v-if="!regional" class="is-primary" :disabled="completedCount === spacesState.length" @click="debugCompleteCurrent">Concluir atual</button>
           <button type="button" @click="overview">Visão geral</button>
-          <button type="button" class="is-danger" @click="debugReset">Resetar</button>
+          <button type="button" v-if="!regional" class="is-danger" @click="debugReset">Resetar</button>
         </footer>
         <p class="world-map__hint">Tecla D abre/fecha · ?debug=1 na URL</p>
       </aside>
