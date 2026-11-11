@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { gsap } from 'gsap'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { createTapGesture } from '../interaction/tapGesture.js'
 import SpaceMarker from './SpaceMarker.js'
 import { geometryFromGlobeData } from './terrain.js'
 import { OCEAN_COLOR } from './terrainCore.js'
@@ -117,8 +118,6 @@ export default class WorldGlobe {
     this.hoveredId = null
     this.hoverPointer = null
     this.hoverDirty = false
-    this.activePointers = new Set()
-    this.gesture = null
     this.lastInteraction = performance.now()
     this.elapsed = 0
     this.pathPhase = 0
@@ -497,30 +496,32 @@ if (diffuseColor.a < 0.02) discard;`)
   bindEvents() {
     const canvas = this.canvas
     canvas.style.touchAction = 'none'
-    this.onPointerDown = (e) => {
-      this.activePointers.add(e.pointerId)
+    const taps = this.taps = createTapGesture()
+    const targetOf = event => this.pick(event.clientX, event.clientY)?.id
+    this.onPointerDown = (event) => {
+      if (event.button !== 0) return
       this.lastInteraction = performance.now()
-      if (this.activePointers.size > 1) { if (this.gesture) this.gesture.multi = true; return }
-      this.gesture = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), multi: false }
+      taps.down(event, targetOf(event))
     }
-    this.onPointerUp = (e) => {
-      this.activePointers.delete(e.pointerId)
-      const g = this.gesture
-      if (!g || g.id !== e.pointerId) return
-      this.gesture = null
-      if (g.multi) return
-      if (Math.hypot(e.clientX - g.x, e.clientY - g.y) < 8 && performance.now() - g.t < 650) this.handleTap(e.clientX, e.clientY)
+    this.onPointerUp = (event) => {
+      const target = targetOf(event)
+      if (taps.up(event, target)) {
+        if (target) this.activate(target)
+        else this.callbacks.onTap(null)
+      }
     }
-    this.onPointerCancel = (e) => { this.activePointers.delete(e.pointerId); this.gesture = null }
+    this.onPointerCancel = event => taps.cancel(event)
     this.onPointerMove = (e) => {
+      taps.move(e)
       if (e.pointerType !== 'mouse' || e.buttons !== 0) return
       this.hoverPointer = { x: e.clientX, y: e.clientY }
       this.hoverDirty = true
     }
-    this.onPointerLeave = () => { this.hoverPointer = null; this.hoverDirty = true }
+    this.onPointerLeave = (event) => { taps.cancel(event); this.hoverPointer = null; this.hoverDirty = true }
     canvas.addEventListener('pointerdown', this.onPointerDown)
     canvas.addEventListener('pointerup', this.onPointerUp)
     canvas.addEventListener('pointercancel', this.onPointerCancel)
+    canvas.addEventListener('lostpointercapture', this.onPointerCancel)
     canvas.addEventListener('pointermove', this.onPointerMove)
     canvas.addEventListener('pointerleave', this.onPointerLeave)
     this.resizeObserver = new ResizeObserver(() => this.resize())
@@ -749,8 +750,16 @@ if (diffuseColor.a < 0.02) discard;`)
   }
 
   /** Foca um espaço (sem abrir). */
-  focusSpace(id) {
+  focusSpace(id, options) {
     this.focusedId = id
+    if (options?.instant) {
+      this.cancelFly()
+      const distance = this.focusDistance
+      this.camera.position.copy(this.focusDirection(id, distance)).multiplyScalar(distance)
+      this.camera.lookAt(0, 0, 0)
+      this.applyPitch()
+      return Promise.resolve(true)
+    }
     return this.flyTo(id)
   }
 
@@ -782,12 +791,6 @@ if (diffuseColor.a < 0.02) discard;`)
     return best
   }
 
-  handleTap(clientX, clientY) {
-    const marker = this.pick(clientX, clientY)
-    if (!marker) { this.callbacks.onTap(null); return }
-    this.activate(marker.id)
-  }
-
   /** Mesmo efeito de tocar no espaço (usado também pelo teclado). */
   activate(id) {
     const m = this.markers.get(id)
@@ -797,7 +800,10 @@ if (diffuseColor.a < 0.02) discard;`)
     if (m.state.desbloqueado) {
       this.focusedId = id
       this.callbacks.onTap({ space, locked: false })
-      this.flyTo(id).then((ok) => { if (ok && !this.disposed) this.callbacks.onOpen(space) })
+      if (this.reducedMotion) this.callbacks.onOpen(space)
+      else this.flyTo(id, { duration: 0.2 }).then((ok) => {
+        if (ok && !this.disposed) this.callbacks.onOpen(space)
+      })
     }
     else {
       m.shake()
@@ -852,7 +858,7 @@ if (diffuseColor.a < 0.02) discard;`)
 
   /** Nada acontecendo além de nuvens e ondas: dá para desenhar metade dos quadros. */
   isIdle() {
-    return this.isReady && !this.flying && !this.cinematic && !this.hoveredId && !this.activePointers.size
+    return this.isReady && !this.flying && !this.cinematic && !this.hoveredId && !this.taps.active
       && performance.now() - this.lastInteraction > 4000
   }
 
@@ -934,6 +940,7 @@ if (diffuseColor.a < 0.02) discard;`)
     canvas.removeEventListener('pointerdown', this.onPointerDown)
     canvas.removeEventListener('pointerup', this.onPointerUp)
     canvas.removeEventListener('pointercancel', this.onPointerCancel)
+    canvas.removeEventListener('lostpointercapture', this.onPointerCancel)
     canvas.removeEventListener('pointermove', this.onPointerMove)
     canvas.removeEventListener('pointerleave', this.onPointerLeave)
     this.resizeObserver.disconnect()

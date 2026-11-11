@@ -10,6 +10,7 @@ import { HttpError, json, errorResponse } from './http.js'
 const START = SPACE_ORDER[0]
 const COOKIE = 'cityou_demo'
 const SESSION_SECONDS = 30 * 24 * 60 * 60
+const previewEnabled = env => env?.CITYOU_TEST_OPEN_REGIONS === '1'
 const kinds = ['habit', 'goal', 'note', 'transaction', 'meal']
 const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' })
 const sources = Object.fromEntries(['fitness', 'documents', 'memories', 'events']
@@ -52,11 +53,10 @@ export async function demoApi(request, env, url) {
   if (!Object.hasOwn(route[1], request.method)) throw new HttpError(405, 'Método não permitido.')
   const token = sessionToken(request)
   if (!token) throw new HttpError(401, 'Abra o Cityou novamente com os cookies habilitados.')
-  const key = await sha256Hex(new TextEncoder().encode(token))
-  // Só o Worker fala com a sessão: o cabeçalho é sempre reescrito aqui, nunca vem do navegador.
-  const headers = new Headers(request.headers)
-  headers.set('X-Travel-Open', env.TRAVEL_OPEN === 'false' ? '0' : '1')
-  const response = await env.DEMO_SESSIONS.getByName(key).fetch(new Request(request, { headers }))
+  // Local runs may switch the flag while reusing a namespace and cookies.
+  const session = previewEnabled(env) ? `test:${token}` : token
+  const key = await sha256Hex(new TextEncoder().encode(session))
+  const response = await env.DEMO_SESSIONS.getByName(key).fetch(request)
   return new Response(response.body, response)
 }
 
@@ -93,10 +93,13 @@ function titleOf(value) {
   return value.trim()
 }
 
-function worldSnapshot(progress, travelOpen = true) {
+function worldSnapshot(progress, travelOpen, testMode) {
+  if (testMode) {
+    return { ...progress, desbloqueados: SPACE_ORDER, viagens_abertas: true, viagens_disponiveis: 0, test_mode: true }
+  }
   const slots = progress.concluidos.length - (progress.desbloqueados.length - 1)
   const locked = SPACE_ORDER.length - progress.desbloqueados.length
-  return { ...progress, viagens_abertas: travelOpen, viagens_disponiveis: travelOpen ? Math.max(0, Math.min(slots, locked)) : 0 }
+  return { ...progress, viagens_abertas: travelOpen, viagens_disponiveis: travelOpen ? Math.max(0, Math.min(slots, locked)) : 0, test_mode: false }
 }
 
 const TRAVEL_CLOSED = 'As viagens ainda não estão abertas. Por enquanto, desenvolva a cidade onde você está.'
@@ -114,7 +117,9 @@ function domainOf(value) {
 }
 
 export class DemoSession {
-  constructor(ctx) {
+  constructor(ctx, env) {
+    this.testMode = previewEnabled(env)
+    this.travelOpen = env?.TRAVEL_OPEN !== 'false'
     this.storage = ctx.storage
     this.sql = ctx.storage.sql
     this.sql.exec('CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT, value TEXT NOT NULL, PRIMARY KEY (kind, id))')
@@ -124,7 +129,6 @@ export class DemoSession {
     const url = new URL(request.url)
     const path = url.pathname
     const location = url.searchParams.get('local') ?? START
-    this.travelOpen = request.headers.get('X-Travel-Open') !== '0'
     const [pattern, handlers] = routes.find(([pattern]) => pattern.test(path))
     const handler = handlers[request.method]
     const [, id, second] = path.match(pattern)
@@ -293,14 +297,14 @@ export class DemoSession {
       this.write('task', id, task)
       this.reward('task', dateFormatter.format(completedAt), id, `Tarefa concluída: ${task.title}`)
     }
-    return json({ task, city: snapshot(this.cityState()) })
+    return json({ task, city: this.citySnapshot(START) })
   }
 
-  cityState() { return this.read('city', 'state') ?? newCity() }
+  cityState() { return this.read('city', 'state') ?? newCity(START, this.testMode) }
 
   requireLocation(location) {
     if (!SPACE_ORDER.includes(location)) throw new HttpError(404, 'Local desconhecido.')
-    if (location === START) return
+    if (location === START || this.testMode) return
     const progress = this.progressState()
     if (!progress.desbloqueados.includes(location)) throw new HttpError(403, 'Este local ainda está bloqueado.')
   }
@@ -308,7 +312,7 @@ export class DemoSession {
   regionalCity(location, home) {
     if (location === START) return home
     const { credits, earned, reward_count, history } = home
-    const region = this.read('regional-city', location) ?? newTown()
+    const region = this.read('regional-city', location) ?? newTown(location)
     return { ...region, credits, earned, reward_count, history }
   }
 
@@ -323,7 +327,39 @@ export class DemoSession {
     return { ...view, placements }
   }
 
-  citySnapshot(location) { return { ...this.withStages(snapshot(this.regionalCity(location, this.cityState()))), location_id: location } }
+  // Só hábitos e metas viram prédio: são os que têm dias de prática para mostrar a evolução.
+  activity(id) {
+    const entry = this.read('entry', id)
+    return entry && ['habit', 'goal'].includes(entry.kind) ? entry : null
+  }
+
+  // Prédio de atividade: o tipo vem da área da atividade e o nome do local que a pessoa preencheu.
+  activityContext(action) {
+    if (action.activity_id == null || action.type !== 'build') return {}
+    const entry = this.activity(action.activity_id)
+    return { nome: (entry.place || entry.title).slice(0, 80) }
+  }
+
+  withActivity(action) {
+    if (action.activity_id == null) return action
+    if (action.type !== 'build') throw new HttpError(422, 'A atividade só se liga a uma construção nova.')
+    const entry = this.activity(action.activity_id)
+    if (!entry) throw new HttpError(404, 'Esta atividade não existe.')
+    const kind = kindForDomain(entry.domain ?? 'organizacao')
+    if (action.kind !== null && action.kind !== kind) throw new HttpError(422, 'O prédio precisa ser da mesma área da atividade.')
+    if (this.buildingActivityIds().has(action.activity_id)) throw new HttpError(409, 'Esta atividade já tem um prédio na cidade.')
+    return { ...action, kind }
+  }
+
+  buildingActivityIds() {
+    const ids = new Set()
+    for (const { value } of this.sql.exec("SELECT value FROM records WHERE kind IN ('city', 'regional-city')")) {
+      for (const placement of JSON.parse(value).placements ?? []) if (placement.activity_id) ids.add(placement.activity_id)
+    }
+    return ids
+  }
+
+  citySnapshot(location) { return this.withStages(snapshot(this.regionalCity(location, this.cityState()), location, this.testMode)) }
 
   city(_, location) { return json(this.citySnapshot(location)) }
 
@@ -368,38 +404,6 @@ export class DemoSession {
     this.write(key, id, true)
   }
 
-  // Só hábitos e metas viram prédio: são os que têm dias de prática para mostrar a evolução.
-  activity(id) {
-    const entry = this.read('entry', id)
-    return entry && ['habit', 'goal'].includes(entry.kind) ? entry : null
-  }
-
-  // Prédio de atividade: o tipo vem da área da atividade e o nome do local que a pessoa preencheu.
-  activityContext(action) {
-    if (action.activity_id === null || action.type !== 'build') return {}
-    const entry = this.activity(action.activity_id)
-    return { nome: (entry.place || entry.title).slice(0, 80) }
-  }
-
-  withActivity(action) {
-    if (action.activity_id === null) return action
-    if (action.type !== 'build') throw new HttpError(422, 'A atividade só se liga a uma construção nova.')
-    const entry = this.activity(action.activity_id)
-    if (!entry) throw new HttpError(404, 'Esta atividade não existe.')
-    const kind = kindForDomain(entry.domain ?? 'organizacao')
-    if (action.kind !== null && action.kind !== kind) throw new HttpError(422, 'O prédio precisa ser da mesma área da atividade.')
-    if (this.buildingActivityIds().has(action.activity_id)) throw new HttpError(409, 'Esta atividade já tem um prédio na cidade.')
-    return { ...action, kind }
-  }
-
-  buildingActivityIds() {
-    const ids = new Set()
-    for (const { value } of this.sql.exec("SELECT value FROM records WHERE kind IN ('city', 'regional-city')")) {
-      for (const placement of JSON.parse(value).placements ?? []) if (placement.activity_id) ids.add(placement.activity_id)
-    }
-    return ids
-  }
-
   cityAction(body, location) {
     const action = normalizeAction(body)
     const home = this.cityState()
@@ -408,10 +412,11 @@ export class DemoSession {
     const recorded = this.read('city-request', action.request_id)
     if (recorded !== null) {
       if (recorded !== fingerprint) throw new HttpError(409, 'Esse request_id já foi usado para outra ação.')
-      return json({ ...this.withStages(snapshot(city)), location_id: location })
+      return json(this.withStages(snapshot(city, location, this.testMode)))
     }
     const progress = this.progressState()
-    applyCityAction(city, this.withActivity(action), this.activityContext(action))
+    const resolved = this.withActivity(action)
+    applyCityAction(city, resolved, location, this.testMode, this.activityContext(resolved))
     if (location === START) {
       this.write('city', 'state', city)
     } else {
@@ -419,13 +424,16 @@ export class DemoSession {
       this.write('city', 'state', { ...home, credits, history, revision: home.revision + 1 })
       this.write('regional-city', location, { placements, revision, started_at })
     }
-    const firstBuilding = action.type === 'build' && countsForTravel(action) && !progress.concluidos.includes(location)
-    if (firstBuilding) progress.concluidos.push(location)
+    const firstBuilding = resolved.type === 'build' && countsForTravel(resolved) && !progress.concluidos.includes(location)
+    if (firstBuilding) {
+      if (this.testMode && !progress.desbloqueados.includes(location)) progress.desbloqueados.push(location)
+      progress.concluidos.push(location)
+    }
     if (firstBuilding || !this.read('world', 'regional-progress')) {
       this.write('world', 'regional-progress', normalizeProgress(progress))
     }
     this.saveRequest('city-request', action.request_id, fingerprint)
-    return json({ ...this.withStages(snapshot(city)), location_id: location })
+    return json(this.withStages(snapshot(city, location, this.testMode)))
   }
 
   progressState() {
@@ -442,7 +450,7 @@ export class DemoSession {
     return normalizeProgress(legacy)
   }
 
-  world() { return json(worldSnapshot(this.progressState(), this.travelOpen !== false)) }
+  world() { return json(worldSnapshot(this.progressState(), this.travelOpen !== false, this.testMode)) }
 
   saveWorld(progress) {
     const { epoca = 0, desbloqueados = [], concluidos = [] } = progress
@@ -466,17 +474,17 @@ export class DemoSession {
     }
 
     const progress = this.progressState()
-    if (progress.desbloqueados.includes(local)) {
+    if (this.testMode || progress.desbloqueados.includes(local)) {
       if (recorded === null) this.saveRequest('travel-request', request_id, local)
-      return json(worldSnapshot(progress, this.travelOpen))
+      return json(worldSnapshot(progress, this.travelOpen, this.testMode))
     }
     if (!this.travelOpen) throw new HttpError(409, TRAVEL_CLOSED)
-    if (worldSnapshot(progress).viagens_disponiveis === 0) {
+    if (worldSnapshot(progress, true, false).viagens_disponiveis === 0) {
       throw new HttpError(409, 'Construa um prédio em uma cidade ainda não concluída para liberar uma viagem.')
     }
     const next = unlockSpace(progress, local)
     this.write('world', 'regional-progress', next)
-    if (!this.read('regional-city', local)) this.write('regional-city', local, newTown())
+    if (!this.read('regional-city', local)) this.write('regional-city', local, newTown(local))
     this.saveRequest('travel-request', request_id, local)
     return json(worldSnapshot(next, this.travelOpen))
   }

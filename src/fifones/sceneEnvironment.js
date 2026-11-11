@@ -1,7 +1,8 @@
 import { buildPlaceholder } from '../world/monuments.js'
 import { fitModel } from '../world/SpaceMarker.js'
-import { findSpace } from '../world/worldSpaces.js'
 import * as THREE from 'three'
+import { getCityLayout, isPilotCity, tileKey } from '../../shared/game/city-layout.js'
+import { createPilotBuilding } from './pilotArchitecture.js'
 
 const palette = {
   sandstone: 0xc7ad85, grass: 0x9dbc83, bright: 0xb0e34c, leaf: 0x92d343,
@@ -173,17 +174,15 @@ const regionalTerrain = {
   'grande-muralha': { ground: 0x91a276, backdrop: 0x788b60, hills: [0x597756, 0x93a56b], hillHeight: 4.2, trees: 6 },
 }
 
-// O monumento do local é o pano de fundo da cidade. Era pequeno (5,4 de largura) e ficava a 13,5 unidades do terreno;
-// agora é maior e mais perto. O terreno vai de -9,5 a 9,5, então a frente do monumento para antes disso.
-export const LANDMARK_SIZE = { footprint: 8.8, height: 7.8 }
-export const RIO_LANDMARK_SIZE = { footprint: 7.4, height: 6.6 }
+// O monumento é o pano de fundo da cidade. Era pequeno (5,4 de largura); agora é bem maior.
+export const LANDMARK_FOOTPRINT = 8.8
+export const LANDMARK_HEIGHT = 7.6
 
-function addLandmark(parent, region, x, y, z, size = LANDMARK_SIZE) {
+function addLandmark(parent, region, x, y, z) {
   const landmark = new THREE.Group()
   landmark.name = `landmark:${region.id}`
   landmark.position.set(x, y, z)
-  landmark.userData.size = size
-  landmark.add(fitModel(buildPlaceholder(region.placeholder), size.footprint, size.height))
+  landmark.add(fitModel(buildPlaceholder(region.placeholder), LANDMARK_FOOTPRINT, LANDMARK_HEIGHT))
   parent.add(landmark)
   return landmark
 }
@@ -212,6 +211,252 @@ function addRegionalScenery(group, terrain) {
   }
 }
 
+function sceneryTiles(group, name, cells, geometry) {
+  if (cells.length === 0) return
+  const tiles = new THREE.InstancedMesh(geometry ?? new THREE.BoxGeometry(1, 1, 1), material(0xffffff), cells.length)
+  tiles.name = name
+  tiles.receiveShadow = true
+  const item = new THREE.Object3D()
+  const color = new THREE.Color()
+  for (const [index, { position, scale, tint }] of cells.entries()) {
+    item.position.set(...position)
+    item.scale.set(...scale)
+    item.updateMatrix()
+    tiles.setMatrixAt(index, item.matrix)
+    tiles.setColorAt(index, color.set(tint))
+  }
+  group.add(tiles)
+}
+
+function slopeHeight(x, y, min) {
+  return 0.6 + (4.6 - Math.min(3, (y - min) * 0.25)) *
+    (0.52 + Math.sin(x * 0.26 + 0.7) ** 2 * 0.45)
+}
+
+function pilotIsland(group, layout, shore) {
+  const dock = material(0x916747)
+  const trim = material(0xc79d70)
+  const [entryX, entryY] = layout.entry
+  const x = entryX - layout.center
+  const z = entryY - layout.center
+  box(group, 1.2, 0.14, 5.3, x, 0.055, z - 1.05, dock)
+  box(group, 3.5, 0.15, 1.55, x, 0.058, z + 1.6, dock)
+  const pilings = [-1.6, -0.46, 0.46, 1.6].map(offset => ({
+    position: [x + offset, -0.14, z + 1.95], scale: [0.1, 0.78, 0.1], tint: 0x6f4d36,
+  }))
+  sceneryTiles(group, 'Pilares do cais', pilings)
+  for (const side of [-0.53, 0.53]) box(group, 0.04, 0.035, 4.9, x + side, 0.15, z - 1.15, trim)
+  const boats = [
+    sailboat(group, x - 2.1, z + 1.35, 1.65, 0.75),
+    sailboat(group, x + 2.25, z + 2.12, 1.22, -0.45),
+  ]
+  const palmShore = shore.filter(({ position: [px, , pz] }) => pz < z - 3 || Math.abs(px - x) > 4)
+  for (let i = 1; i < palmShore.length; i += 9) {
+    const [px, , pz] = palmShore[i].position
+    palm(group, px, pz, 0.82 + (i % 4) * 0.12)
+  }
+  const reef = shore.map(({ position: [px, , pz] }, index) => ({
+    position: [px * 1.06, -0.43, pz * 1.06],
+    scale: [0.32 + (index % 4) * 0.11, 0.12, 0.22 + (index % 3) * 0.1],
+    tint: index % 2 ? 0x498c88 : 0x5eaaa1,
+  }))
+  sceneryTiles(group, 'Recife raso', reef)
+  return (time, reducedMotion) => {
+    if (reducedMotion) return
+    for (let i = 0; i < boats.length; i++) boats[i].rotation.z = Math.sin(time * 0.7 + i) * 0.035
+  }
+}
+
+function pilotRio(group, layout, shore) {
+  const segments = shore.map(({ position: [x, , z] }) => ({ x, z }))
+  const edge = new Map()
+  for (const { x, z } of segments) {
+    if (!edge.has(x) || z < edge.get(x)) edge.set(x, z)
+  }
+  const coast = [...edge].map(([x, z]) => ({ x, z }))
+  sceneryTiles(group, 'Passeio de pedra clara na orla', coast.map(({ x, z }) => ({
+    position: [x, 0.01, z], scale: [1, 0.12, 0.98], tint: 0xd8c7a3,
+  })))
+  sceneryTiles(group, 'Ciclovia costeira', coast.map(({ x, z }) => ({
+    position: [x, 0.075, z - 0.3], scale: [1, 0.017, 0.18], tint: 0xc58461,
+  })))
+  // A small repeating wave evokes local paving while following the authored coastline.
+  const ribbons = coast.flatMap(({ x, z }) => Array.from({ length: 5 }, (_, sample) => {
+    const along = x - 0.4 + sample * 0.2
+    return {
+      position: [along, 0.079, z + 0.07 + Math.sin(along * 2.9) * 0.105],
+      scale: [0.205, 0.015, 0.056], tint: 0x4b5951,
+    }
+  }))
+  sceneryTiles(group, 'Mosaico do passeio', ribbons)
+  for (let index = 2; index < coast.length; index += 5) {
+    const { x, z } = coast[index]
+    tree(group, x, z + 0.24, 0.74)
+  }
+  const edgeLand = material(0x929b77)
+  box(group, 22, 0.45, 22.5, -27.5, -0.226, -2.5, edgeLand)
+  box(group, 22, 0.45, 29, 27.5, -0.226, -2.5, edgeLand)
+  // Silhouettes beyond the grid give the Corcovado and the bay a separate horizon.
+  mountain(group, -23, -19, 6.1, 6.5, 4.5)
+  mountain(group, -18, -24, 5.8, 7.3, 5.3, [0x5c756a, 0x849d81])
+  mountain(group, 10, -23, 8.1, 5.4, 5.2)
+  mountain(group, 23, -16, 5.9, 4.8, 5.7, [0x708d78, 0x8ca28a])
+  const [entryX, entryY] = layout.entry
+  const x = entryX - layout.center, z = entryY - layout.center
+  sceneryTiles(group, 'Entrada da avenida', [-0.34, 0.34].map(offset => ({
+    position: [x + offset, 0.10, z + 0.39], scale: [0.06, 0.09, 0.43], tint: 0xf3ddaa,
+  })))
+}
+
+function pilotWater(island) {
+  const geometry = new THREE.PlaneGeometry(130, 130, 46, 46)
+  geometry.rotateX(-Math.PI / 2)
+  const colors = []
+  const positions = geometry.attributes.position
+  const shallow = new THREE.Color(island ? 0x7bd5c5 : 0x84adab)
+  const deep = new THREE.Color(island ? 0x257a94 : 0x467483)
+  const color = new THREE.Color()
+  for (let i = 0; i < positions.count; i++) {
+    const x = positions.getX(i), z = positions.getZ(i)
+    const distance = island
+      ? Math.hypot(x / 15, z / 14)
+      : Math.hypot(Math.max(0, Math.abs(x) - 14) / 12, (z - 12) / 17)
+    const depth = THREE.MathUtils.smoothstep(distance, island ? 0.93 : 0, island ? 1.6 : 1.05)
+    color.copy(shallow).lerp(deep, depth)
+    color.multiplyScalar(1 + Math.sin(x * 0.47 + z * 0.34) * 0.022)
+    colors.push(color.r, color.g, color.b)
+  }
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+  const water = new THREE.Mesh(geometry, material(0xffffff, { roughness: 0.57, vertexColors: true }))
+  water.position.y = -0.5
+  water.name = island ? 'Lagoa e mar aberto' : 'Baía'
+  water.receiveShadow = true
+  return water
+}
+
+function pilotLand(group, cells) {
+  const vertices = [], colors = []
+  const corners = [[-0.5, -0.5], [-0.5, 0.5], [0.5, 0.5], [0.5, -0.5]]
+  const occupied = new Set(cells.map(({ x, z }) => tileKey(x, z)))
+  for (const { x, z, tint } of cells) {
+    for (const index of [0, 1, 2, 0, 2, 3]) {
+      const [dx, dz] = corners[index]
+      vertices.push(x + dx, 0.015, z + dz)
+      colors.push(tint.r, tint.g, tint.b)
+    }
+    const neighbors = [[-1, 0], [0, 1], [1, 0], [0, -1]]
+    for (let edge = 0; edge < corners.length; edge++) {
+      const [nx, nz] = neighbors[edge]
+      if (occupied.has(tileKey(x + nx, z + nz))) continue
+      const a = corners[edge], b = corners[(edge + 1) % corners.length]
+      for (const [point, height] of [[a, 0.015], [a, -0.50], [b, -0.50], [a, 0.015], [b, -0.50], [b, 0.015]]) {
+        vertices.push(x + point[0], height, z + point[1])
+        colors.push(tint.r * 0.81, tint.g * 0.77, tint.b * 0.68)
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+  geometry.computeVertexNormals()
+  const mesh = new THREE.Mesh(geometry, material(0xffffff, { vertexColors: true }))
+  mesh.name = 'Patamar edificável'
+  mesh.receiveShadow = true
+  group.add(mesh)
+}
+
+function pilotSlope(group, layout, slope, water) {
+  if (slope.size === 0) return
+  const vertices = [], colors = []
+  const foot = new THREE.Color(0x829771), canopy = new THREE.Color(0x496c55)
+  const color = new THREE.Color()
+  const center = layout.center
+  const slopePeak = (x, y) => {
+    const edge = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]].some(([nx, ny]) =>
+      nx >= layout.min && nx <= layout.max && ny >= layout.min && ny <= layout.max && !slope.has(tileKey(nx, ny)))
+    return slopeHeight(x, y, layout.min) * (edge ? 0.28 : 1)
+  }
+  const addVertex = ([x, y, height]) => {
+    vertices.push(x - center, height, y - center)
+    color.copy(foot).lerp(canopy, Math.min(1, height / 3.5))
+    color.multiplyScalar(1 + Math.sin(x * 4.3 + y * 1.7) * 0.06)
+    colors.push(color.r, color.g, color.b)
+  }
+  for (const [x, y] of layout.slopeTiles) {
+    const corners = [[-1, -1], [-1, 1], [1, 1], [1, -1]].map(([dx, dy]) => {
+      const neighbors = [[x, y], [x + dx, y], [x, y + dy], [x + dx, y + dy]]
+      let sum = 0, count = 0
+      for (const [nx, ny] of neighbors) {
+        if (nx < layout.min || ny < layout.min || nx > layout.max || ny > layout.max) continue
+        if (!slope.has(tileKey(nx, ny))) {
+          const coast = water.has(tileKey(nx, ny))
+          return [x + dx / 2, y + dy / 2, coast ? -0.25 : 0.015]
+        }
+        sum += slopePeak(nx, ny)
+        count++
+      }
+      return [x + dx / 2, y + dy / 2, sum / count]
+    })
+    const peak = [x, y, slopePeak(x, y)]
+    for (let i = 0; i < corners.length; i++) {
+      addVertex(corners[i])
+      addVertex(corners[(i + 1) % corners.length])
+      addVertex(peak)
+    }
+  }
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+  geometry.computeVertexNormals()
+  const mesh = new THREE.Mesh(geometry, material(0xffffff, { vertexColors: true, flatShading: true }))
+  mesh.name = 'Encosta protegida'
+  mesh.receiveShadow = true
+  group.add(mesh)
+  const monument = layout.landmarks[0]
+  const forest = layout.slopeTiles
+    .filter(([x, y], index) => index % 5 === 0 && Math.hypot(x - monument.x, y - monument.y) > 3)
+    .map(([x, y], index) => ({
+      position: [x - center, slopePeak(x, y) + 0.28, y - center],
+      scale: [0.28 + index % 3 * 0.085, 0.45 + index % 4 * 0.07, 0.35],
+      tint: [0x647a4c, 0x506d53, 0x68835b][index % 3],
+    }))
+  sceneryTiles(group, 'Copas da encosta', forest, new THREE.IcosahedronGeometry(1, 0))
+}
+
+function createPilotEnvironment(group, region, layout) {
+  const island = region.id === 'ilha-inicial'
+  const floorColor = island ? 0xc2c297 : 0xaaa986
+  const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
+  const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))
+  group.add(pilotWater(island))
+  const land = [], shore = []
+  for (let y = layout.min; y <= layout.max; y++) for (let x = layout.min; x <= layout.max; x++) {
+    const key = tileKey(x, y)
+    const px = x - layout.center, pz = y - layout.center
+    const around = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]
+      .filter(([ax, ay]) => ax >= layout.min && ax <= layout.max && ay >= layout.min && ay <= layout.max)
+    if (water.has(key)) {
+      const coastal = around.some(([ax, ay]) => !water.has(tileKey(ax, ay)))
+      if (coastal) shore.push({ position: [px, -0.37, pz], scale: [1.002, 0.32, 1.002], tint: 0xdac6a0 })
+      continue
+    }
+    if (slope.has(key)) continue
+    const coast = around.some(([ax, ay]) => water.has(tileKey(ax, ay)))
+    const tint = new THREE.Color(coast ? (island ? 0xe5d3a5 : 0xc4c6a2) : floorColor)
+      .multiplyScalar(1 + (Math.abs(x * 19 + y * 13) % 11 - 5) * 0.002)
+    land.push({ x: px, z: pz, tint })
+  }
+  pilotLand(group, land)
+  pilotSlope(group, layout, slope, water)
+  if (island) sceneryTiles(group, 'Faixa de areia protegida', shore)
+  const animate = island ? pilotIsland(group, layout, shore) : () => {}
+  if (!island) pilotRio(group, layout, shore)
+  const site = layout.landmarks[0]
+  const landmarkY = island ? -0.42 : slopeHeight(site.x, site.y, layout.min)
+  const landmark = addLandmark(group, region, site.x - layout.center, landmarkY, site.y - layout.center)
+  return { group, landmark, tileColor: island ? 0xdad0a7 : 0xc7c9ac, animate, lamps: [], setDusk() {} }
+}
+
 export function createEnvironment(scene, region) {
   const locationId = region?.id
   const terrain = regionalTerrain[locationId]
@@ -220,6 +465,8 @@ export function createEnvironment(scene, region) {
   const group = new THREE.Group()
   group.name = region?.nome ?? 'Rio 2035 · Baía de Guanabara'
   scene.add(group)
+
+  if (isPilotCity(locationId)) return createPilotEnvironment(group, region, getCityLayout(locationId))
 
   const land = new THREE.Mesh(roundedBlock(19, 19, 0.85, 1.05), [material(groundColor), material(palette.sandstone)])
   land.position.y = -0.84
@@ -233,7 +480,7 @@ export function createEnvironment(scene, region) {
   if (terrain?.backdrop) {
     addRegionalScenery(group, terrain)
     const landmark = addLandmark(group, region, 0, -0.65, -13.2)
-    return { group, landmark, landmarkRegion: region, tileColor, animate() {}, lamps: [], setDusk() {} }
+    return { group, landmark, tileColor, animate() {}, lamps: [], setDusk() {} }
   }
 
   const oceanMat = material(0x247e96, { roughness: 0.4, metalness: 0.08 })
@@ -259,9 +506,8 @@ export function createEnvironment(scene, region) {
   mountain(group, -17, -18, 5.1, 2.5, 4.3)
   mountain(group, -4, -24, 7, 2.2, 4.6)
   mountain(group, 20, -23, 6, 2.8, 4.4)
-  // A cidade-base fica no Rio: o monumento é o Cristo Redentor do Tripo, no alto do morro.
-  const landmarkRegion = !region || region.id === 'ilha-inicial' ? findSpace('cristo-redentor') : region
-  const landmark = addLandmark(group, landmarkRegion, -12, 3.0, -11, RIO_LANDMARK_SIZE)
+  const landmark = region && addLandmark(group, region, -12, 3.08, -11)
+  if (!landmark) christ(group, -12, 3.08, -11)
 
   // A walkable mosaic strip around the waterfront uses real, narrow stone ribbons.
   box(group, 18.8, 0.16, 1.35, 0, -0.01, 9.48, material(palette.cream))
@@ -334,7 +580,7 @@ export function createEnvironment(scene, region) {
     heads.instanceMatrix.needsUpdate = true
   }
   animate(0, true)
-  return { group, landmark, landmarkRegion, tileColor, animate, lamps, setDusk(value) { lampLight.emissiveIntensity = value ? 1.3 : 0.4 } }
+  return { group, landmark, tileColor, animate, lamps, setDusk(value) { lampLight.emissiveIntensity = value ? 1.3 : 0.4 } }
 }
 
 // Prédio de uma atividade (área da vida), numa área de 2x2 (4 quadrados). Cada área tem a sua silhueta e todos são altos:
@@ -455,6 +701,8 @@ export function createDomainBuilding(definition, stage) {
 
 export function createCoreBuilding(kind, definition = {}, placement = null) {
   if (typeof kind === 'string' && kind.startsWith('dom-')) return createDomainBuilding(definition, placement?.etapa)
+  const pilotBuilding = createPilotBuilding(kind, definition)
+  if (pilotBuilding) return pilotBuilding
   const group = new THREE.Group()
   const white = material(0xf0eadc), dark = material(palette.charcoal), orange = material(palette.orange)
   if (kind === 'headquarters' || kind === 'hq') {

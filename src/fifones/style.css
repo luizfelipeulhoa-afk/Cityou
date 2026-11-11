@@ -56,4 +56,41 @@
   white-space: nowrap;
 }
 .city-world-link:hover { text-decoration: underline; }
+
+.road-editor, .pilot-interior-panel {
+  position: absolute;
+  z-index: 7;
+  right: 16px;
+  top: 96px;
+  padding: 12px;
+  width: min(320px, calc(100% - 78px));
+}
+.road-editor p, .pilot-interior-panel h2 { margin: 0 0 8px; }
+.road-editor-actions, .road-editor-fields { display: flex; gap: 6px; flex-wrap: wrap; }
+.road-editor button, .pilot-interior-panel button, .road-editor summary { min-height: 44px; }
+.road-editor summary { display: flex; align-items: center; cursor: pointer; }
+.road-editor-fields label { display: grid; flex: 1 0 20%; }
+.road-editor-fields input { width: 100%; min-height: 44px; }
+.pilot-interior-panel button + button { margin-left: 5px; }
+
+.tile-coordinates {
+  position: absolute;
+  z-index: 7;
+  top: 96px;
+  left: min(110px, 18vw);
+  padding: 8px 10px;
+  max-width: min(300px, 75vw);
+}
+.tile-coordinates summary { cursor: pointer; min-height: 44px; align-content: center; }
+.pilot-test-mode { color: #28675d; font-size: 10px; text-align: center; }
+@media (max-width: 600px) {
+  .pilot-test-mode { display: none; }
+  .tile-coordinates { top: 77px; }
+}
+
+.is-cutaway .next-build,
+.is-cutaway .missions,
+.is-cutaway .catalog,
+.is-cutaway .view-controls,
+.is-cutaway .nav-rail { display: none; }
 .building-stage{display:grid;gap:4px;margin-top:8px;padding:9px 11px;background:#e8efdf;border-radius:8px;color:#4b6b57}.building-stage strong{font-size:11px}.building-stage span{font-size:9px;color:#6f8a74}.building-stage small{font-size:9px;line-height:1.45;color:#87967f}.stage-track{display:block;height:4px;border-radius:3px;background:#cfdcc4;overflow:hidden}.stage-track b{display:block;height:100%;background:#45988a;transform-origin:left;transition:transform .3s}
