@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
+// TresJS: trata <TresMesh>, <primitive> etc. como elementos do renderizador 3D, não como componentes Vue.
+import tresTemplateOptions from '@tresjs/core/template-compiler-options'
 import { publishWorldModels, worldModelsIndex, writeWorldManifest } from './tools/world-models-manifest.mjs'
 
 // Mantém public-fifones/models/world/manifest.json em dia com os GLB da pasta e publica os modelos:
@@ -22,7 +24,7 @@ const worldModelsManifest = () => ({
   },
 })
 export default defineConfig({
- plugins: [vue(), worldModelsManifest()],
+ plugins: [vue(tresTemplateOptions), worldModelsManifest()],
  publicDir: 'public-fifones',
  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
  server: { host: '127.0.0.1', port: 5177, strictPort: true, proxy: { '/api': process.env.CITYOU_API || 'http://127.0.0.1:8766' } },

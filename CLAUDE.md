@@ -9,7 +9,8 @@ Vários Claude trabalham neste repositório em branches e sessões diferentes, e
 ## Stack e comandos
 
 - Vue 3 (`<script setup>`), Three.js **0.172.0 fixado**, GSAP 3.12, Vite 5. Backend: FastAPI 0.141.1 + SQLite.
-- `npm run dev` (porta 5177, encaminha `/api` para 8766), `npm run build`, `npm test` (node:test), `npm run test:map`.
+- `@tresjs/core` **5.10.1 fixado** (3D declarativo, em migração; ver a seção "3D declarativo").
+- `npm run dev` (porta 5177, encaminha `/api` para 8766), `npm run build`, `npm test` (node:test), `npm run test:map`, `npm run test:tres` (laboratório do TresJS no navegador).
 - Backend: `python -m backend` (porta 8766). Testes: `pytest tests -q` com `backend/requirements-dev.txt`.
 - A pasta pública do Vite é `public-fifones/`, não `public/`.
 - Testes de navegador usam `tools/runtime.mjs`. Em sessão na nuvem: `CITYOU_CHROME=/opt/pw-browsers/chromium`.
@@ -33,10 +34,21 @@ Vários Claude trabalham neste repositório em branches e sessões diferentes, e
 - `src/components/WorldMap.vue`: componente (`v-model:progress`, evento `open-world`, painel de debug com a tecla D ou `?debug=1`).
 - `src/components/WorldMapHud.vue`: etiqueta do destino, seta de borda, controles da câmera e aviso de carga.
 - Guia: `docs/WORLD-MAP.md`.
+- Prompts do Tripo: `docs/TRIPO-PROMPTS.md`. O limite de faces é por modelo e é o `MAX_TRIANGLES` de `tools/check-world-models.mjs` (15 a 25 mil; não existe limite único); os dois mudam no mesmo commit. PBR desligado.
 
 Convenções: lon 0 aponta para +Z, leste para +X, norte para +Y. Modelos com frente em +Z e base em Y=0. Campos de dados em português (`desbloqueado`, `concluido`). GLB em `public-fifones/models/world/<id>.glb`.
 
-Mudança recente (PR #13): o globo assenta cada modelo num disco plano do tamanho da base medida (`measureBase`, `markerSize × escala`, `terrainCore.js`), os modelos usam `MeshLambertMaterial` opaco (sem PBR nem mapa de ambiente; mapas de metal/rugosidade de um GLB não têm efeito) e o build publica os GLB com hash no nome (`models/world/v/`) e `models.json`, com cache imutável. Detalhes em `docs/WORLD-MAP.md` e `docs/WORLD-PERF.md`.
+Mudança recente (PR #13): o globo assenta cada modelo num disco plano do tamanho da base medida (`measureBase`, `markerSize × escala`, `terrainCore.js`), os modelos usam `MeshLambertMaterial` opaco, com faces planas (sem PBR nem mapa de ambiente; mapas de metal/rugosidade de um GLB não têm efeito) e o build publica os GLB com hash no nome (`models/world/v/`) e `models.json`, com cache imutável. Detalhes em `docs/WORLD-MAP.md` e `docs/WORLD-PERF.md`.
+
+## 3D declarativo (`src/tres/`, em migração)
+
+Decisão fechada: o 3D migra para **TresJS** (`@tresjs/core`), não para React Three Fiber, que exigiria trocar o Vue por React. Guia, fases e regras: `docs/3D-DECLARATIVO.md`. Leia antes de mexer em `SpaceMarker.js`, `WorldGlobe.js` ou `CityWorld.js`.
+
+- Estado: fase 0. As páginas de produção ainda são imperativas e não importam o TresJS. Existem a base (`glbMaterial.js`, `glbLoader.js`, `useGlb.js`, `GlbModel.vue`, `SpaceMarkerNode.vue`) e o laboratório `/tres-lab.html`, só no `npm run dev` (`TresLab.vue`; fora das entradas do build).
+- Regra visual de todo GLB, em `src/tres/glbMaterial.js` (`applyGlbStyle`): `flatShading = true`, `needsUpdate = true`, `metalness = 0`, `roughness = 1`, sem os mapas de metal e rugosidade. Já vale nas três cargas de hoje (`SpaceMarker.loadModel`, `CityWorld.loadLandmark`, `CityWorld.loadModel`). Carga nova de GLB passa por ela (`loadGlb`, `useGlb` ou `GlbModel`).
+- `vite.config.js` usa as opções de template do TresJS: tags `Tres*` e `primitive` são elementos da cena. Não crie componente Vue com nome começando em `Tres`.
+- Objeto do three em `shallowRef` ou `markRaw`, nunca em `ref`; nada reativo por quadro (use `useLoop`); `<primitive>` não libera nada, quem cria libera.
+- A API do TresJS 5 difere de exemplos antigos: confira em `node_modules/@tresjs/core/dist/*.d.ts`.
 
 Limites de desempenho: uma luz direcional + hemisfério, sem sombras e sem mapa de ambiente, modelos opacos, globo em um draw call, alvo de 60 fps em celular médio. Meça antes e depois, não estime: `npm run perf:world` (abertura) e `npm run perf:world-frame` (custo por quadro), alternando as duas versões.
 
@@ -60,6 +72,8 @@ Código: `worker/` (entrada em `worker/index.js`, uma rota por arquivo em `worke
 Painel de progresso (créditos, nível, bônus): `docs/DASHBOARD.md`; o contrato `resumo` está em `shared/game/summary.js`. Comprovação das atividades: `shared/game/proof.js` e a seção "Comprovação" de `docs/GAME-DESIGN.md`. Viagens de produção ficam fechadas por `TRAVEL_OPEN=false` em `wrangler.jsonc`. A prévia tem acesso aos oito destinos e carteira de teste isolada.
 
 Prédios de atividade: `shared/game/buildings.js` (área→tipo `dom-*`, etapas por dias e semanas); a ação `build` aceita `activity_id` sem x/y e o servidor escolhe o lote (`findSite` em `worker/city.js`). Todo o terreno é construível (`buildRadius`). A Ilha Inicial é só cenário (`isScenicCity`); sem `?local`, a cidade é o Rio (`DEFAULT_CITY` em `worker/demo.js`), já aberto.
+
+No `shared/game/city-catalog.json`, os itens `island-*` são prédios da Ilha Inicial: `city-layout.js` os tira do catálogo comum e os põe no catálogo regional da ilha, e o FastAPI local os ignora. Farol da Percepção, Cabana do Primeiro Passo e Píer da Jornada estão definidos assim, sem modelo 3D. Como a ilha é só cenário, eles ainda não aparecem no jogo.
 
 Regras do jogo: `shared/game/rules.js` (puro, sem banco; `npm test`). O estudo de referência de city builders está em `docs/research/estudo-city-builders.md`; o que foi adotado e o que ficou de fora está em `docs/GAME-DESIGN.md`. Onde os dados ficam é decisão em aberto (`docs/DATA-MODEL.md`).
 

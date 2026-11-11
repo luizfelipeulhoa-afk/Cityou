@@ -69,7 +69,11 @@ def local_url(value: str) -> str:
     return value.rstrip('/')
 
 
-CATALOG = json.loads((ROOT / 'shared/game/city-catalog.json').read_text(encoding='utf-8'))
+# Os itens `island-*` são prédios da Ilha Inicial; este servidor local não oferece cidades regionais.
+CATALOG = [
+    entry for entry in json.loads((ROOT / 'shared/game/city-catalog.json').read_text(encoding='utf-8'))
+    if not entry['id'].startswith('island-')
+]
 KINDS = {entry['id']: entry for entry in CATALOG}
 
 

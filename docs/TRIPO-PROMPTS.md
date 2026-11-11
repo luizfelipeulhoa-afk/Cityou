@@ -29,12 +29,29 @@ Painel "Geometria e texturas":
 | Qualidade de malha Ultra | **ligado** | monumento precisa de aresta viva; no teste do Cristo, com ele desligado, a malha saiu mole |
 | Textura | ligada, **4K** | 8K não está disponível; o mapa reduz para 1024 px depois, mas 4K dá uma fonte mais limpa |
 | Remover iluminação | ligado | tira luz e sombra pintadas; o mapa tem a própria luz |
-| PBR | desligado | o visual é pintado e fosco |
+| PBR | **desligado** (`pbr: false` na API) | o visual é pintado e fosco; o mapa desenha com material difuso e ignora metal e rugosidade |
 | Topologia | **Triângulo** | com Quad a exportação sai em FBX, e o mapa carrega GLB |
-| Contagem de polígonos | o limite de cada modelo (abaixo) | o painel começa em 500 |
+| Contagem de polígonos (`face_limit` na API) | o limite de cada modelo (tabela abaixo) | o painel começa em 500 |
 | Exportação | GLB | formato que o mapa carrega |
 
 Não conferi quanto cada opção custa em créditos; o número aparece ao lado do botão de gerar.
+
+## Limite de faces de cada modelo
+
+Os oito modelos são os oito espaços de `src/world/worldSpaces.js`; não há outro monumento no mapa. Cada um tem o seu limite, que é o valor de `MAX_TRIANGLES` em `tools/check-world-models.mjs` (o verificador reprova o GLB que passar do seu). Conferido em 11/11/2026:
+
+| Modelo | Arquivo | Limite de faces | GLB publicado |
+|---|---|---|---|
+| Ilha Inicial | `ilha-inicial.glb` | 6.000 | sim, 5.589 triângulos |
+| Cristo Redentor | `cristo-redentor.glb` | 20.000 | sim, 9.597 |
+| Machu Picchu | `machu-picchu.glb` | 25.000 | sim, 23.835 |
+| Chichén Itzá | `chichen-itza.glb` | 15.000 | sim, 13.929 |
+| Coliseu | `coliseu.glb` | 25.000 | sim, 23.226 |
+| Petra | `petra.glb` | 20.000 | não: o mapa usa o monumento em código |
+| Taj Mahal | `taj-mahal.glb` | 25.000 | sim, 22.525 |
+| Grande Muralha | `grande-muralha.glb` | 25.000 | sim, 23.904 |
+
+Os dois lugares mudam juntos: quem alterar um limite aqui altera o verificador no mesmo commit. Não existe limite único. Um valor igual para todos (22.000, por exemplo) passaria dos limites de Chichén Itzá e de Petra e ficaria abaixo dos triângulos de quatro GLB já publicados (Machu Picchu, Coliseu, Taj Mahal e Grande Muralha).
 
 **Prompt negativo** (o mesmo nos sete, se o Tripo oferecer o campo):
 
