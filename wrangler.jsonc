@@ -8,13 +8,20 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    // Só a API passa pelo Worker; o site continua saindo direto dos arquivos estáticos.
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*", "/", "/index.html", "/city", "/city.html", "/world", "/world.html"]
   },
+  "durable_objects": {
+    "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
+  },
+  "migrations": [{ "tag": "demo-v1", "new_sqlite_classes": ["DemoSession"] }],
   "observability": {
     "enabled": true
   },
-  "previews": {}
+  "previews": {
+    "durable_objects": {
+      "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
+    }
+  }
   // O banco D1 ainda não está ligado em produção: falta criar o banco e pôr aqui
   // "d1_databases": [{ "binding": "DB", "database_name": "cityou", "database_id": "<id>", "migrations_dir": "migrations" }]
   // Até lá, GET /api/health responde db: "not_configured". Os testes usam wrangler.test.jsonc.

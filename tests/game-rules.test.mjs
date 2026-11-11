@@ -1,6 +1,22 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { RULES, applyXp, canMarkDay, dayKey, lastSevenDays, presenceBonus, rewardFor, xpToNext } from '../shared/game/rules.js'
+import { applyCityAction, newCity, normalizeAction } from '../worker/city.js'
+
+test('cidade: construção usa o catálogo e respeita ocupação, terreno e saldo', () => {
+  const city = newCity()
+  const build = (kind, x, y) => applyCityAction(city, normalizeAction({
+    type: 'build', kind, x, y, request_id: crypto.randomUUID(), expected_revision: city.revision,
+  }))
+  assert.throws(() => build('home', 8, 8), { status: 409 })
+  assert.throws(() => build('tasks', 11, 11), { status: 422 })
+  build('home', 5, 5)
+  assert.equal(city.credits, 30)
+  assert.equal(city.revision, 1)
+  assert.throws(() => build('stunt', 6, 5), { status: 422 })
+  assert.equal(city.credits, 30)
+  assert.equal(city.placements.length, 8)
+})
 
 test('nível: XP acumulado bate com a tabela de docs/GAME-DESIGN.md', () => {
   const total = level => Array.from({ length: level - 1 }, (_, i) => xpToNext(i + 1)).reduce((a, b) => a + b, 0)

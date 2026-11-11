@@ -1,19 +1,20 @@
 # Mapa-mundo do BuildU
 
-Globo low poly (Vue 3 + Three.js + GSAP) que serve de mapa de progresso. São 8 espaços que acendem em sequência: a ilha inicial (tutorial) e sete maravilhas. Não depende do backend.
+O globo low poly é a entrada das cidades. Há oito destinos, a Ilha Inicial e sete maravilhas. Ao clicar ou tocar num monumento liberado, o jogador entra na cidade correspondente. A lista de destinos oferece o mesmo acesso por teclado.
+
+## Cidades no Worker
+
+- A Ilha é a primeira cidade. A primeira construção de um prédio em cada cidade libera uma escolha de viagem. Ruas e árvores não contam para esse marco. A pessoa pode usar a viagem em qualquer destino ainda bloqueado e voltar a uma cidade aberta sem custo.
+- Cada cidade tem sua própria grade plana de construção e um cenário com o monumento fora da área edificável. O mapa da cidade carrega o GLB daquele local sob demanda, com modelo procedural de reserva.
+- O Worker identifica a sessão de demonstração pelo cookie. Cada cidade tem construções e revisão próprias, enquanto saldo e progresso por ações recompensadas pertencem à sessão. A cidade anterior é tratada como a Ilha Inicial. Destinos já guardados no Worker continuam disponíveis.
+- Tarefas, hábitos e metas concluídas abastecem a mesma carteira. A passagem, a construção e os comprovantes de reenvio são tratados no servidor. Se a conexão cair, a tela informa a falha e mantém o último estado confirmado. A confirmação de novos gastos depende de conexão.
+- `GET /api/world/progress` informa os destinos abertos e `viagens_disponiveis`. `POST /api/world/travel` recebe `{ local, request_id }`. `GET /api/city?local=<id>` e `POST /api/city/actions?local=<id>` consultam e alteram a cidade do local escolhido. A API valida o acesso mesmo quando a URL é aberta diretamente.
 
 ## Rodar
 
-```bash
-npm ci
-npm run dev
-```
+Execute `npm ci` e `npm run dev:worker`. Abra `http://127.0.0.1:8787/world.html`. O comando `npm run test:worker` cobre viagens, persistência e carteira no simulador local.
 
-Abra http://127.0.0.1:5177/world.html. Para abrir já com o modo debug, use http://127.0.0.1:5177/world.html?debug=1. A tecla **D** abre e fecha o painel.
-
-Build de produção: `npm run build`. Com o backend (`python -m backend`), a página fica em http://127.0.0.1:8766/world.html.
-
-Testes: `npm test` (progresso, lat/lon, terra/mar, geometria do globo).
+O protótipo anterior continua disponível com Vite (`npm run dev`) ou FastAPI (`python -m backend`). Nele, o globo demonstra a progressão sequencial e o modo debug abre com **D** ou `?debug=1`.
 
 ## Arquivos
 
@@ -31,7 +32,7 @@ Testes: `npm test` (progresso, lat/lon, terra/mar, geometria do globo).
 | `src/world/progressSync.js` | Sincronização local-first com o backend. |
 | `backend/world.py` | `GET` e `PUT /api/world/progress` (SQLite). |
 | `src/components/WorldMap.vue` | Componente: monta a cena, recebe o progresso por props, emite eventos e tem o painel de debug. |
-| `src/WorldApp.vue`, `world.html` | Página de demonstração que liga tudo e simula "concluir fase". |
+| `src/WorldApp.vue`, `world.html` | Página que conecta o globo às cidades no Worker e mantém a simulação no protótipo local. |
 
 ## Usar o componente
 
@@ -55,7 +56,7 @@ const abrirFase = id => { /* navegar para a fase `id` */ }
 - **Eventos**: `select` (id, no instante do toque num espaço desbloqueado), `open-world` (id, quando a câmera termina de focar), `locked` (`{ id, previousId }`), `interact` (primeiro gesto no globo), `update:progress` (emitido pelo debug), `ready` (terreno e marcadores prontos).
 - **Métodos** (via `ref`): `focusSpace(id)`, `activateSpace(id)` (mesmo efeito de tocar), `resetView()`.
 
-As animações saem da diferença entre o progresso anterior e o novo, venha a mudança do debug, do backend ou de `completeSpace`. Concluir N toca a estrela e o florescer em N, depois o desbloqueio de N+1 (feixe de luz, partículas, câmera girando até lá).
+As animações saem da diferença entre o progresso anterior e o novo, venha a mudança do debug, do backend ou de `completeSpace`. Na simulação local, concluir N também desbloqueia N+1. No Worker, o desbloqueio acontece quando a pessoa confirma o destino da viagem.
 
 ## Monumentos em código e modelos do Tripo
 
