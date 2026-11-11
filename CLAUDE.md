@@ -2,6 +2,10 @@
 
 Organização pessoal gamificada. O repositório tem três páginas Vite e um backend FastAPI local.
 
+## Regra de trabalho: mantenha este arquivo em dia
+
+Vários Claude trabalham neste repositório em branches e sessões diferentes, e este arquivo é o que um novo lê primeiro. Toda mudança que outro Claude precisa saber (arquivo ou módulo novo, comando novo, regra de desempenho, convenção, rota, decisão fechada) entra aqui **no mesmo commit** da mudança, na seção do assunto, em poucas linhas. Antes de começar, leia a versão do `main` e leia o `git log` do que mudou desde o seu branch, para não desfazer o trabalho de outro. Se o assunto já tem guia em `docs/`, aqui vai só o resumo e o caminho do guia.
+
 ## Stack e comandos
 
 - Vue 3 (`<script setup>`), Three.js **0.172.0 fixado**, GSAP 3.12, Vite 5. Backend: FastAPI 0.141.1 + SQLite.
@@ -31,6 +35,8 @@ Organização pessoal gamificada. O repositório tem três páginas Vite e um ba
 - Guia: `docs/WORLD-MAP.md`.
 
 Convenções: lon 0 aponta para +Z, leste para +X, norte para +Y. Modelos com frente em +Z e base em Y=0. Campos de dados em português (`desbloqueado`, `concluido`). GLB em `public-fifones/models/world/<id>.glb`.
+
+Mudança recente (PR #13): o globo assenta cada modelo num disco plano do tamanho da base medida (`measureBase`, `markerSize × escala`, `terrainCore.js`), os modelos usam `MeshLambertMaterial` opaco (sem PBR nem mapa de ambiente; mapas de metal/rugosidade de um GLB não têm efeito) e o build publica os GLB com hash no nome (`models/world/v/`) e `models.json`, com cache imutável. Detalhes em `docs/WORLD-MAP.md` e `docs/WORLD-PERF.md`.
 
 Limites de desempenho: uma luz direcional + hemisfério, sem sombras e sem mapa de ambiente, modelos opacos, globo em um draw call, alvo de 60 fps em celular médio. Meça antes e depois, não estime: `npm run perf:world` (abertura) e `npm run perf:world-frame` (custo por quadro), alternando as duas versões.
 
