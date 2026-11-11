@@ -45,3 +45,14 @@
 @media(prefers-reduced-motion:reduce){.reward-spark{display:none}.reward-medal{animation:none}.catalog-card:hover:not(:disabled),.catalog-card:active:not(:disabled),.task-check:hover:not(:disabled){transform:none}}
 
 @media(max-width:600px){.next-build,.missions{left:62px;right:11px;width:auto;max-width:none}.next-build{min-height:146px}.missions{top:242px}.catalog-card{gap:3px}}
+
+.city-world-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: #25655c;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.city-world-link:hover { text-decoration: underline; }

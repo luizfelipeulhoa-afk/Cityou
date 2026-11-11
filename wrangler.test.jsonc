@@ -1,9 +1,13 @@
 {
-  // Só para os testes locais (tests/worker.test.mjs): um D1 em memória, sem build e sem conta do Cloudflare.
+  // Vinculações simuladas para os testes do Worker, sem conta do Cloudflare.
   "name": "cityou-test",
   "main": "worker/index.js",
   "compatibility_date": "2026-11-09",
   "d1_databases": [
     { "binding": "DB", "database_name": "cityou-test", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
-  ]
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
+  },
+  "migrations": [{ "tag": "demo-v1", "new_sqlite_classes": ["DemoSession"] }]
 }

@@ -5,7 +5,9 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 // CubeCity, MIT: retain its simulation-object lifecycle and recursive tile picking.
 import SimObject from '@/js/components/tiles/sim-object.js'
 import { getIntersectedTile } from '@/js/tools/interactor/utils.js'
-import { createCoreBuilding, createEnvironment, material } from './sceneEnvironment.js'
+import { fitModel } from '../world/SpaceMarker.js'
+import { WORLD_MODELS_MANIFEST } from '../world/worldSpaces.js'
+import { createCoreBuilding, createEnvironment, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT, material } from './sceneEnvironment.js'
 
 const SIZE = 17
 const CENTER = 8
@@ -33,17 +35,24 @@ function materials(object, fn) {
   })
 }
 
-function disposeOwned(object, geometry = true) {
+function disposeOwned(object, geometry = true, textures = false) {
   const seenMaterials = new Set(), seenGeometry = new Set()
+  const ownedTextures = textures ? new Set() : null
   object.traverse((child) => {
     if (geometry && child.geometry && !seenGeometry.has(child.geometry)) {
       seenGeometry.add(child.geometry)
       child.geometry.dispose()
     }
     for (const mat of child.material ? (Array.isArray(child.material) ? child.material : [child.material]) : []) {
-      if (!seenMaterials.has(mat)) { seenMaterials.add(mat); mat.dispose() }
+      if (seenMaterials.has(mat)) continue
+      seenMaterials.add(mat)
+      if (ownedTextures) {
+        for (const value of Object.values(mat)) if (value?.isTexture) ownedTextures.add(value)
+      }
+      mat.dispose()
     }
   })
+  ownedTextures?.forEach(texture => texture.dispose())
 }
 
 function footprint(placement, definition) {
@@ -122,7 +131,8 @@ export default class CityWorld {
     this.sun.shadow.normalBias = 0.035
     this.sun.shadow.bias = -0.00015
     this.scene.add(this.ambient, this.sun)
-    this.environment = createEnvironment(this.scene)
+    this.environment = createEnvironment(this.scene, callbacks.region)
+    if (this.environment.landmark) void this.loadLandmark(callbacks.region)
     this.buildings = new THREE.Group()
     this.buildings.name = 'Fifones · CubeCity SimObjects'
     this.picking = new THREE.Group()
@@ -169,7 +179,7 @@ export default class CityWorld {
   refreshGround() {
     if (!this.tiles) return
     const radius = this.state.unlock_radius ?? 3
-    const open = new THREE.Color(0xc9d5ae)
+    const open = new THREE.Color(this.environment.tileColor)
     const dummy = new THREE.Object3D()
     for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
       const unlocked = Math.max(Math.abs(x - CENTER), Math.abs(y - CENTER)) <= radius
@@ -441,6 +451,42 @@ export default class CityWorld {
     record.sim.rotation.y = -(record.placement.rotation || 0) * Math.PI / 2
     record.proxy.position.set(x, 0.065 + record.height / 2, z)
     record.proxy.scale.set(width * 0.92, Math.max(record.height, 0.11), depth * 0.92)
+  }
+
+  async loadLandmark(region) {
+    try {
+      const response = await fetch(WORLD_MODELS_MANIFEST)
+      if (!response.ok) return
+      const models = await response.json()
+      if (this.destroyed || !Array.isArray(models) || !models.includes(region.id)) return
+      const { MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js')
+      if (this.destroyed) return
+      const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder)
+      const { scene } = await loader.loadAsync(region.glbPath)
+      if (this.destroyed) {
+        disposeOwned(scene, true, true)
+        return
+      }
+      scene.rotation.y += region.rotacaoY * Math.PI / 180
+      const model = fitModel(scene, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT)
+      if (model.userData.fittedHeight <= 0) {
+        disposeOwned(model, true, true)
+        return
+      }
+      scene.traverse(child => {
+        if (child.isMesh) {
+          child.castShadow = true
+          child.receiveShadow = true
+        }
+      })
+      const anchor = this.environment.landmark
+      const [fallback] = anchor.children
+      anchor.remove(fallback)
+      disposeOwned(fallback)
+      anchor.add(model)
+    } catch {
+      // A cidade mantém o monumento procedural quando o GLB está indisponível.
+    }
   }
 
   async loadModel(record, definition) {

@@ -1,39 +1,82 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { loadWorldProgress, travelTo } from '@/fifones/api.js'
 import WorldMap from '@/components/WorldMap.vue'
-import { WORLD_SPACES, findSpace } from '@/world/worldSpaces.js'
-import { applyProgress, completeSpace, currentSpaceId, loadProgress, saveProgress } from '@/world/progress.js'
+import { WORLD_SPACES } from '@/world/worldSpaces.js'
+import { applyProgress, completeSpace, currentSpaceId, loadProgress, mergeProgress, saveProgress } from '@/world/progress.js'
 import { createProgressSync, hasLocalBackend } from '@/world/progressSync.js'
 
-// O progresso vive aqui e desce por props. A tela usa o localStorage na hora;
-// a cópia no backend (FastAPI) é sincronizada em segundo plano e nunca bloqueia.
-// O backend só aceita acesso local, então no site publicado não há sincronização (nem requisições).
 const progress = ref(loadProgress())
+const mode = ref('loading')
 const syncStatus = ref('local')
-const sync = hasLocalBackend()
-  ? createProgressSync({
+const availableTrips = ref(0)
+const visitError = ref('')
+const visiting = ref(false)
+const listOpen = ref(false)
+const selectedId = ref(null)
+const map = ref(null)
+const destinationDialog = ref(null)
+let sync
+
+function acceptRegionalProgress(value) {
+  mode.value = 'regional'
+  progress.value = value
+  availableTrips.value = value.viagens_disponiveis
+  syncStatus.value = 'sincronizado'
+}
+
+async function loadMap() {
+  visitError.value = ''
+  try {
+    const saved = await loadWorldProgress()
+    if (Number.isInteger(saved.viagens_disponiveis)) {
+      acceptRegionalProgress(saved)
+      return
+    }
+    progress.value = mergeProgress(progress.value, saved)
+  } catch (error) {
+    if (!hasLocalBackend() || (error.status && error.status !== 404)) {
+      mode.value = 'offline'
+      syncStatus.value = 'offline'
+      visitError.value = 'Não foi possível carregar o progresso. Tente novamente.'
+      return
+    }
+  }
+
+  mode.value = 'legacy'
+  if (hasLocalBackend() && !sync) {
+    sync = createProgressSync({
       getProgress: () => progress.value,
       applyProgress: (merged) => { progress.value = merged },
       onStatus: (status) => { syncStatus.value = status },
     })
-  : null
-watch(progress, (p) => { saveProgress(p); sync?.push() }, { deep: true })
+    sync.start()
+  }
+}
+
+watch(progress, p => {
+  if (mode.value !== 'legacy') return
+  saveProgress(p)
+  sync?.push()
+}, { deep: true })
 const onPageHide = () => sync?.flushOnExit()
-onMounted(() => { sync?.start(); window.addEventListener('pagehide', onPageHide) })
+onMounted(() => { void loadMap(); window.addEventListener('pagehide', onPageHide) })
 onBeforeUnmount(() => { window.removeEventListener('pagehide', onPageHide); sync?.stop() })
 
-const map = ref(null)
 const spaces = computed(() => applyProgress(WORLD_SPACES, progress.value))
 const done = computed(() => spaces.value.filter(s => s.concluido).length)
 const finished = computed(() => done.value === spaces.value.length)
 const current = computed(() => spaces.value.find(s => s.id === currentSpaceId(progress.value)))
-const opened = ref(null)
-const openedSpace = computed(() => opened.value && spaces.value.find(s => s.id === opened.value))
-const listOpen = ref(false)
+const selected = computed(() => spaces.value.find(space => space.id === selectedId.value))
+watch(selectedId, async id => {
+  if (!id) return
+  await nextTick()
+  destinationDialog.value?.focus()
+})
 const syncLabel = computed(() => ({
-  sincronizado: 'Progresso salvo neste computador',
+  sincronizado: 'Progresso salvo',
   sincronizando: 'Salvando o progresso…',
-  offline: 'Sem conexão com o servidor: o progresso está salvo neste navegador',
+  offline: 'Sem conexão com o servidor',
 }[syncStatus.value] || ''))
 
 // Dica de primeiro uso: some no primeiro gesto e não volta nesta sessão.
@@ -50,21 +93,55 @@ function dismissHint() {
   catch { /* sem sessionStorage: a dica volta na próxima visita */ }
 }
 
-function onOpen(id) {
-  listOpen.value = false
-  opened.value = findSpace(id) ? id : null
+function enterCity(id) {
+  visiting.value = true
+  const url = new URL('./city.html', window.location.href)
+  url.searchParams.set('local', id)
+  window.location.assign(url)
 }
 
-function completeOpened() {
-  const id = opened.value
-  opened.value = null
-  progress.value = completeSpace(progress.value, id)
+function onOpen(id) {
+  if (visiting.value) return
+  const space = spaces.value.find(item => item.id === id && item.desbloqueado)
+  if (!space) return
+  if (mode.value === 'regional') enterCity(id)
+  if (mode.value === 'legacy') selectedId.value = id
+}
+
+function onLocked({ id }) {
+  if (mode.value === 'regional' && !visiting.value) selectedId.value = id
+}
+
+async function chooseDestination() {
+  const destination = selected.value
+  if (!destination || visiting.value || availableTrips.value < 1) return
+  visiting.value = true
+  visitError.value = ''
+  try {
+    acceptRegionalProgress(await travelTo(destination.id))
+    enterCity(destination.id)
+  } catch (error) {
+    if (error.status === 409) {
+      try { acceptRegionalProgress(await loadWorldProgress()) } catch { /* Keep the last confirmed state. */ }
+    }
+    visitError.value = error.message
+    visiting.value = false
+  }
+}
+
+function completeSelected() {
+  progress.value = completeSpace(progress.value, selectedId.value)
+  selectedId.value = null
 }
 
 function goTo(space) {
   listOpen.value = false
   dismissHint()
-  // Desbloqueado: foca e abre. Bloqueado: leva a câmera até lá e mostra o que falta.
+  if (mode.value === 'regional') {
+    if (space.desbloqueado) onOpen(space.id)
+    else onLocked({ id: space.id })
+    return
+  }
   if (space.desbloqueado) map.value?.activateSpace(space.id)
   else map.value?.focusSpace(space.id).then(() => map.value?.activateSpace(space.id))
 }
@@ -74,12 +151,16 @@ function toggleList() {
   dismissHint()
 }
 
-const stateLabel = space => (space.concluido ? 'concluído' : space.desbloqueado ? 'disponível' : 'bloqueado')
+function stateLabel(space) {
+  if (space.concluido) return 'concluído'
+  if (space.desbloqueado) return 'disponível'
+  return availableTrips.value > 0 ? 'pode abrir' : 'bloqueado'
+}
 </script>
 
 <template>
   <main class="world-app">
-    <WorldMap ref="map" v-model:progress="progress" class="world-app__map" @open-world="onOpen" @interact="dismissHint" @select="dismissHint" />
+    <WorldMap ref="map" :progress="progress" :regional="mode === 'regional'" class="world-app__map" @open-world="onOpen" @locked="onLocked" @update:progress="mode === 'legacy' && (progress = $event)" @interact="dismissHint" @select="dismissHint" />
 
     <header class="world-app__hud">
       <div class="world-app__brand">
@@ -102,14 +183,16 @@ const stateLabel = space => (space.concluido ? 'concluído' : space.desbloqueado
       </div>
     </header>
 
-    <div v-if="!openedSpace" class="world-app__dock">
+    <div v-if="!selected" class="world-app__dock">
+      <p v-if="visitError" class="world-app__hint" role="alert">{{ visitError }}</p>
+      <button v-if="mode === 'offline'" type="button" class="world-app__go" @click="loadMap">Tentar novamente</button>
       <transition name="fade">
         <p v-if="showHint" class="world-app__hint">Arraste para girar · pinça ou roda para aproximar</p>
       </transition>
 
       <transition name="sheet">
         <nav v-if="listOpen" id="world-spaces" class="world-app__list" aria-label="Espaços do mapa">
-          <button v-for="space in spaces" :key="space.id" type="button" :class="`is-${stateLabel(space)}`" @click="goTo(space)">
+          <button v-for="space in spaces" :key="space.id" type="button" :class="{ 'is-concluído': space.concluido, 'is-bloqueado': !space.desbloqueado && !availableTrips }" @click="goTo(space)">
             <span class="world-app__badge" :style="{ '--pip': space.cor }" aria-hidden="true">{{ space.concluido ? '★' : space.desbloqueado ? space.ordem : '🔒' }}</span>
             <span class="world-app__list-name">{{ space.nome }}<small>{{ space.local }}</small></span>
             <span class="world-app__list-state">{{ stateLabel(space) }}</span>
@@ -121,7 +204,11 @@ const stateLabel = space => (space.concluido ? 'concluído' : space.desbloqueado
         <button type="button" class="world-app__menu" :aria-expanded="listOpen" aria-controls="world-spaces" aria-label="Lista de espaços" @click="toggleList">
           <span aria-hidden="true">☰</span>
         </button>
-        <div v-if="finished" class="world-app__goal">
+        <div v-if="mode === 'regional'" class="world-app__goal">
+          <small>{{ spaces.filter(space => space.desbloqueado).length }} de {{ spaces.length }} cidades abertas</small>
+          <strong>{{ availableTrips ? 'Escolha um novo destino' : 'Visite uma cidade' }}</strong>
+        </div>
+        <div v-else-if="finished" class="world-app__goal">
           <small>Jornada completa</small>
           <strong>Os 8 espaços foram concluídos ★</strong>
         </div>
@@ -136,15 +223,17 @@ const stateLabel = space => (space.concluido ? 'concluído' : space.desbloqueado
     </div>
 
     <transition name="sheet">
-      <section v-if="openedSpace" class="world-app__sheet" role="dialog" aria-modal="false" :aria-label="openedSpace.nome">
-        <span class="world-app__kicker" :style="{ color: openedSpace.cor }">Espaço {{ openedSpace.ordem }} de {{ spaces.length }}</span>
-        <h1>{{ openedSpace.nome }}</h1>
-        <p class="world-app__place">{{ openedSpace.local }}</p>
-        <p>{{ openedSpace.descricao }}</p>
+      <section v-if="selected" ref="destinationDialog" tabindex="-1" class="world-app__sheet" role="dialog" :aria-label="selected.nome" @keydown.esc="selectedId = null">
+        <h1>{{ selected.nome }}</h1>
+        <p class="world-app__place">{{ selected.local }}</p>
+        <p v-if="mode === 'legacy'">{{ selected.descricao }}</p>
+        <p v-else-if="!selected.desbloqueado">{{ availableTrips ? 'Use uma viagem disponível para abrir sua cidade aqui.' : 'Construa seu primeiro prédio em uma cidade aberta para ganhar uma viagem.' }}</p>
+        <p v-if="visitError" role="alert">{{ visitError }}</p>
         <div class="world-app__actions">
-          <button v-if="!openedSpace.concluido" type="button" class="is-primary" @click="completeOpened">Concluir fase (simulação)</button>
-          <span v-else class="world-app__done">★ Concluído</span>
-          <button type="button" @click="opened = null">Voltar ao mapa</button>
+          <button v-if="mode === 'regional' && selected.desbloqueado" type="button" class="is-primary" @click="enterCity(selected.id)">Entrar na cidade</button>
+          <button v-else-if="mode === 'regional' && availableTrips" type="button" class="is-primary" :disabled="visiting" @click="chooseDestination">{{ visiting ? 'Abrindo…' : 'Abrir cidade' }}</button>
+          <button v-else-if="mode === 'legacy' && !selected.concluido" type="button" class="is-primary" @click="completeSelected">Concluir fase (simulação)</button>
+          <button type="button" :disabled="visiting" @click="selectedId = null">Voltar ao mapa</button>
         </div>
       </section>
     </transition>
@@ -337,7 +426,6 @@ body {
 }
 .world-app__sheet h1 { margin: 2px 0 2px; font-size: 22px; }
 .world-app__sheet p { margin: 6px 0; opacity: 0.9; }
-.world-app__kicker { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
 .world-app__sheet .world-app__place { font-size: 13px; opacity: 0.7; }
 .world-app__actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
 .world-app__actions button {
@@ -349,7 +437,6 @@ body {
   font-weight: 600;
 }
 .world-app__actions button.is-primary { background: #ffd166; color: #2b1d00; border-color: transparent; }
-.world-app__done { color: #ffd166; font-weight: 700; margin-right: 6px; }
 
 .sheet-enter-active, .sheet-leave-active { transition: opacity 0.22s ease, transform 0.22s ease; }
 .sheet-enter-from, .sheet-leave-to { opacity: 0; transform: translateY(12px); }
