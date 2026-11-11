@@ -22,7 +22,7 @@ O Worker atende hoje, sem login, as rotas antigas do painel e da cidade. Cada vi
 
 **Resumo.** `GET /api/personal` e a resposta das marcações trazem `resumo` (ver `DASHBOARD.md`).
 
-**Viagens fechadas.** Com `TRAVEL_OPEN=false`, `POST /api/world/travel` para um destino novo responde 409 e `GET /api/world/progress` traz `viagens_abertas: false` e `viagens_disponiveis: 0`. O Worker repassa o estado à sessão por um cabeçalho interno que sempre reescreve; o navegador não consegue reabrir as viagens.
+**Viagens fechadas.** Com `TRAVEL_OPEN=false`, `POST /api/world/travel` para um destino novo responde 409 e `GET /api/world/progress` traz `viagens_abertas: false` e `viagens_disponiveis: 0`. O Durable Object lê a configuração diretamente do ambiente. Na prévia isolada com `CITYOU_TEST_OPEN_REGIONS=1`, os oito destinos ficam acessíveis para teste.
 
 As rotas de projetos e atividade respondem "desconectado". O contrato de `POST /api/world/travel` de hoje difere do alvo desta página (sem nível nem passagem em créditos): ver `GAME-DESIGN.md`, seção "O que já está implementado". Para o alvo, esta demonstração vira a fonte de importação: os registros de um visitante podem ser trazidos para a conta dele quando o login existir.
 

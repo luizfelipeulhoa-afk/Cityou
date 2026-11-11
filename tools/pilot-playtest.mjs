@@ -26,7 +26,7 @@ async function api(page, path, input) {
 
 try {
   for (const [region, plan] of Object.entries(plans)) {
-    const mobile = region === 'ilha-inicial'
+    const mobile = (region === 'ilha-inicial') !== process.argv.includes('--swap-viewports')
     const context = await browser.newContext(mobile ? devices['Pixel 7'] : { viewport: { width: 1440, height: 960 }, reducedMotion: 'reduce' })
     try {
       const page = await context.newPage()
@@ -102,7 +102,7 @@ try {
       const newBuildings = state.placements.filter(item => /^(island|rio)-/.test(item.kind))
       assert.equal(newBuildings.length, plan.capacity)
       const interiorTimes = []
-      const interiorKinds = mobile ? ['island-dhoni', 'island-market'] : ['rio-fair', 'rio-samba']
+      const interiorKinds = region === 'ilha-inicial' ? ['island-dhoni', 'island-market'] : ['rio-fair', 'rio-samba']
       for (const kind of interiorKinds) {
         const placement = newBuildings.find(item => item.kind === kind)
         await page.evaluate(placement => window.__fifonesCity.engine.callbacks.onSelect(placement), placement)
