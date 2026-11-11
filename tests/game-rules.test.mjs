@@ -114,3 +114,48 @@ test('comprovação: nota curta, foto falsa e campos extras são recusados; foto
   assert.equal(parseProof({ photo: jpeg }).photo.mime, 'image/jpeg')
   assert.equal(parseProof({ note: '  ' + 'a'.repeat(20) + '  ' }).note, 'a'.repeat(20))
 })
+
+import { stageFor, weekKey, kindForDomain, domainForKind } from '../shared/game/buildings.js'
+
+test('semana: segunda a domingo, com a virada de ano da norma ISO', () => {
+  assert.equal(weekKey('2026-01-01'), '2026-W01')
+  assert.equal(weekKey('2025-12-29'), '2026-W01')
+  assert.equal(weekKey('2026-12-31'), '2026-W53')
+  assert.equal(weekKey('2026-11-09'), '2026-W46')
+  assert.equal(weekKey('2026-11-15'), '2026-W46')
+  assert.equal(weekKey('2026-11-16'), '2026-W47')
+})
+
+const daysFrom = (start, count, step = 1) => Array.from({ length: count }, (_, i) => {
+  const d = new Date(Date.parse(start + 'T00:00:00Z') + i * step * 86400000)
+  return d.toISOString().slice(0, 10)
+})
+
+test('etapa do prédio: exige dias E semanas com prática, e o tempo parado não avança nada', () => {
+  assert.equal(stageFor([]).etapa_nome, 'Terreno')
+  // 8 dias seguidos caem em só 2 semanas: Fundação.
+  assert.equal(stageFor(daysFrom('2026-11-02', 8)).etapa_nome, 'Fundação')
+  // 7 dias numa semana só: ainda Terreno.
+  assert.equal(stageFor(daysFrom('2026-11-02', 7)).etapa, 0)
+  // 30 dias seguidos têm só 5 semanas: faltam semanas para a Estrutura.
+  assert.equal(stageFor(daysFrom('2026-11-02', 30)).etapa_nome, 'Fundação')
+  // Um dia a cada 3 dias por 90 dias cobre 13 semanas e 30 dias: Estrutura.
+  const spaced = stageFor(daysFrom('2026-01-05', 30, 3))
+  assert.equal(spaced.etapa_nome, 'Estrutura')
+  assert.deepEqual(spaced.proxima, { etapa_nome: 'Acabamento', dias: 70, semanas: 16 })
+  // Dias repetidos contam uma vez.
+  assert.equal(stageFor([...daysFrom('2026-11-02', 8), ...daysFrom('2026-11-02', 8)]).dias, 8)
+  // Concluído só com 120 dias em 26 semanas ou mais; não há próxima etapa.
+  const done = stageFor(daysFrom('2026-01-05', 120, 2))
+  assert.equal(done.etapa_nome, 'Concluído')
+  assert.equal(done.proxima, null)
+  assert.ok(done.semanas >= 26)
+})
+
+test('prédio da atividade: a área escolhe o tipo, e tipo inventado não vira área', () => {
+  assert.equal(kindForDomain('saude'), 'dom-saude')
+  assert.equal(kindForDomain('jogos'), null)
+  assert.equal(domainForKind('dom-financas'), 'financas')
+  assert.equal(domainForKind('home'), null)
+  assert.equal(domainForKind('dom-jogos'), null)
+})

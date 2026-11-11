@@ -5,7 +5,7 @@ import { HttpError } from './http.js'
 const kinds = new Map(catalog.map(item => [item.id, item]))
 const core = new Set(['plaza', 'headquarters'])
 const actionTypes = ['build', 'move', 'rotate', 'remove', 'upgrade']
-const actionFields = ['type', 'expected_revision', 'request_id', 'kind', 'x', 'y', 'rotation', 'placement_id']
+const actionFields = ['type', 'expected_revision', 'request_id', 'kind', 'x', 'y', 'rotation', 'placement_id', 'activity_id']
 
 export function newTown() {
   const started_at = new Date().toISOString()
@@ -60,6 +60,7 @@ export function normalizeAction(input) {
       !validRequestId(action.request_id) ||
       (action.kind !== null && (typeof action.kind !== 'string' || action.kind.length > 40)) ||
       (action.placement_id !== null && (typeof action.placement_id !== 'string' || !action.placement_id || action.placement_id.length > 100)) ||
+      (action.activity_id !== null && (typeof action.activity_id !== 'string' || !/^[a-f0-9-]{36}$/.test(action.activity_id))) ||
       [action.x, action.y].some(value => value !== null && !integerIn(value, 16)) ||
       (action.rotation !== null && !integerIn(action.rotation, 3))) {
     throw new HttpError(422, 'Confira os dados da ação.')
@@ -91,18 +92,35 @@ function requireCredits(city, cost) {
   if (city.credits < cost) throw new HttpError(422, 'Moedas insuficientes. Conclua tarefas ou hábitos para ganhar mais.')
 }
 
-function applyPlacement(city, action) {
+// Primeiro terreno livre dentro da área liberada, do centro para fora, para o prédio de uma atividade nascer sem a pessoa escolher o lugar.
+function findSite(city, kind, rotation) {
+  const radius = Math.min(8, 3 + Math.floor(city.reward_count / 10))
+  const spots = []
+  for (let y = 8 - radius; y <= 9 + radius; y++) for (let x = 8 - radius; x <= 9 + radius; x++) spots.push({ x, y, far: Math.hypot(x - 8.5, y - 8.5) })
+  for (const spot of spots.sort((a, b) => a.far - b.far)) {
+    try {
+      validateSite(city, { id: 'novo', kind, x: spot.x, y: spot.y, rotation })
+      return spot
+    } catch { /* ocupado ou fora da área: tenta o próximo */ }
+  }
+  throw new HttpError(422, 'Não há terreno livre. Libere mais terreno ou remova uma construção.')
+}
+
+function applyPlacement(city, action, context = {}) {
   const { type, kind, x, y, rotation, placement_id } = action
   if (type === 'build') {
     const item = kinds.get(kind)
-    if (!item || core.has(kind) || x === null || y === null || placement_id !== null) {
+    const auto = x === null && y === null && action.activity_id !== null
+    if (!item || core.has(kind) || (!auto && (x === null || y === null)) || placement_id !== null) {
       throw new HttpError(422, 'Escolha uma construção e coordenadas válidas.')
     }
-    const placement = { id: crypto.randomUUID(), kind, x, y, rotation: rotation ?? 0, level: 1 }
+    const site = auto ? findSite(city, kind, rotation ?? 0) : { x, y }
+    const placement = { id: crypto.randomUUID(), kind, x: site.x, y: site.y, rotation: rotation ?? 0, level: 1 }
+    if (action.activity_id !== null) Object.assign(placement, { activity_id: action.activity_id, nome: context.nome })
     validateSite(city, placement)
     requireCredits(city, item.cost)
     city.placements.push(placement)
-    return { amount: -item.cost, label: `Construiu ${item.label}` }
+    return { amount: -item.cost, label: `Construiu ${placement.nome || item.label}` }
   }
 
   if (kind !== null || placement_id === null) throw new HttpError(422, 'Escolha uma construção da cidade.')
@@ -139,8 +157,8 @@ function applyPlacement(city, action) {
   return { amount: -cost, label: `Melhorou ${item.label} para nível ${placement.level}` }
 }
 
-export function applyCityAction(city, action) {
+export function applyCityAction(city, action, context) {
   if (action.expected_revision !== city.revision) throw new HttpError(409, 'A cidade mudou. Atualize e tente novamente.')
-  const { amount, label } = applyPlacement(city, action)
+  const { amount, label } = applyPlacement(city, action, context)
   recordChange(city, label, amount)
 }

@@ -7,7 +7,7 @@ import SimObject from '@/js/components/tiles/sim-object.js'
 import { getIntersectedTile } from '@/js/tools/interactor/utils.js'
 import { fitModel } from '../world/SpaceMarker.js'
 import { WORLD_MODELS_MANIFEST } from '../world/worldSpaces.js'
-import { createCoreBuilding, createEnvironment, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT, material } from './sceneEnvironment.js'
+import { createCoreBuilding, createEnvironment, material } from './sceneEnvironment.js'
 
 const SIZE = 17
 const CENTER = 8
@@ -132,7 +132,7 @@ export default class CityWorld {
     this.sun.shadow.bias = -0.00015
     this.scene.add(this.ambient, this.sun)
     this.environment = createEnvironment(this.scene, callbacks.region)
-    if (this.environment.landmark) void this.loadLandmark(callbacks.region)
+    if (this.environment.landmark) void this.loadLandmark(this.environment.landmarkRegion)
     this.buildings = new THREE.Group()
     this.buildings.name = 'Fifones · CubeCity SimObjects'
     this.picking = new THREE.Group()
@@ -313,7 +313,8 @@ export default class CityWorld {
     }
     for (const placement of placements) {
       const definition = this.definitions.get(placement.kind) || {}
-      const key = `${placement.kind}:${definition.model || ''}`
+      // A etapa do prédio de uma atividade entra na chave: ao mudar, o volume é refeito.
+      const key = `${placement.kind}:${definition.model || ''}:${placement.etapa ?? ''}`
       let record = this.records.get(placement.id)
       if (record && record.key !== key) {
         this.removeRecord(record)
@@ -344,7 +345,7 @@ export default class CityWorld {
     // These are the original CubeCity SimObjects, with Rio geometry and model resources.
     const sim = new SimObject()
     sim.name = `${definition.label || placement.kind} · ${placement.id}`
-    const mesh = createCoreBuilding(placement.kind, definition)
+    const mesh = createCoreBuilding(placement.kind, definition, placement)
     sim.setMesh(mesh)
     this.buildings.add(sim)
     const proxy = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, transparent: true, opacity: 0 }))
@@ -468,7 +469,8 @@ export default class CityWorld {
         return
       }
       scene.rotation.y += region.rotacaoY * Math.PI / 180
-      const model = fitModel(scene, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT)
+      const size = this.environment.landmark.userData.size
+      const model = fitModel(scene, size.footprint, size.height)
       if (model.userData.fittedHeight <= 0) {
         disposeOwned(model, true, true)
         return

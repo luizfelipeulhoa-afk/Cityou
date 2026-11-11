@@ -56,3 +56,4 @@
   white-space: nowrap;
 }
 .city-world-link:hover { text-decoration: underline; }
+.building-stage{display:grid;gap:4px;margin-top:8px;padding:9px 11px;background:#e8efdf;border-radius:8px;color:#4b6b57}.building-stage strong{font-size:11px}.building-stage span{font-size:9px;color:#6f8a74}.building-stage small{font-size:9px;line-height:1.45;color:#87967f}.stage-track{display:block;height:4px;border-radius:3px;background:#cfdcc4;overflow:hidden}.stage-track b{display:block;height:100%;background:#45988a;transform-origin:left;transition:transform .3s}

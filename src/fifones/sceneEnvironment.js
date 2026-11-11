@@ -1,5 +1,6 @@
 import { buildPlaceholder } from '../world/monuments.js'
 import { fitModel } from '../world/SpaceMarker.js'
+import { findSpace } from '../world/worldSpaces.js'
 import * as THREE from 'three'
 
 const palette = {
@@ -172,14 +173,17 @@ const regionalTerrain = {
   'grande-muralha': { ground: 0x91a276, backdrop: 0x788b60, hills: [0x597756, 0x93a56b], hillHeight: 4.2, trees: 6 },
 }
 
-export const LANDMARK_FOOTPRINT = 5.4
-export const LANDMARK_HEIGHT = 4.5
+// O monumento do local é o pano de fundo da cidade. Era pequeno (5,4 de largura) e ficava a 13,5 unidades do terreno;
+// agora é maior e mais perto. O terreno vai de -9,5 a 9,5, então a frente do monumento para antes disso.
+export const LANDMARK_SIZE = { footprint: 8.8, height: 7.8 }
+export const RIO_LANDMARK_SIZE = { footprint: 7.4, height: 6.6 }
 
-function addLandmark(parent, region, x, y, z) {
+function addLandmark(parent, region, x, y, z, size = LANDMARK_SIZE) {
   const landmark = new THREE.Group()
   landmark.name = `landmark:${region.id}`
   landmark.position.set(x, y, z)
-  landmark.add(fitModel(buildPlaceholder(region.placeholder), LANDMARK_FOOTPRINT, LANDMARK_HEIGHT))
+  landmark.userData.size = size
+  landmark.add(fitModel(buildPlaceholder(region.placeholder), size.footprint, size.height))
   parent.add(landmark)
   return landmark
 }
@@ -228,8 +232,8 @@ export function createEnvironment(scene, region) {
 
   if (terrain?.backdrop) {
     addRegionalScenery(group, terrain)
-    const landmark = addLandmark(group, region, 0, -0.65, -13.5)
-    return { group, landmark, tileColor, animate() {}, lamps: [], setDusk() {} }
+    const landmark = addLandmark(group, region, 0, -0.65, -13.2)
+    return { group, landmark, landmarkRegion: region, tileColor, animate() {}, lamps: [], setDusk() {} }
   }
 
   const oceanMat = material(0x247e96, { roughness: 0.4, metalness: 0.08 })
@@ -255,8 +259,9 @@ export function createEnvironment(scene, region) {
   mountain(group, -17, -18, 5.1, 2.5, 4.3)
   mountain(group, -4, -24, 7, 2.2, 4.6)
   mountain(group, 20, -23, 6, 2.8, 4.4)
-  const landmark = region && addLandmark(group, region, -12, 3.08, -11)
-  if (!landmark) christ(group, -12, 3.08, -11)
+  // A cidade-base fica no Rio: o monumento é o Cristo Redentor do Tripo, no alto do morro.
+  const landmarkRegion = !region || region.id === 'ilha-inicial' ? findSpace('cristo-redentor') : region
+  const landmark = addLandmark(group, landmarkRegion, -12, 3.0, -11, RIO_LANDMARK_SIZE)
 
   // A walkable mosaic strip around the waterfront uses real, narrow stone ribbons.
   box(group, 18.8, 0.16, 1.35, 0, -0.01, 9.48, material(palette.cream))
@@ -329,10 +334,127 @@ export function createEnvironment(scene, region) {
     heads.instanceMatrix.needsUpdate = true
   }
   animate(0, true)
-  return { group, landmark, tileColor, animate, lamps, setDusk(value) { lampLight.emissiveIntensity = value ? 1.3 : 0.4 } }
+  return { group, landmark, landmarkRegion, tileColor, animate, lamps, setDusk(value) { lampLight.emissiveIntensity = value ? 1.3 : 0.4 } }
 }
 
-export function createCoreBuilding(kind, definition = {}) {
+// Prédio de uma atividade (área da vida), numa área de 2x2 (4 quadrados). Cada área tem a sua silhueta e todos são altos:
+// a altura dá profundidade à cidade. O volume mostra a etapa: terreno, fundação, estrutura, acabamento e concluído.
+// É um substituto em código até haver arte do Tripo para cada área.
+const DOMAIN_PROFILES = {
+  saude: { w: 1.5, d: 1.4, h: 3.8 },
+  alimentacao: { w: 1.7, d: 1.5, h: 2.0 },
+  financas: { w: 1.25, d: 1.25, h: 5.0 },
+  estudos: { w: 1.6, d: 1.4, h: 2.6 },
+  mente: { w: 1.5, d: 1.5, h: 3.0 },
+  organizacao: { w: 1.35, d: 1.35, h: 4.4 },
+}
+
+// Fileiras de janelas na frente e na lateral direita de um corpo que começa em y0.
+function windowRows(group, w, d, y0, top, glass) {
+  const columns = w > 1.4 ? 3 : 2
+  for (let y = y0 + 0.5; y < top - 0.25; y += 0.55) {
+    for (let i = 0; i < columns; i++) box(group, 0.2, 0.26, 0.04, (i - (columns - 1) / 2) * (w / (columns + 0.4)), y, d / 2 + 0.01, glass)
+    for (const z of [-0.26, 0.26]) box(group, 0.04, 0.26, 0.2, w / 2 + 0.01, y, z * d / 0.6, glass)
+  }
+}
+
+export function createDomainBuilding(definition, stage) {
+  const group = new THREE.Group()
+  const domain = String(definition.id || '').replace('dom-', '')
+  const profile = DOMAIN_PROFILES[domain] || DOMAIN_PROFILES.organizacao
+  const color = definition.color || 0x7d9f91
+  const body = material(color), trim = material(new THREE.Color(color).multiplyScalar(0.7).getHex())
+  const concrete = material(0xcfc8b8), earth = material(0xb59f7d), wood = material(0x9b7a52)
+  const glass = material(0x9fd0d6, { roughness: 0.2 }), dark = material(0x4d4a45), accent = material(0xf2e9cf)
+  const etapa = Math.max(0, Math.min(4, Number(stage) || 0))
+  const { w, d, h } = profile
+  box(group, 1.9, 0.06, 1.9, 0, 0.03, 0, etapa >= 3 ? concrete : earth)
+
+  if (etapa === 0) {
+    for (const x of [-0.85, 0.85]) for (const z of [-0.85, 0.85]) box(group, 0.06, 0.45, 0.06, x, 0.28, z, wood)
+    box(group, 0.9, 0.34, 0.04, 0, 0.5, 0.88, body)
+    box(group, 0.7, 0.2, 0.04, 0, 0.5, 0.9, accent)
+    group.userData.height = 0.75
+  } else if (etapa === 1) {
+    box(group, 1.7, 0.12, 1.7, 0, 0.12, 0)
+    group.children.at(-1).material = concrete
+    for (const [bw, bd, x, z] of [[1.7, 0.1, 0, -0.8], [1.7, 0.1, 0, 0.8], [0.1, 1.7, -0.8, 0], [0.1, 1.7, 0.8, 0]]) box(group, bw, 0.45, bd, x, 0.4, z, concrete)
+    for (const x of [-0.4, 0.4]) box(group, 0.1, 0.7, 0.1, x, 0.55, 0, concrete)
+    group.userData.height = 0.8
+  } else if (etapa === 2) {
+    const top = h * 0.55
+    box(group, w + 0.1, 0.1, d + 0.1, 0, 0.11, 0, concrete)
+    for (const x of [-w / 2 + 0.05, w / 2 - 0.05]) for (const z of [-d / 2 + 0.05, d / 2 - 0.05]) box(group, 0.14, top, 0.14, x, 0.1 + top / 2, z, concrete)
+    for (let y = 1.0; y < top; y += 1.0) box(group, w, 0.09, d, 0, y, 0, concrete)
+    box(group, w, top * 0.4, 0.07, 0, 0.1 + top * 0.2, -d / 2 + 0.04, body)
+    box(group, 0.07, top * 0.4, d, -w / 2 + 0.04, 0.1 + top * 0.2, 0, body)
+    group.userData.height = top + 0.3
+  } else if (etapa === 3) {
+    const top = h * 0.8
+    box(group, w, top, d, 0, 0.06 + top / 2, 0, body)
+    box(group, w + 0.12, 0.1, d + 0.12, 0, top + 0.1, 0, concrete)
+    windowRows(group, w, d, 0.06, top, glass)
+    for (const x of [-0.75, 0, 0.75]) box(group, 0.05, top + 0.2, 0.05, x, (top + 0.2) / 2, d / 2 + 0.18, wood)
+    for (let y = 1.0; y < top; y += 1.1) box(group, w + 0.3, 0.04, 0.04, 0, y, d / 2 + 0.18, wood)
+    box(group, 0.32, 0.55, 0.05, 0, 0.34, d / 2 + 0.02, dark)
+    group.userData.height = top + 0.3
+  } else {
+    let top = h
+    if (domain === 'mente') {
+      // Pagode de três andares: cada andar é menor que o de baixo e tem o seu beiral.
+      const widths = [w, w * 0.78, w * 0.56]
+      let y = 0.06
+      for (const width of widths) {
+        box(group, width, h / 3, width, 0, y + h / 6, 0, body)
+        for (const x of [-1, 0, 1]) box(group, 0.14, 0.3, 0.04, x * width * 0.28, y + h / 6, width / 2 + 0.01, glass)
+        box(group, width + 0.4, 0.1, width + 0.4, 0, y + h / 3 + 0.05, 0, trim)
+        y += h / 3 + 0.1
+      }
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(widths[2] * 0.62, 0.8, 4), trim)
+      cone.position.y = y + 0.4; cone.rotation.y = Math.PI / 4; group.add(cone)
+      box(group, 0.05, 0.7, 0.05, 0, y + 1.1, 0, accent)
+      top = y + 1.4
+    } else {
+      box(group, w, h, d, 0, 0.06 + h / 2, 0, body)
+      box(group, w + 0.1, 0.1, d + 0.1, 0, h + 0.1, 0, trim)
+      windowRows(group, w, d, 0.06, h, glass)
+      box(group, 0.34, 0.58, 0.05, 0, 0.35, d / 2 + 0.02, dark)
+      if (domain === 'saude') {
+        box(group, 0.74, 0.22, 0.05, 0, h + 0.55, d / 2 - 0.05, material(0x58b86b))
+        box(group, 0.22, 0.74, 0.05, 0, h + 0.55, d / 2 - 0.05, material(0x58b86b))
+        box(group, w * 0.55, 0.5, d * 0.5, -0.3, h + 0.3, -0.2, concrete)
+        top = h + 1
+      } else if (domain === 'alimentacao') {
+        box(group, 0.95, 0.7, 0.85, 0, h + 0.45, 0, material(0x9fd0d6, { roughness: 0.2, transparent: true, opacity: 0.8 }))
+        box(group, 0.2, 2.1, 0.2, -w / 2 + 0.25, h + 1.1, -d / 2 + 0.25, trim)
+        top = h + 2.1
+      } else if (domain === 'financas') {
+        box(group, w * 0.66, 0.9, d * 0.66, 0, h + 0.55, 0, body)
+        box(group, w * 0.4, 0.7, d * 0.4, 0, h + 1.35, 0, trim)
+        box(group, 0.05, 1.3, 0.05, 0, h + 2.35, 0, accent)
+        top = h + 3
+      } else if (domain === 'estudos') {
+        const tower = h + 2.2
+        box(group, 0.62, tower, 0.62, -w / 2 + 0.3, 0.06 + tower / 2, d / 2 - 0.3, body)
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.7, 4), trim)
+        roof.position.set(-w / 2 + 0.3, tower + 0.4, d / 2 - 0.3); roof.rotation.y = Math.PI / 4; group.add(roof)
+        const face = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 20), accent)
+        face.rotation.x = Math.PI / 2; face.position.set(-w / 2 + 0.3, tower - 0.5, d / 2 + 0.02); group.add(face)
+        top = tower + 0.8
+      } else {
+        box(group, w * 0.5, 0.5, d * 0.5, 0.2, h + 0.3, -0.1, concrete)
+        box(group, 0.05, 1.7, 0.05, 0.2, h + 1.2, -0.1, dark)
+        top = h + 2
+      }
+    }
+    group.userData.height = top
+  }
+  group.children.forEach(child => { child.castShadow = true; child.receiveShadow = true })
+  return group
+}
+
+export function createCoreBuilding(kind, definition = {}, placement = null) {
+  if (typeof kind === 'string' && kind.startsWith('dom-')) return createDomainBuilding(definition, placement?.etapa)
   const group = new THREE.Group()
   const white = material(0xf0eadc), dark = material(palette.charcoal), orange = material(palette.orange)
   if (kind === 'headquarters' || kind === 'hq') {

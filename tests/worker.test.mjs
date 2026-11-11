@@ -343,3 +343,68 @@ test('comprovação: foto vale uma vez, só JPEG ou WebP, e a foto só volta par
   await checkin(session, second, { done: true, proof: { note: NOTE, extra: 1 } }, 422)
   assert.equal((await checkin(session, second, { done: true, proof: { photo: photo(2) } })).proof_result.bonus, 5)
 })
+
+const buildFor = (session, activity_id, expected_revision, extra = {}, status) => session('/api/city/actions', {
+  method: 'POST', body: { type: 'build', activity_id, expected_revision, request_id: crypto.randomUUID(), ...extra }, status,
+})
+
+test('prédio da atividade: nasce sozinho no terreno, com o nome do local e o tipo da área', async () => {
+  const session = newDemoSession()
+  const habit = await newHabit(session, { place: 'Academia Central', domain: 'saude' })
+  const start = await city(session, ISLAND)
+  const built = await buildFor(session, habit, start.revision)
+  const building = built.placements.find(item => item.activity_id === habit)
+  assert.equal(building.kind, 'dom-saude')
+  assert.equal(building.nome, 'Academia Central')
+  assert.equal(building.etapa, 0)
+  assert.equal(building.etapa_nome, 'Terreno')
+  assert.ok(Number.isInteger(building.x) && Number.isInteger(building.y))
+  assert.equal(built.credits, 30)
+  assert.match(built.history[0].label, /Academia Central/)
+  assert.deepEqual((await session('/api/personal')).predios, [habit])
+  // Pratica hoje: segue sem passar de Terreno, porque a etapa depende de vários dias e semanas.
+  await checkin(session, habit, { done: true })
+  const after = (await city(session, ISLAND)).placements.find(item => item.activity_id === habit)
+  assert.deepEqual([after.etapa, after.dias, after.semanas], [0, 1, 1])
+  assert.equal(after.proxima.etapa_nome, 'Fundação')
+  // Sem local, o nome é o título da atividade.
+  const noPlace = await newHabit(session, { title: 'Meditar', place: '', domain: 'mente' })
+  const second = await buildFor(session, noPlace, (await city(session, ISLAND)).revision)
+  assert.equal(second.placements.find(item => item.activity_id === noPlace).nome, 'Meditar')
+})
+
+test('prédio da atividade: uma atividade tem um prédio só, só hábito ou meta, só dela, e sem moedas não constrói', async () => {
+  const session = newDemoSession()
+  const habit = await newHabit(session)
+  const start = await city(session, ISLAND)
+  const built = await buildFor(session, habit, start.revision)
+  const repeated = await buildFor(session, habit, built.revision, {}, 409)
+  assert.match(repeated.message, /já tem um prédio/)
+  const other = await newHabit(session, { title: 'Outro', domain: 'financas' })
+  await buildFor(session, other, built.revision, { kind: 'dom-saude' }, 422)
+  const task = await session('/api/personal/tasks', { method: 'POST', body: { title: 'Tarefa' }, status: 201 })
+  await buildFor(session, task.id, built.revision, {}, 404)
+  await buildFor(session, '00000000-0000-0000-0000-000000000000', built.revision, {}, 404)
+  await buildFor(session, 'nao-e-um-id', built.revision, {}, 422)
+  const stranger = newDemoSession()
+  await buildFor(stranger, habit, (await city(stranger, ISLAND)).revision, {}, 404)
+  // Saldo: 50 moedas dão para dois prédios de 20 e o terceiro é recusado.
+  let revision = built.revision
+  const ids = [other]
+  for (const title of ['Terceiro']) ids.push(await newHabit(session, { title }))
+  const next = await buildFor(session, ids[0], revision, { kind: 'dom-financas' })
+  revision = next.revision
+  const refused = await buildFor(session, ids[1], revision, {}, 422)
+  assert.match(refused.message, /Moedas insuficientes/)
+})
+
+test('prédio da atividade: reenviar a mesma ação não cobra de novo', async () => {
+  const session = newDemoSession()
+  const habit = await newHabit(session)
+  const start = await city(session, ISLAND)
+  const request_id = 'mesma-acao-1'
+  const first = await buildFor(session, habit, start.revision, { request_id })
+  const again = await buildFor(session, habit, start.revision, { request_id })
+  assert.equal(again.credits, first.credits)
+  assert.equal(again.placements.filter(item => item.activity_id === habit).length, 1)
+})

@@ -3,6 +3,7 @@ import { SPACE_ORDER } from '../src/world/worldSpaces.js'
 import { DOMAINS, RULES } from '../shared/game/rules.js'
 import { ProofError, parseProof, sha256Hex } from '../shared/game/proof.js'
 import { buildSummary } from '../shared/game/summary.js'
+import { kindForDomain, stageFor } from '../shared/game/buildings.js'
 import { newCity, newTown, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
 import { HttpError, json, errorResponse } from './http.js'
 
@@ -201,7 +202,7 @@ export class DemoSession {
     const proofs = this.list('proof').map(({ photo, ...rest }) => ({ ...rest, has_photo: Boolean(photo) }))
     const today = dateFormatter.format(new Date())
     const entries = this.list('entry')
-    return { entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), sources }
+    return { entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), predios: [...this.buildingActivityIds()], sources }
   }
 
   personal() { return json(this.overview()) }
@@ -311,7 +312,18 @@ export class DemoSession {
     return { ...region, credits, earned, reward_count, history }
   }
 
-  citySnapshot(location) { return { ...snapshot(this.regionalCity(location, this.cityState())), location_id: location } }
+  // Cada prédio de atividade mostra a etapa dele, calculada pelos dias e semanas com prática. Nada vem do navegador.
+  withStages(view) {
+    const placements = view.placements.map(item => {
+      if (!item.activity_id) return item
+      const days = this.sql.exec("SELECT json_extract(value, '$.day') AS day FROM records WHERE kind = 'checkin' AND id GLOB ? AND json_extract(value, '$.done') = 1", `${item.activity_id}:*`)
+        .toArray().map(row => row.day)
+      return { ...item, ...stageFor(days) }
+    })
+    return { ...view, placements }
+  }
+
+  citySnapshot(location) { return { ...this.withStages(snapshot(this.regionalCity(location, this.cityState()))), location_id: location } }
 
   city(_, location) { return json(this.citySnapshot(location)) }
 
@@ -356,6 +368,38 @@ export class DemoSession {
     this.write(key, id, true)
   }
 
+  // Só hábitos e metas viram prédio: são os que têm dias de prática para mostrar a evolução.
+  activity(id) {
+    const entry = this.read('entry', id)
+    return entry && ['habit', 'goal'].includes(entry.kind) ? entry : null
+  }
+
+  // Prédio de atividade: o tipo vem da área da atividade e o nome do local que a pessoa preencheu.
+  activityContext(action) {
+    if (action.activity_id === null || action.type !== 'build') return {}
+    const entry = this.activity(action.activity_id)
+    return { nome: (entry.place || entry.title).slice(0, 80) }
+  }
+
+  withActivity(action) {
+    if (action.activity_id === null) return action
+    if (action.type !== 'build') throw new HttpError(422, 'A atividade só se liga a uma construção nova.')
+    const entry = this.activity(action.activity_id)
+    if (!entry) throw new HttpError(404, 'Esta atividade não existe.')
+    const kind = kindForDomain(entry.domain ?? 'organizacao')
+    if (action.kind !== null && action.kind !== kind) throw new HttpError(422, 'O prédio precisa ser da mesma área da atividade.')
+    if (this.buildingActivityIds().has(action.activity_id)) throw new HttpError(409, 'Esta atividade já tem um prédio na cidade.')
+    return { ...action, kind }
+  }
+
+  buildingActivityIds() {
+    const ids = new Set()
+    for (const { value } of this.sql.exec("SELECT value FROM records WHERE kind IN ('city', 'regional-city')")) {
+      for (const placement of JSON.parse(value).placements ?? []) if (placement.activity_id) ids.add(placement.activity_id)
+    }
+    return ids
+  }
+
   cityAction(body, location) {
     const action = normalizeAction(body)
     const home = this.cityState()
@@ -364,10 +408,10 @@ export class DemoSession {
     const recorded = this.read('city-request', action.request_id)
     if (recorded !== null) {
       if (recorded !== fingerprint) throw new HttpError(409, 'Esse request_id já foi usado para outra ação.')
-      return json({ ...snapshot(city), location_id: location })
+      return json({ ...this.withStages(snapshot(city)), location_id: location })
     }
     const progress = this.progressState()
-    applyCityAction(city, action)
+    applyCityAction(city, this.withActivity(action), this.activityContext(action))
     if (location === START) {
       this.write('city', 'state', city)
     } else {
@@ -381,7 +425,7 @@ export class DemoSession {
       this.write('world', 'regional-progress', normalizeProgress(progress))
     }
     this.saveRequest('city-request', action.request_id, fingerprint)
-    return json({ ...snapshot(city), location_id: location })
+    return json({ ...this.withStages(snapshot(city)), location_id: location })
   }
 
   progressState() {
