@@ -1,5 +1,7 @@
 import { initialProgress, mergeProgress, completeSpace } from '../src/world/progress.js'
 import { SPACE_ORDER } from '../src/world/worldSpaces.js'
+import { RULES } from '../shared/game/rules.js'
+import { newCity, snapshot, normalizeAction, applyCityAction, recordChange } from './city.js'
 import { HttpError, json, errorResponse } from './http.js'
 
 const COOKIE = 'cityou_demo'
@@ -26,12 +28,18 @@ const routes = [
   [/^\/api\/personal\/tasks$/, { POST: 'addTask' }],
   [/^\/api\/workspace\/tasks$/, { GET: 'tasks' }],
   [/^\/api\/workspace\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
+  [/^\/api\/city$/, { GET: 'city' }],
+  [/^\/api\/city\/actions$/, { POST: 'cityAction' }],
+  [/^\/api\/rewards\/sync$/, { POST: 'syncRewards' }],
   [/^\/api\/world\/progress$/, { GET: 'world', PUT: 'saveWorld' }],
 ]
 
 export async function demoApi(request, env, url) {
   if (url.pathname === '/api/workspace/projects' && request.method === 'GET') {
     return json({ connected: false, projects: [] })
+  }
+  if (url.pathname === '/api/workspace/activity' && request.method === 'GET') {
+    return json({ connected: false, activity: null })
   }
   const route = routes.find(([pattern]) => pattern.test(url.pathname))
   if (!route) throw new HttpError(404, 'Rota não encontrada.')
@@ -97,6 +105,9 @@ export class DemoSession {
       }
       return this.storage.transactionSync(() => this[handler](body, id))
     } catch (error) {
+      if (error instanceof HttpError && handler === 'cityAction') {
+        return json({ message: error.message, detail: error.message, city: snapshot(this.cityState()) }, error.status)
+      }
       if (error instanceof HttpError) return errorResponse(error.status, error.message)
       throw error
     }
@@ -155,6 +166,7 @@ export class DemoSession {
     if (!['habit', 'goal'].includes(entry.kind)) throw new HttpError(422, 'Este item não tem conclusão diária.')
     const day = dateFormatter.format(new Date())
     this.write('checkin', `${id}:${day}`, { entry_id: id, day, done: Number(done) })
+    if (done && entry.kind === 'habit') this.reward('habit', day, id, `Hábito concluído: ${entry.title}`)
     return this.personal()
   }
 
@@ -171,10 +183,51 @@ export class DemoSession {
     if (!task) throw new HttpError(404, 'Esta tarefa não existe.')
     if (task.status !== 'done') {
       task.status = 'done'
-      task.completed_at = new Date().toISOString()
+      const completedAt = new Date()
+      task.completed_at = completedAt.toISOString()
       this.write('task', id, task)
+      this.reward('task', dateFormatter.format(completedAt), id, `Tarefa concluída: ${task.title}`)
     }
-    return json({ task })
+    return json({ task, city: snapshot(this.cityState()) })
+  }
+
+  cityState() { return this.read('city', 'state') ?? newCity() }
+
+  city() { return json(snapshot(this.cityState())) }
+
+  syncRewards(body) {
+    if (Object.keys(body).length) throw new HttpError(422, 'A sincronização não aceita valores ou fatos do cliente.')
+    return this.city()
+  }
+
+  reward(kind, day, id, label) {
+    const key = `reward:${kind}:${day}`
+    const max = kind === 'habit' ? RULES.paidHabitsPerDay : RULES.paidTasksPerDay
+    if (this.read(key, id) || this.list(key, max).length >= max) return
+    const city = this.cityState()
+    const amount = RULES.rewards[kind].credits
+    city.reward_count++
+    city.earned += amount
+    recordChange(city, label, amount)
+    this.write('city', 'state', city)
+    this.write(key, id, true)
+  }
+
+  cityAction(body) {
+    const action = normalizeAction(body)
+    const city = this.cityState()
+    const fingerprint = JSON.stringify(action)
+    const recorded = this.read('city-request', action.request_id)
+    if (recorded !== null) {
+      if (recorded !== fingerprint) throw new HttpError(409, 'Esse request_id já foi usado para outra ação.')
+      return json(snapshot(city))
+    }
+    applyCityAction(city, action)
+    this.write('city', 'state', city)
+    this.write('city-request', action.request_id, fingerprint)
+    this.sql.exec("DELETE FROM records WHERE kind = 'city-request' AND rowid IN (" +
+      "SELECT rowid FROM records WHERE kind = 'city-request' ORDER BY rowid DESC LIMIT -1 OFFSET 250)")
+    return json(snapshot(city))
   }
 
   world() { return json(this.read('world', 'progress') ?? initialProgress()) }

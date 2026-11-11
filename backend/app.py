@@ -68,38 +68,7 @@ def local_url(value: str) -> str:
     return value.rstrip('/')
 
 
-def item(ident: str, label: str, cost: int, *, model: str | None = None,
-         width: int = 1, depth: int = 1, height: float = 2, color: str = '#58a888',
-         destination: str | None = None) -> dict[str, Any]:
-    return dict(id=ident, label=label, cost=cost, model=model, width=width,
-                depth=depth, height=height, color=color, destination=destination)
-
-
-CATALOG = [
-    item('headquarters', 'Sede Fifones', 0, height=2.8, color='#4c7890', destination='/#/hoje'),
-    item('plaza', 'Praça central', 0, height=.3, color='#c4c3ab'),
-    item('road', 'Rua', 2, height=.06, color='#76838b'),
-    item('tree', 'Árvore', 3, height=1.5, color='#448861'),
-    item('home', 'Casa', 20, height=1.8, color='#e2ad6b'),
-    item('tasks', 'Tarefas', 30, model='/models/tasks-building-v3.glb', width=2, depth=2,
-         height=2.3, color='#5cba8a', destination='/#/tarefas'),
-    item('agenda', 'Agenda', 30, model='/models/agenda-building.glb', width=2, depth=2,
-         height=2.4, color='#e9b75e', destination='/#/agenda'),
-    item('memory', 'Memória', 40, model='/models/memory-building-v2.glb', width=2, depth=2,
-         height=2.5, color='#b7a4e2', destination='/#/memoria'),
-    item('projects', 'Projetos', 50, model='/models/projects-building.glb', width=2, depth=2,
-         height=2.8, color='#6098c5', destination='/#/projetos'),
-    item('stunt', 'StuntSync', 80, model='/models/stuntsync-building-v3.glb', width=3, depth=2,
-         height=4.5, color='#f27442', destination='/#/projetos'),
-    item('chatgpt', 'ChatGPT', 70, model='/models/chatgpt-building-v2.glb', width=2, depth=2,
-         height=3.8, color='#47a58b', destination='/#/cidade/chatgpt'),
-    item('claude', 'Claude', 60, model='/models/claude-building-v2.glb', width=2, depth=2,
-         height=3.3, color='#d58f73', destination='/#/cidade/claude'),
-    item('gemini', 'Gemini', 50, model='/models/gemini-building-v2.glb', width=2, depth=2,
-         height=2.8, color='#7896d4', destination='/#/cidade/gemini'),
-    item('grok', 'Grok', 50, model='/models/grok-building-v2.glb', width=2, depth=2,
-         height=2.7, color='#888a99', destination='/#/cidade/grok'),
-]
+CATALOG = json.loads((ROOT / 'shared/game/city-catalog.json').read_text(encoding='utf-8'))
 KINDS = {entry['id']: entry for entry in CATALOG}
 
 
