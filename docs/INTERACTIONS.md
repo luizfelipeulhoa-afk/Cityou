@@ -13,7 +13,7 @@ Coluna "Hoje": o que o botão faz no código atual (`src/App.vue`). "Fifones" qu
 5. **Só o título é obrigatório.** A data vem com hoje. Campos opcionais ficam recolhidos em "Mais detalhes".
 6. **Estado vazio ensina.** Lista vazia mostra uma frase e o botão da primeira ação.
 7. **Erro diz o que fazer.** Campo inválido: mensagem junto do campo. Sem conexão: "Sem conexão. Tentaremos de novo." e o item fica marcado como pendente. Sessão expirada: volta ao login e preserva o que estava sendo digitado.
-8. **Crédito visível.** O contador de créditos fica no topo de todas as telas e anima quando muda. Clicar nele abre o extrato.
+8. **Progresso visível.** Nível, barra de XP e créditos ficam no topo de todas as telas e animam quando mudam. Clicar abre o extrato. Subida de nível, etapa de prédio e melhoria disponível aparecem num aviso curto, sem interromper o que a pessoa está fazendo.
 9. **Sem culpa.** Nada some, zera ou fica vermelho por falta de uso. Revisão da fase B6 com as skills `gamificacao-saude-etica` e `behavior-design-etico`.
 
 ## Teclado (desktop)
@@ -50,12 +50,15 @@ Os atalhos de uma tecla ficam desligados enquanto o foco está em campo de texto
 
 | Botão | Rota | Tabela | Retorno |
 |---|---|---|---|
-| Criar conta | `POST /api/auth/signup` | `users`, `sessions`, `city`, `ledger` | Entra no app; saudação com o nome; 50 créditos de boas-vindas |
+| Criar conta | `POST /api/auth/signup` | `users`, `sessions`, `player`, `cities`, `ledger` | Entra no app na Ilha Inicial; saudação com o nome; 50 créditos de boas-vindas |
 | Entrar | `POST /api/auth/login` | `sessions`, `login_attempts` | Entra no app. Senha errada: "E-mail ou senha incorretos." |
+| Esqueci minha senha (link na tela de entrar) | navegação | | Abre a tela com o campo de e-mail |
+| Enviar instruções | `POST /api/auth/forgot` | `password_resets` | Sempre a mesma mensagem: "Se o e-mail existir, enviamos as instruções." |
+| Salvar nova senha (tela aberta pelo link do e-mail) | `POST /api/auth/reset` | `users`, `password_resets`, `sessions` | Entra no app. Link vencido ou já usado: "Este link não vale mais. Peça outro." |
 | Sair (em Conta) | `POST /api/auth/logout` | `sessions` | Volta ao login |
 | Salvar nome e fuso | `PATCH /api/me` | `users` | Saudação atualizada |
-| Exportar meus dados (B7) | `GET /api/me/export` | leitura de todas | Baixa um arquivo JSON |
-| Apagar minha conta (B7) | `DELETE /api/me` | todas | Pede a senha de novo; depois volta ao cadastro |
+| Exportar meus dados (B8) | `GET /api/me/export` | leitura de todas | Baixa um arquivo JSON |
+| Apagar minha conta (B8) | `DELETE /api/me` | todas | Pede a senha de novo; depois volta ao cadastro |
 
 Erros: e-mail já cadastrado, senha com menos de 10 caracteres, muitas tentativas ("Aguarde alguns minutos e tente de novo.").
 
@@ -72,7 +75,8 @@ Erros: e-mail já cadastrado, senha com menos de 10 caracteres, muitas tentativa
 | Atualizar meus dados | `GET /api/personal` + 2 chamadas | `GET /api/overview` (uma chamada), atalho `R` |
 | Novo registro | `showForm` da tela | Igual, atalho `N` |
 | "Falar sobre isso" (em todas as áreas) | Fifones | **Sai** |
-| Contador de créditos | Não existe no painel | Novo: saldo de `city.credits`; abre o extrato (`ledger`) |
+| Nível, XP e créditos | Não existe no painel | Novo: nível com barra de XP e saldo de créditos (`player`); abre o extrato (`ledger`) |
+| Ritmo da semana | Não existe | Novo: sete marcas (dias ativos preenchidos) e o bônus atual; abre o calendário de presença (`GET /api/presence`). Sem cor de alerta |
 | Formulário: "Guardar", "Agora não", fechar | `POST` de criação | Igual, mais "Apagar" na edição |
 | Aviso: fechar | Estado local | Igual, mais "Desfazer" |
 | Diálogo do Fifones ("Voltar ao Cityou", "Verificar conexão") | Iframe | **Sai** |
@@ -87,7 +91,7 @@ Ação principal: "Anotar" (tirar algo da cabeça).
 |---|---|---|---|---|
 | Anotar | Cria nota | `POST /api/notes` | `notes` | Aviso "Guardado."; nota em Memórias |
 | Microfone (conversa por voz) | Fifones | | | **Sai** |
-| Círculo da tarefa | Conclui no Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `city` | Tarefa sai da lista; +10 no contador; "Desfazer" |
+| Círculo da tarefa | Conclui no Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | Tarefa sai da lista; XP e créditos sobem no topo; "Desfazer" |
 | Criar uma tarefa | Cria no Fifones | `POST /api/tasks` | `tasks` | Tarefa na lista |
 | Adicionar compromisso | Fifones | `POST /api/events` | `events` | Compromisso em "Na sua agenda" |
 | Ver tarefas, seta da agenda, cartões de área, "Registrar meu momento" | Navegação | | | Igual |
@@ -101,7 +105,7 @@ Ação principal: "Nova tarefa".
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
 | Nova tarefa | Cria no Fifones | `POST /api/tasks` | `tasks` | Linha no topo de "A fazer" |
-| Círculo | Conclui no Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `city` | Vai para "Concluídas"; +10; "Desfazer" |
+| Círculo | Conclui no Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | Vai para "Concluídas"; XP e créditos sobem; "Desfazer" |
 | Círculo de tarefa concluída | Desligado | `POST /api/tasks/{id}/reopen` | `tasks` | Volta para "A fazer"; os créditos ficam |
 | Linha da tarefa | Nada | `PATCH /api/tasks/{id}` | `tasks` | Formulário de edição (título, descrição, prazo, prioridade, projeto) |
 | Apagar (no formulário) | Não existe | `DELETE /api/tasks/{id}` | `tasks` | Some da lista; "Desfazer" chama `POST /api/tasks/{id}/restore` |
@@ -128,7 +132,7 @@ Ação principal: "Marcar como feito". Criar é a segunda.
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
 | Novo hábito, "Criar meu próximo hábito" | Cria em `entries` | `POST /api/habits` | `habits` | Cartão novo; o total do anel aumenta |
-| Marcar como feito / Feito hoje | `PUT …/checkin` | `PUT /api/habits/{id}/checkins/{dia}` | `habit_checkins`, `ledger`, `city` | Botão vira "Feito hoje"; anel avança; +5 na primeira vez do dia |
+| Marcar como feito / Feito hoje | `PUT …/checkin` | `PUT /api/habits/{id}/checkins/{dia}` | `habit_checkins`, `ledger`, `player`, `presence_days` | Botão vira "Feito hoje"; anel avança; XP e créditos na primeira vez do dia (até 8 hábitos pagos por dia) |
 | Cartão do hábito | Nada | `PATCH /api/habits/{id}` | `habits` | Edição (título, detalhe, dias da semana), "Arquivar" e "Apagar" |
 
 Desmarcar não tira créditos. Vazio: "Escolha algo pequeno o suficiente para caber no dia." com "Novo hábito".
@@ -140,7 +144,7 @@ Ação principal: "Registrar um passo hoje".
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
 | Nova meta, "Qual é sua próxima conquista?" | Cria em `entries` | `POST /api/goals` | `goals` | Cartão com barra em 0 |
-| Registrar um passo hoje | `PUT …/checkin` | `PUT /api/goals/{id}/steps/{dia}` | `goal_steps` | Barra avança; botão vira "Passo de hoje registrado" |
+| Registrar um passo hoje | `PUT …/checkin` | `PUT /api/goals/{id}/steps/{dia}` | `goal_steps`, `ledger`, `player` | Barra avança; botão vira "Passo de hoje registrado"; XP. Ao atingir o alvo: meta concluída, com XP, créditos e, se for meta curta, um ponto de melhoria no prédio do domínio |
 | Cartão da meta | Nada | `PATCH /api/goals/{id}` | `goals` | Edição e "Apagar" |
 
 ### Fitness
@@ -180,9 +184,9 @@ Ação principal: "Registrar meu momento".
 
 ### Estudos e Biblioteca
 
-Ficam para a fase B7, porque dependem de guardar arquivos (R2). Até lá, a tela mostra "Em breve" e nenhum botão quebrado.
+Ficam para a fase B8, porque dependem de guardar arquivos (R2). Até lá, a tela mostra "Em breve" e nenhum botão quebrado.
 
-| Botão | Hoje | Rota (B7) | Tabela | Retorno |
+| Botão | Hoje | Rota (B8) | Tabela | Retorno |
 |---|---|---|---|---|
 | Adicionar material | Fifones | `POST /api/documents` | `documents` | Capa na grade |
 | Cartão do material | Fifones | `GET /api/documents/{id}/file` | `documents` | Abre o arquivo |
@@ -222,25 +226,46 @@ Ação principal: "Nova memória".
 
 A tela mostra as três espécies de nota, com um filtro por tipo.
 
-## Minha cidade (`city.html`)
+## Minha cidade (`city.html?local=<id>`)
 
-| Botão | Hoje | Passa a ser |
-|---|---|---|
-| Construir, mover, girar, melhorar, remover | `POST /api/city/actions` | Igual, por usuário (`placements`, `ledger`, `city`, `requests`) |
-| Saldo → histórico de moedas | `history` | Lê o `ledger` |
-| Missões: concluir tarefa | Fifones | `POST /api/tasks/{id}/complete` |
-| Atualizar tarefas e recompensas | `POST /api/rewards/sync` | Só recarrega (`GET /api/city`); a recompensa já foi gravada na ação |
-| Catálogo, filtros, luz do dia, entardecer, girar câmera, vista inicial, ajuda | Local | Igual |
-| Prédios com destino (`/#/hoje`, `/#/tarefas`, …) | Abrem o Fifones | Abrem a área do Cityou (`#/inicio`, `#/tarefas`, `#/agenda`, `#/memorias`, `#/projetos`) |
-| Indicador de escritórios ativos, prédios de IA | Atividade do Fifones | Indicador **sai**; os prédios ficam decorativos (decisão pendente) |
+Uma cidade por local liberado. Sem `local`, abre a cidade do local atual. As regras estão em `GAME-DESIGN.md`.
+
+| Botão | Hoje | Rota | Tabela | Retorno |
+|---|---|---|---|---|
+| Construir, mover, girar, remover | `POST /api/city/actions` | `POST /api/cities/{local}/actions` | `placements`, `player`, `ledger`, `requests` | A construção aparece; os créditos mudam |
+| Melhorar (níveis 1 a 3 por créditos) | `POST /api/city/actions` | | | **Sai**: o prédio de domínio avança de etapa pelo uso real |
+| Tocar num prédio de domínio | Abre o Fifones | `GET /api/buildings/{id}` | leitura | Painel do interior: etapa, salas, espaços vazios e o que falta para a próxima melhoria |
+| Escolher melhoria (no interior) | Não existe | `POST /api/buildings/{id}/upgrades` | `building_upgrades`, `upgrade_points` | A sala ou o equipamento aparece, com a data e a conquista que o liberou |
+| Saldo → extrato | `history` | `GET /api/ledger` | leitura | Créditos e XP, com o bônus aplicado em cada linha |
+| Missões: concluir tarefa | Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | +10 XP e +10 créditos, mais o bônus |
+| Atualizar tarefas e recompensas | `POST /api/rewards/sync` | `GET /api/cities/{local}` | leitura | Só recarrega: a recompensa já foi gravada na ação |
+| Voltar ao globo | Não existe | navegação | | Abre `world.html` |
+| Catálogo, filtros, luz do dia, entardecer, girar câmera, vista inicial, ajuda | Local | | | Igual |
+| Indicador de escritórios ativos; prédios de IA | Atividade do Fifones | | | **Saem** |
+
+Sem "Desfazer" para "Escolher melhoria": a escolha é definitiva, então o botão pede um segundo toque de confirmação. É a segunda exceção à regra geral, junto com apagar a conta.
+
+Quando um prédio muda de etapa, a animação toca na próxima abertura da cidade, uma vez.
 
 ## Mapa-mundo (`world.html`)
 
+O globo deixa de ser uma fila. Cada local mostra um de três estados.
+
+| Estado | O que aparece | Botão | Rota | Tabela | Retorno |
+|---|---|---|---|---|---|
+| Cidade sua | Monumento aceso; nível da cidade | Entrar | navegação | | Abre `city.html?local=<id>` |
+| Disponível para viajar | Monumento com contorno; custo da passagem | Viajar | `POST /api/world/travel` | `travels`, `cities`, `player`, `ledger` | Animação do transporte; a cidade nova abre |
+| Bloqueado | Monumento apagado | Ver o que falta | `GET /api/world` | leitura | Três barras: nível, prédios e créditos, cada uma com o valor atual e o exigido |
+
 | Botão | Hoje | Passa a ser |
 |---|---|---|
-| Tocar num monumento, "Ir", lista de espaços, "Voltar ao mapa" | Local | Igual |
-| Concluir fase (simulação) | Marca o espaço como concluído, sem critério | **Sai**. O servidor abre o próximo espaço ao atingir o marco (decisão pendente) e o globo anima o desbloqueio |
-| Painel de debug (tecla `D` ou `?debug=1`) | Desbloqueia, conclui e reseta | Só em desenvolvimento; no site publicado não existe |
+| Tocar num monumento, lista de espaços, "Ir", "Voltar ao mapa" | Local | Igual; o cartão do local mostra o estado acima |
+| Concluir fase (simulação) | Marca o espaço como concluído, sem critério | **Sai** |
+| Painel de debug (tecla `D` ou `?debug=1`) | Desbloqueia, conclui e reseta | Só em desenvolvimento |
+
+"Viajar" pede confirmação com o custo ("Viajar para o Coliseu por 250 créditos?"), porque gasta créditos. As cidades anteriores continuam acessíveis.
+
+Sem sessão ou sem rede, o globo abre com o último estado conhecido e os botões de viagem ficam desligados.
 
 ## Botões que saem
 

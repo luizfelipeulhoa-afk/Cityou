@@ -42,9 +42,12 @@ Limites de desempenho: uma luz direcional + hemisfério, sem sombras, globo em u
 
 O FastAPI acima é local e sem usuário. O destino é um Worker do Cloudflare com D1, login e tabelas próprias (sem o Fifones). Antes de mexer em rota, tabela ou botão, leia:
 
-- `docs/DATA-MODEL.md`: tabelas, quem preenche cada uma, regras de crédito, decisões pendentes.
+- `docs/GAME-DESIGN.md`: XP e créditos, presença, viagens entre locais, etapas e melhorias dos prédios. Os números são propostas.
+- `docs/DATA-MODEL.md`: tabelas, quem preenche cada uma, decisões fechadas e abertas.
 - `docs/INTERACTIONS.md`: cada tela, botão e atalho, com a rota e a tabela que toca.
-- `docs/API.md`: contrato das rotas e o destino de cada rota atual.
+- `docs/API.md`: contrato das rotas, o destino de cada rota atual e as metas de velocidade.
+
+Regras fixas: o navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência.
 
 ## Skills do projeto (`.claude/skills/`)
 
