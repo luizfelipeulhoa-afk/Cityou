@@ -233,37 +233,216 @@ function slopeHeight(x, y, min) {
     (0.52 + Math.sin(x * 0.26 + 0.7) ** 2 * 0.45)
 }
 
-function pilotIsland(group, layout, shore) {
-  const dock = material(0x916747)
-  const trim = material(0xc79d70)
-  const [entryX, entryY] = layout.entry
-  const x = entryX - layout.center
-  const z = entryY - layout.center
-  box(group, 1.2, 0.14, 5.3, x, 0.055, z - 1.05, dock)
-  box(group, 3.5, 0.15, 1.55, x, 0.058, z + 1.6, dock)
-  const pilings = [-1.6, -0.46, 0.46, 1.6].map(offset => ({
-    position: [x + offset, -0.14, z + 1.95], scale: [0.1, 0.78, 0.1], tint: 0x6f4d36,
-  }))
-  sceneryTiles(group, 'Pilares do cais', pilings)
-  for (const side of [-0.53, 0.53]) box(group, 0.04, 0.035, 4.9, x + side, 0.15, z - 1.15, trim)
-  const boats = [
-    sailboat(group, x - 2.1, z + 1.35, 1.65, 0.75),
-    sailboat(group, x + 2.25, z + 2.12, 1.22, -0.45),
-  ]
-  const palmShore = shore.filter(({ position: [px, , pz] }) => pz < z - 3 || Math.abs(px - x) > 4)
-  for (let i = 1; i < palmShore.length; i += 9) {
-    const [px, , pz] = palmShore[i].position
-    palm(group, px, pz, 0.82 + (i % 4) * 0.12)
+// Pequeno gerador determinístico: a mesma ilha em toda visita, sem Math.random.
+function seeded(seed) {
+  let state = seed
+  return () => (state = (state * 16807) % 2147483647) / 2147483647
+}
+
+// Um objeto instanciado por categoria: poucas chamadas de desenho para muitos detalhes.
+function instances(group, name, geometry, items, options = {}) {
+  if (items.length === 0) return null
+  const mesh = new THREE.InstancedMesh(geometry, material(0xffffff, options), items.length)
+  mesh.name = name
+  mesh.userData.decorative = true
+  const dummy = new THREE.Object3D()
+  const color = new THREE.Color()
+  for (const [index, { position, scale = [1, 1, 1], rotation = [0, 0, 0], tint }] of items.entries()) {
+    dummy.position.set(...position)
+    dummy.scale.set(...scale)
+    dummy.rotation.set(...rotation)
+    dummy.updateMatrix()
+    mesh.setMatrixAt(index, dummy.matrix)
+    mesh.setColorAt(index, color.set(tint))
   }
+  group.add(mesh)
+  return mesh
+}
+
+// A Ilha Inicial é só para contemplar: nenhuma rua, nenhum prédio. O mar aberto e a vida da ilha são o cenário.
+function pilotIsland(group, layout, shore, land) {
+  const random = seeded(20260611)
+  const [entryX, entryY] = layout.entry
+  const pierX = entryX - layout.center, pierZ = entryY - layout.center
+  const monument = layout.landmarks[0]
+  const monumentX = monument.x - layout.center, monumentZ = monument.y - layout.center
+  const nearPier = (x, z) => z > 7 && Math.abs(x - pierX) < 2.4
+  const nearMonument = (x, z) => Math.hypot(x - monumentX, z - monumentZ) < 4.5
+  const spots = land.filter(({ x, z }) => !nearPier(x, z) && !nearMonument(x, z))
+  const pick = (chance, avoid) => spots.filter(() => random() < chance).filter(({ x, z }) => !avoid?.(x, z))
+  const jitter = () => (random() - 0.5) * 0.8
+
+  // Cais de madeira: só um píer para os barcos, sem pista.
+  const dock = material(0x916747), trim = material(0xc79d70)
+  box(group, 1.2, 0.14, 4.2, pierX, 0.055, pierZ - 0.6, dock)
+  box(group, 3.2, 0.15, 1.4, pierX, 0.058, pierZ + 1.5, dock)
+  sceneryTiles(group, 'Pilares do cais', [-1.4, -0.46, 0.46, 1.4].map(offset => ({
+    position: [pierX + offset, -0.14, pierZ + 1.85], scale: [0.1, 0.78, 0.1], tint: 0x6f4d36,
+  })))
+  for (const side of [-0.53, 0.53]) box(group, 0.04, 0.035, 3.8, pierX + side, 0.15, pierZ - 0.7, trim)
+  const boats = [
+    sailboat(group, pierX - 2.1, pierZ + 1.35, 1.65, 0.75),
+    sailboat(group, pierX + 2.25, pierZ + 2.12, 1.22, -0.45),
+    sailboat(group, -17, -9, 1.4, 2.2),
+  ]
+
+  // Coqueiros: tronco inclinado e duas coroas de folhas, tudo em duas chamadas de desenho.
+  const palms = pick(0.085, (x, z) => Math.hypot(x, z) < 2.2)
+  const lean = palms.map(() => (random() - 0.5) * 0.35)
+  const heights = palms.map(() => 1.1 + random() * 0.7)
+  instances(group, 'Troncos de coqueiro', new THREE.CylinderGeometry(0.035, 0.06, 1, 6), palms.map(({ x, z }, i) => ({
+    position: [x, heights[i] / 2 + 0.02, z], scale: [1, heights[i], 1], rotation: [0, 0, lean[i]], tint: 0x8c6a45,
+  })))
+  const crowns = palms.flatMap(({ x, z }, i) => [0, 1].map(layer => ({
+    position: [x - lean[i] * heights[i] * 0.5, heights[i] + 0.04 + layer * 0.1, z], scale: [0.78 - layer * 0.2, 0.14, 0.78 - layer * 0.2],
+    rotation: [0, i + layer * 0.8, 0], tint: layer ? 0x5fa253 : 0x4a8f48,
+  })))
+  instances(group, 'Folhas de coqueiro', new THREE.IcosahedronGeometry(1, 0), crowns)
+
+  // Vegetação rasteira, flores e pedras da praia.
+  const shrubs = pick(0.22, (x, z) => Math.hypot(x, z) < 1.6).map(({ x, z }) => {
+    const size = 0.16 + random() * 0.2
+    return { position: [x + jitter(), size * 0.6, z + jitter()], scale: [size * 1.3, size, size * 1.3], tint: [0x6b9d57, 0x7db062, 0x578a50][Math.floor(random() * 3)] }
+  })
+  instances(group, 'Arbustos', new THREE.IcosahedronGeometry(1, 0), shrubs)
+  const flowers = pick(0.16).map(({ x, z }) => ({
+    position: [x + jitter(), 0.1, z + jitter()], scale: [0.05, 0.05, 0.05], tint: [0xfff0f0, 0xffd54a, 0xff9ab5, 0xffffff][Math.floor(random() * 4)],
+  }))
+  instances(group, 'Flores', new THREE.IcosahedronGeometry(1, 0), flowers)
+  const rocks = shore.filter(() => random() < 0.3).map(({ position: [x, , z] }) => {
+    const size = 0.12 + random() * 0.26
+    return { position: [x + jitter(), size * 0.35, z + jitter()], scale: [size * 1.2, size, size], rotation: [0, random() * 3, 0], tint: [0x9a9486, 0xb2ab9a, 0x827d72][Math.floor(random() * 3)] }
+  }).filter(({ position: [x, , z] }) => !nearPier(x, z) && !nearMonument(x, z))
+  instances(group, 'Pedras da praia', new THREE.IcosahedronGeometry(1, 0), rocks)
+  const shells = shore.filter(() => random() < 0.45).map(({ position: [x, , z] }) => ({
+    position: [x + jitter(), 0.04, z + jitter()], scale: [0.05, 0.025, 0.05], rotation: [0, random() * 6, 0], tint: [0xfff2e2, 0xf7c9b6, 0xffffff][Math.floor(random() * 3)],
+  })).filter(({ position: [x, , z] }) => !nearPier(x, z))
+  instances(group, 'Conchas', new THREE.ConeGeometry(1, 1, 5), shells)
+  const driftwood = shore.filter((_, index) => index % 11 === 3).map(({ position: [x, , z] }) => ({
+    position: [x, 0.04, z], scale: [0.7 + random() * 0.4, 0.07, 0.09], rotation: [0, random() * 3, 0], tint: 0xa88b66,
+  })).filter(({ position: [x, , z] }) => !nearPier(x, z) && !nearMonument(x, z))
+  instances(group, 'Troncos na areia', new THREE.BoxGeometry(1, 1, 1), driftwood)
+
+  // Barquinho puxado na areia.
+  const spot = shore.find(({ position: [x, , z] }) => x > 5 && z > -2 && z < 4 && !nearPier(x, z))
+  if (spot) {
+    const [rx, , rz] = spot.position
+    const row = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 6), material(0x9b5f3f))
+    row.scale.set(0.45, 0.16, 1)
+    row.position.set(rx - 0.2, 0.1, rz)
+    row.rotation.y = 0.5
+    group.add(row)
+  }
+
+  // Ilhotas de rocha com um coqueiro, espalhadas no mar aberto.
+  const islets = [[-18, 6], [19, -8], [-6, -19], [17, 14]]
+  instances(group, 'Rochas do mar aberto', new THREE.IcosahedronGeometry(1, 0), islets.flatMap(([x, z], i) => [
+    { position: [x, -0.25, z], scale: [1.1, 0.7, 0.95], rotation: [0, i, 0], tint: 0x8c877a },
+    { position: [x + 0.8, -0.3, z + 0.4], scale: [0.6, 0.45, 0.55], rotation: [0, i + 1, 0], tint: 0xa39d8d },
+  ]))
+  for (const [x, z] of islets.slice(0, 2)) palm(group, x, z, 0.8)
+
+  // Boias e recife raso.
+  const buoys = [[-12, 14], [14, 19], [-20, -2], [21, 5], [6, -18], [-14, -15]]
+  instances(group, 'Boias', new THREE.SphereGeometry(0.16, 8, 6), buoys.map(([x, z], i) => ({ position: [x, -0.42, z], tint: i % 2 ? 0xf2f2ea : 0xe3553f })))
   const reef = shore.map(({ position: [px, , pz] }, index) => ({
     position: [px * 1.06, -0.43, pz * 1.06],
     scale: [0.32 + (index % 4) * 0.11, 0.12, 0.22 + (index % 3) * 0.1],
     tint: index % 2 ? 0x498c88 : 0x5eaaa1,
   }))
   sceneryTiles(group, 'Recife raso', reef)
+
+  // Espuma que vai e vem na beira da água.
+  const foam = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }), shore.length)
+  foam.name = 'Espuma da maré'
+  foam.userData.decorative = true
+  const item = new THREE.Object3D()
+  for (const [index, { position: [x, , z] }] of shore.entries()) {
+    item.position.set(x * 1.015, -0.455, z * 1.015)
+    item.scale.set(1.32, 0.012, 1.32)
+    item.updateMatrix()
+    foam.setMatrixAt(index, item.matrix)
+  }
+  group.add(foam)
+
+  // Golfinhos, tartarugas e gaivotas: o que dá vida ao mar.
+  const bodyMat = material(0x6f8fa5), bellyMat = material(0xdfe8ea), shellMat = material(0x5f8a52), skinMat = material(0x9bb36f)
+  const dolphins = [[-13, 8, 0], [12, -12, 0.5]].map(([x, z, phase]) => {
+    const dolphin = new THREE.Group()
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.55, 4, 8), bodyMat)
+    body.rotation.z = Math.PI / 2
+    const belly = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.4, 4, 8), bellyMat)
+    belly.rotation.z = Math.PI / 2
+    belly.position.set(0.02, -0.05, 0)
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 4), bodyMat)
+    fin.position.set(-0.02, 0.15, 0)
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.22, 4), bodyMat)
+    tail.rotation.z = Math.PI / 2
+    tail.position.set(-0.45, 0, 0)
+    dolphin.add(body, belly, fin, tail)
+    dolphin.userData = { x, z, phase }
+    dolphin.position.set(x, -0.9, z)
+    group.add(dolphin)
+    return dolphin
+  })
+  const turtles = [[-11, -9], [10, 16], [16, 3]].map(([x, z], index) => {
+    const turtle = new THREE.Group()
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 5), shellMat)
+    shell.scale.set(1, 0.4, 0.85)
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), skinMat)
+    head.position.set(0.22, 0, 0)
+    turtle.add(shell, head)
+    turtle.userData = { x, z, index }
+    turtle.position.set(x, -0.44, z)
+    group.add(turtle)
+    return turtle
+  })
+  const wingMat = material(0xfafafa, { side: THREE.DoubleSide })
+  const gulls = Array.from({ length: 6 }, (_, index) => {
+    const gull = new THREE.Group()
+    for (const side of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.012, 0.12), wingMat)
+      wing.position.z = side * 0.17
+      wing.rotation.x = side * 0.3
+      gull.add(wing)
+    }
+    gull.userData = { radius: 9 + index * 2.2, speed: 0.16 + index * 0.012, offset: index * 1.9, height: 4.2 + (index % 3) * 0.7 }
+    group.add(gull)
+    return gull
+  })
+
+  const place = (time, reduced) => {
+    for (const dolphin of dolphins) {
+      const { x, z, phase } = dolphin.userData
+      const cycle = reduced ? 0.19 : ((time * 0.17 + phase) % 1)
+      const visible = cycle < 0.38
+      dolphin.visible = visible
+      if (!visible) continue
+      const t = cycle / 0.38
+      dolphin.position.set(x + (t - 0.5) * 3.2, -0.52 + Math.sin(t * Math.PI) * 1.05, z)
+      dolphin.rotation.z = -Math.cos(t * Math.PI) * 0.8
+    }
+    for (const turtle of turtles) {
+      const { x, z, index } = turtle.userData
+      const drift = reduced ? 0 : time * 0.12 + index * 2
+      turtle.position.set(x + Math.cos(drift) * 1.2, -0.44 + Math.sin(drift * 3) * 0.015, z + Math.sin(drift) * 1.2)
+      turtle.rotation.y = -drift - Math.PI / 2
+    }
+    for (const gull of gulls) {
+      const { radius, speed, offset, height } = gull.userData
+      const angle = reduced ? offset : time * speed + offset
+      gull.position.set(Math.cos(angle) * radius, height + Math.sin(angle * 2.3) * 0.25, Math.sin(angle) * radius * 0.9)
+      gull.rotation.y = -angle
+      gull.children[0].rotation.x = 0.3 + (reduced ? 0 : Math.sin(time * 7 + offset) * 0.35)
+      gull.children[1].rotation.x = -gull.children[0].rotation.x
+    }
+  }
+  place(0, true)
   return (time, reducedMotion) => {
+    foam.material.opacity = reducedMotion ? 0.5 : 0.42 + Math.sin(time * 0.9) * 0.14
     if (reducedMotion) return
     for (let i = 0; i < boats.length; i++) boats[i].rotation.z = Math.sin(time * 0.7 + i) * 0.035
+    place(time, false)
   }
 }
 
@@ -442,14 +621,16 @@ function createPilotEnvironment(group, region, layout) {
     }
     if (slope.has(key)) continue
     const coast = around.some(([ax, ay]) => water.has(tileKey(ax, ay)))
-    const tint = new THREE.Color(coast ? (island ? 0xe5d3a5 : 0xc4c6a2) : floorColor)
+    // Na ilha, o miolo é de mata rasteira e a areia aparece perto da água.
+    const beach = THREE.MathUtils.smoothstep(Math.hypot((x - 8) / 15, (y - 8) / 14), 0.7, 0.93)
+    const tint = (island ? new THREE.Color(0x8fb56a).lerp(new THREE.Color(0xe5d3a5), Math.max(beach, coast ? 1 : 0)) : new THREE.Color(coast ? 0xc4c6a2 : floorColor))
       .multiplyScalar(1 + (Math.abs(x * 19 + y * 13) % 11 - 5) * 0.002)
     land.push({ x: px, z: pz, tint })
   }
   pilotLand(group, land)
   pilotSlope(group, layout, slope, water)
   if (island) sceneryTiles(group, 'Faixa de areia protegida', shore)
-  const animate = island ? pilotIsland(group, layout, shore) : () => {}
+  const animate = island ? pilotIsland(group, layout, shore, land) : () => {}
   if (!island) pilotRio(group, layout, shore)
   const site = layout.landmarks[0]
   const landmarkY = island ? -0.42 : slopeHeight(site.x, site.y, layout.min)

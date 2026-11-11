@@ -21,7 +21,7 @@ export function roadPath(x, y, endX, endY) {
   return points
 }
 
-function pilot({ terrain, extraRoad, ...details }) {
+function pilot({ terrain, extraRoad, scenic = false, ...details }) {
   const waterTiles = []
   const slopeTiles = []
   for (let y = -8; y <= 24; y++) {
@@ -33,9 +33,9 @@ function pilot({ terrain, extraRoad, ...details }) {
     }
   }
   const protectedTiles = [...waterTiles, ...slopeTiles]
-  const roadSeeds = [...baseRoadSeeds, ...extraRoad.map(({ x, y }) => [x, y])]
+  const roadSeeds = scenic ? [] : [...baseRoadSeeds, ...extraRoad.map(({ x, y }) => [x, y])]
   return {
-    min: -8, max: 24, center, waterTiles, slopeTiles, protectedTiles, roadSeeds, ...details,
+    min: -8, max: 24, center, waterTiles, slopeTiles, protectedTiles, roadSeeds, scenic, ...details,
   }
 }
 
@@ -45,7 +45,8 @@ const pilots = {
       const outsideCoast = ((x - 8) / 15) ** 2 + ((y - 8) / 14) ** 2 > 1
       return outsideCoast || (x >= 19 && y >= 14) ? 'water' : 'land'
     },
-    extraRoad: roadPath(8, 10, 8, 19),
+    extraRoad: [],
+    scenic: true,
     landmarks: [{ id: 'ilha-inicial', x: -1, y: 23 }],
     entry: [8, 23],
     arrivalPath: [[8, 23], [8, 19], [8, 9]],
@@ -68,6 +69,11 @@ const pilots = {
 
 export function getCityLayout(location) {
   return Object.hasOwn(pilots, location) ? pilots[location] : legacy
+}
+
+// Cidade só de cenário: sem ruas, sem prédios e sem catálogo (a Ilha Inicial).
+export function isScenicCity(location) {
+  return getCityLayout(location).scenic === true
 }
 
 export function isPilotCity(location) {
@@ -100,6 +106,7 @@ const catalogs = Object.fromEntries(Object.entries(regionalCatalog)
 const kinds = new Map([...baseCatalog, ...Object.values(regionalCatalog).flat()].map(item => [item.id, item]))
 
 export function getCityCatalog(location) {
+  if (isScenicCity(location)) return []
   return Object.hasOwn(catalogs, location) ? catalogs[location] : baseCatalog
 }
 

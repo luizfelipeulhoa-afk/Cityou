@@ -8,6 +8,10 @@ import { newCity, newTown, snapshot, normalizeAction, applyCityAction, recordCha
 import { HttpError, json, errorResponse } from './http.js'
 
 const START = SPACE_ORDER[0]
+// A ilha é só cenário; a cidade onde se constrói começa aberta no Rio de Janeiro.
+const DEFAULT_CITY = 'cristo-redentor'
+// A ilha conta como concluída e o Rio já nasce aberto, para a primeira construção no Rio valer uma viagem.
+const withOpenDefault = progress => normalizeProgress({ ...progress, desbloqueados: [...progress.desbloqueados, DEFAULT_CITY], concluidos: [...progress.concluidos, START] })
 const COOKIE = 'cityou_demo'
 const SESSION_SECONDS = 30 * 24 * 60 * 60
 const previewEnabled = env => env?.CITYOU_TEST_OPEN_REGIONS === '1'
@@ -128,7 +132,7 @@ export class DemoSession {
   async fetch(request) {
     const url = new URL(request.url)
     const path = url.pathname
-    const location = url.searchParams.get('local') ?? START
+    const location = url.searchParams.get('local') ?? DEFAULT_CITY
     const [pattern, handlers] = routes.find(([pattern]) => pattern.test(path))
     const handler = handlers[request.method]
     const [, id, second] = path.match(pattern)
@@ -297,14 +301,14 @@ export class DemoSession {
       this.write('task', id, task)
       this.reward('task', dateFormatter.format(completedAt), id, `Tarefa concluída: ${task.title}`)
     }
-    return json({ task, city: this.citySnapshot(START) })
+    return json({ task, city: this.citySnapshot(DEFAULT_CITY) })
   }
 
   cityState() { return this.read('city', 'state') ?? newCity(START, this.testMode) }
 
   requireLocation(location) {
     if (!SPACE_ORDER.includes(location)) throw new HttpError(404, 'Local desconhecido.')
-    if (location === START || this.testMode) return
+    if (location === START || location === DEFAULT_CITY || this.testMode) return
     const progress = this.progressState()
     if (!progress.desbloqueados.includes(location)) throw new HttpError(403, 'Este local ainda está bloqueado.')
   }
@@ -437,6 +441,10 @@ export class DemoSession {
   }
 
   progressState() {
+    return withOpenDefault(this.storedProgress())
+  }
+
+  storedProgress() {
     const regional = this.read('world', 'regional-progress')
     if (regional) return regional
 

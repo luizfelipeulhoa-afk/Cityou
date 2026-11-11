@@ -93,6 +93,7 @@ test('migração: e-mail único e chave estrangeira valem no D1 local', async ()
 })
 
 const ISLAND = 'ilha-inicial'
+const RIO = 'cristo-redentor'
 const PETRA = 'petra'
 const GREAT_WALL = 'grande-muralha'
 
@@ -132,33 +133,33 @@ test('cidades regionais: construir abre uma escolha de viagem e só o servidor l
   await travel(session, PETRA, 'sem-vaga', 409)
   await travel(session, 'local-inexistente', 'destino-invalido', 404)
 
-  const start = await city(session, ISLAND)
-  const withRoad = await build(session, ISLAND, 'estrada', start.revision, { kind: 'road' })
+  const start = await city(session, RIO)
+  const withRoad = await build(session, RIO, 'estrada', start.revision, { kind: 'road' })
   assert.equal((await world(session)).viagens_disponiveis, 0)
-  const withHouse = await build(session, ISLAND, 'casa-um', withRoad.revision, { x: 6 })
-  await build(session, ISLAND, 'casa-dois', withHouse.revision, { x: 5, y: 9 })
+  const withHouse = await build(session, RIO, 'casa-um', withRoad.revision, { x: 6 })
+  await build(session, RIO, 'casa-dois', withHouse.revision, { x: 5, y: 9 })
   const earned = await world(session)
-  assert.deepEqual(earned.desbloqueados, [ISLAND])
-  assert.deepEqual(earned.concluidos, [ISLAND])
+  assert.deepEqual(earned.desbloqueados, [ISLAND, RIO])
+  assert.deepEqual(earned.concluidos, [ISLAND, RIO])
   assert.equal(earned.viagens_disponiveis, 1)
 
   const opened = await travel(session, PETRA, 'primeira-viagem')
-  assert.deepEqual(opened.desbloqueados, [ISLAND, PETRA])
+  assert.deepEqual(opened.desbloqueados, [ISLAND, RIO, PETRA])
   assert.equal(opened.viagens_disponiveis, 0)
   assert.deepEqual(await travel(session, PETRA, 'primeira-viagem'), opened)
   await travel(session, GREAT_WALL, 'primeira-viagem', 409)
   await travel(session, GREAT_WALL, 'sem-outra-vaga', 409)
   await session('/api/world/progress', {
-    method: 'PUT', body: { ...opened, desbloqueados: [ISLAND, PETRA, GREAT_WALL] },
+    method: 'PUT', body: { ...opened, desbloqueados: [ISLAND, RIO, PETRA, GREAT_WALL] },
   })
-  assert.deepEqual((await world(session)).desbloqueados, [ISLAND, PETRA])
+  assert.deepEqual((await world(session)).desbloqueados, [ISLAND, RIO, PETRA])
   await session(`/api/city?local=${GREAT_WALL}`, { status: 403 })
 })
 
 test('cidades regionais: construções isoladas, carteira única e reenvio sem cobrança dupla', async () => {
   const session = newDemoSession()
-  const initial = await city(session, ISLAND)
-  const island = await build(session, ISLAND, 'casa-ilha', initial.revision)
+  const initial = await city(session, RIO)
+  const island = await build(session, RIO, 'casa-ilha', initial.revision)
   await travel(session, PETRA, 'viajar-petra')
   const petraBefore = await city(session, PETRA)
   assert.equal(petraBefore.credits, island.credits)
@@ -184,14 +185,14 @@ test('cidades regionais: construções isoladas, carteira única e reenvio sem c
   assert.equal(attempts.filter(result => result.status === 'fulfilled').length, 1)
   const refused = attempts.find(result => result.status === 'rejected')
   assert.match(String(refused.reason), /Moedas insuficientes/)
-  const [petraAfter, wallAfter, islandAfter] = await Promise.all([city(session, PETRA), city(session, GREAT_WALL), city(session, ISLAND)])
+  const [petraAfter, wallAfter, islandAfter] = await Promise.all([city(session, PETRA), city(session, GREAT_WALL), city(session, RIO)])
   assert.deepEqual([petraAfter, wallAfter, islandAfter].map(result => result.credits), [0, 0, 0])
   assert.equal([...petraAfter.placements, ...wallAfter.placements].filter(item => item.kind === 'home').length, 2)
   assert.deepEqual(islandAfter.placements, island.placements)
 
   const other = newDemoSession()
   await other(`/api/city?local=${PETRA}`, { status: 403 })
-  assert.equal((await city(other, ISLAND)).credits, initial.credits)
+  assert.equal((await city(other, RIO)).credits, initial.credits)
 })
 
 test('cidades regionais: cidade, viagem e comprovante anteriores continuam válidos', async () => {
@@ -215,7 +216,7 @@ test('cidades regionais: cidade, viagem e comprovante anteriores continuam váli
   assert.equal(session.citySnapshot('cristo-redentor').credits, 30)
   const repeated = await session.cityAction(oldAction, ISLAND).json()
   assert.equal(repeated.credits, 30)
-  assert.deepEqual(repeated.placements, oldCity.placements)
+  assert.deepEqual(repeated.placements, []) // a ilha agora é só cenário: nada é exibido nela
 })
 
 test('metas premiam a carteira uma vez, ao atingir a quantidade de dias', async () => {
@@ -229,18 +230,18 @@ test('metas premiam a carteira uma vez, ao atingir a quantidade de dias', async 
   })
 
   await check(await createGoal(2), true)
-  assert.equal((await city(session, ISLAND)).credits, 50)
+  assert.equal((await city(session, RIO)).credits, 50)
   const goal = await createGoal(1)
   await check(goal, true)
   await check(goal, false)
   await check(goal, true)
-  const player = await city(session, ISLAND)
+  const player = await city(session, RIO)
   assert.equal(player.credits, 75)
   assert.equal(player.reward_count, 1)
 })
 
 test('plantas-piloto comportam o total previsto com ruas, reservas e cinco tipos', () => {
-  const expected = { [ISLAND]: 32, 'cristo-redentor': 40 }
+  const expected = { [RIO]: 40 }
   for (const [location, capacity] of Object.entries(expected)) {
     const plan = referencePlans[location]
     assert.equal(plan.capacity, capacity)
@@ -277,7 +278,7 @@ test('prévia abre os oito locais e mantém o saldo de teste ao alternar cidades
     assert.equal(worldState.test_mode, true)
     assert.equal(worldState.viagens_abertas, true)
     assert.deepEqual(worldState.desbloqueados, SPACE_ORDER)
-    const initial = await city(session, ISLAND)
+    const initial = await city(session, RIO)
     assert.equal(initial.credits, 5000)
     assert.equal(initial.test_mode, true)
     assert.deepEqual([initial.grid_min, initial.grid_max, initial.unlock_radius], [-8, 24, 16])
@@ -285,8 +286,8 @@ test('prévia abre os oito locais e mantém o saldo de teste ao alternar cidades
     const rio = await city(session, 'cristo-redentor')
     assert.ok(rio.catalog.some(item => item.id === 'rio-fair'))
     assert.equal(rio.catalog.some(item => item.id === 'island-market'), false)
-    assert.notDeepEqual(rio.protected_tiles, initial.protected_tiles)
-    await build(session, ISLAND, 'lote-agua', initial.revision, {
+    assert.notDeepEqual(rio.protected_tiles, (await city(session, PETRA)).protected_tiles)
+    await build(session, RIO, 'lote-agua', initial.revision, {
       kind: 'tree', x: -8, y: -8, status: 422,
     })
     await build(session, 'cristo-redentor', 'lote-encosta', rio.revision, {
@@ -295,16 +296,17 @@ test('prévia abre os oito locais e mantém o saldo de teste ao alternar cidades
     await build(session, 'cristo-redentor', 'catalogo-invalido', rio.revision, {
       kind: 'island-house', x: 11, y: 10, status: 422,
     })
-    const built = await build(session, ISLAND, 'casa-costeira', initial.revision, { kind: 'island-house', x: 9, y: 10 })
+    const built = await build(session, RIO, 'casa-costeira', initial.revision, { kind: 'rio-sobrado', x: 7, y: 10 })
     assert.equal(built.credits, 4980)
     assert.equal((await city(session, 'cristo-redentor')).credits, 4980)
     assert.equal((await city(session, PETRA)).credits, 4980)
-    assert.equal((await city(session, ISLAND)).credits, 4980)
+    assert.equal((await city(session, RIO)).credits, 4980)
 
     const regular = newDemoSession()
     assert.equal((await world(regular)).test_mode, false)
-    assert.equal((await city(regular, ISLAND)).credits, 50)
-    await regular('/api/city?local=cristo-redentor', { status: 403 })
+    assert.equal((await city(regular, RIO)).credits, 50)
+    await regular('/api/city?local=cristo-redentor') // o Rio já nasce aberto
+    await regular(`/api/city?local=${PETRA}`, { status: 403 })
   } finally {
     await preview.close()
   }
@@ -312,14 +314,14 @@ test('prévia abre os oito locais e mantém o saldo de teste ao alternar cidades
 
 test('trecho viário é validado e cobrado em conjunto, com reenvio idempotente', async () => {
   const session = newDemoSession()
-  const start = await city(session, ISLAND)
-  const path = (request_id, expected_revision, x, y, end_x, end_y, status) => session('/api/city/actions?local=' + ISLAND, {
+  const start = await city(session, RIO)
+  const path = (request_id, expected_revision, x, y, end_x, end_y, status) => session('/api/city/actions?local=' + RIO, {
     method: 'POST', body: { type: 'road_path', request_id, expected_revision, x, y, end_x, end_y }, status,
   })
 
   await path('isolado', start.revision, 5, 5, 7, 5, 422)
   await path('colisao', start.revision, 6, 8, 9, 8, 409)
-  assert.equal((await city(session, ISLAND)).credits, start.credits)
+  assert.equal((await city(session, RIO)).credits, start.credits)
 
   const built = await path('trecho', start.revision, 6, 9, 6, 11)
   assert.equal(built.credits, start.credits - 4)
@@ -329,26 +331,26 @@ test('trecho viário é validado e cobrado em conjunto, com reenvio idempotente'
   assert.equal(retried.credits, built.credits)
 
   const cut = built.placements.find(item => item.kind === 'road' && item.x === 6 && item.y === 10)
-  await session('/api/city/actions?local=' + ISLAND, {
+  await session('/api/city/actions?local=' + RIO, {
     method: 'POST',
     body: { type: 'remove', request_id: 'cortar', expected_revision: built.revision, placement_id: cut.id },
     status: 422,
   })
-  assert.deepEqual((await city(session, ISLAND)).placements, built.placements)
+  assert.deepEqual((await city(session, RIO)).placements, built.placements)
 })
 
 const closedCall = (path, init) => closedHarness.fetch(ORIGIN + path, init)
 
 test('viagens fechadas: ninguém abre destino novo, mas construir na cidade atual segue valendo', async () => {
   const session = newDemoSession(closedCall)
-  const start = await city(session, ISLAND)
-  const withRoad = await build(session, ISLAND, 'estrada', start.revision, { kind: 'road' })
-  const withHouse = await build(session, ISLAND, 'casa-um', withRoad.revision, { x: 6 })
-  await build(session, ISLAND, 'casa-dois', withHouse.revision, { x: 5, y: 9 })
+  const start = await city(session, RIO)
+  const withRoad = await build(session, RIO, 'estrada', start.revision, { kind: 'road' })
+  const withHouse = await build(session, RIO, 'casa-um', withRoad.revision, { x: 6 })
+  await build(session, RIO, 'casa-dois', withHouse.revision, { x: 5, y: 9 })
   const earned = await world(session)
   assert.equal(earned.viagens_abertas, false)
   assert.equal(earned.viagens_disponiveis, 0)
-  assert.deepEqual(earned.concluidos, [ISLAND])
+  assert.deepEqual(earned.concluidos, [ISLAND, RIO])
   const refused = await travel(session, PETRA, 'viagem-fechada', 409)
   assert.match(refused.message, /ainda não estão abertas/)
   await session(`/api/city?local=${PETRA}`, { status: 403 })
@@ -388,16 +390,16 @@ test('atividades guardam área e local; área ou local inválidos são recusados
 
 test('comprovação: bônus uma vez por atividade por dia, com teto diário, e a nota fica guardada', async () => {
   const session = newDemoSession()
-  const before = (await city(session, ISLAND)).credits
+  const before = (await city(session, RIO)).credits
   const habit = await newHabit(session)
   const done = await checkin(session, habit, { done: true, proof: { note: NOTE } })
   assert.deepEqual(done.proof_result, { bonus: 5, reason: null })
-  assert.equal((await city(session, ISLAND)).credits, before + 5 + 5)
+  assert.equal((await city(session, RIO)).credits, before + 5 + 5)
   assert.deepEqual(done.proofs.map(item => [item.entry_id, item.note, item.has_photo]), [[habit, NOTE, false]])
   // Marcar de novo com outra nota atualiza a comprovação, mas não paga de novo.
   const again = await checkin(session, habit, { done: true, proof: { note: NOTE + ' Mais uma série.' } })
   assert.deepEqual(again.proof_result, { bonus: 0, reason: 'already_proved' })
-  assert.equal((await city(session, ISLAND)).credits, before + 10)
+  assert.equal((await city(session, RIO)).credits, before + 10)
   // O teto é de 3 bônus por dia.
   const paid = []
   for (const title of ['Ler', 'Meditar', 'Caminhar']) {
@@ -410,11 +412,11 @@ test('comprovação: bônus uma vez por atividade por dia, com teto diário, e a
 
 test('comprovação: marcar sem comprovar continua valendo e a comprovação é opcional', async () => {
   const session = newDemoSession()
-  const before = (await city(session, ISLAND)).credits
+  const before = (await city(session, RIO)).credits
   const habit = await newHabit(session)
   const plain = await checkin(session, habit, { done: true })
   assert.equal(plain.proof_result, undefined)
-  assert.equal((await city(session, ISLAND)).credits, before + 5)
+  assert.equal((await city(session, RIO)).credits, before + 5)
   const undone = await checkin(session, habit, { done: false, proof: { note: NOTE } })
   assert.equal(undone.proof_result, undefined)
 })
@@ -452,7 +454,7 @@ const buildFor = (session, activity_id, expected_revision, extra = {}, status) =
 test('prédio da atividade: nasce sozinho no terreno, com o nome do local e o tipo da área', async () => {
   const session = newDemoSession()
   const habit = await newHabit(session, { place: 'Academia Central', domain: 'saude' })
-  const start = await city(session, ISLAND)
+  const start = await city(session, RIO)
   const built = await buildFor(session, habit, start.revision)
   const building = built.placements.find(item => item.activity_id === habit)
   assert.equal(building.kind, 'dom-saude')
@@ -465,19 +467,19 @@ test('prédio da atividade: nasce sozinho no terreno, com o nome do local e o ti
   assert.deepEqual((await session('/api/personal')).predios, [habit])
   // Pratica hoje: segue sem passar de Terreno, porque a etapa depende de vários dias e semanas.
   await checkin(session, habit, { done: true })
-  const after = (await city(session, ISLAND)).placements.find(item => item.activity_id === habit)
+  const after = (await city(session, RIO)).placements.find(item => item.activity_id === habit)
   assert.deepEqual([after.etapa, after.dias, after.semanas], [0, 1, 1])
   assert.equal(after.proxima.etapa_nome, 'Fundação')
   // Sem local, o nome é o título da atividade.
   const noPlace = await newHabit(session, { title: 'Meditar', place: '', domain: 'mente' })
-  const second = await buildFor(session, noPlace, (await city(session, ISLAND)).revision)
+  const second = await buildFor(session, noPlace, (await city(session, RIO)).revision)
   assert.equal(second.placements.find(item => item.activity_id === noPlace).nome, 'Meditar')
 })
 
 test('prédio da atividade: uma atividade tem um prédio só, só hábito ou meta, só dela, e sem moedas não constrói', async () => {
   const session = newDemoSession()
   const habit = await newHabit(session)
-  const start = await city(session, ISLAND)
+  const start = await city(session, RIO)
   const built = await buildFor(session, habit, start.revision)
   const repeated = await buildFor(session, habit, built.revision, {}, 409)
   assert.match(repeated.message, /já tem um prédio/)
@@ -488,7 +490,7 @@ test('prédio da atividade: uma atividade tem um prédio só, só hábito ou met
   await buildFor(session, '00000000-0000-0000-0000-000000000000', built.revision, {}, 404)
   await buildFor(session, 'nao-e-um-id', built.revision, {}, 422)
   const stranger = newDemoSession()
-  await buildFor(stranger, habit, (await city(stranger, ISLAND)).revision, {}, 404)
+  await buildFor(stranger, habit, (await city(stranger, RIO)).revision, {}, 404)
   // Saldo: 50 moedas dão para dois prédios de 20 e o terceiro é recusado.
   let revision = built.revision
   const ids = [other]
@@ -502,10 +504,29 @@ test('prédio da atividade: uma atividade tem um prédio só, só hábito ou met
 test('prédio da atividade: reenviar a mesma ação não cobra de novo', async () => {
   const session = newDemoSession()
   const habit = await newHabit(session)
-  const start = await city(session, ISLAND)
+  const start = await city(session, RIO)
   const request_id = 'mesma-acao-1'
   const first = await buildFor(session, habit, start.revision, { request_id })
   const again = await buildFor(session, habit, start.revision, { request_id })
   assert.equal(again.credits, first.credits)
   assert.equal(again.placements.filter(item => item.activity_id === habit).length, 1)
+})
+
+test('ilha: só cenário, sem catálogo, rua nem prédio; o Rio de Janeiro já nasce aberto', async () => {
+  const session = newDemoSession()
+  const island = await city(session, ISLAND)
+  assert.equal(island.scenic, true)
+  assert.deepEqual(island.placements, [])
+  assert.deepEqual(island.catalog, [])
+  await build(session, ISLAND, 'casa-na-ilha', island.revision, { x: 8, y: 8, status: 422 })
+  await session('/api/city/actions?local=' + ISLAND, {
+    method: 'POST', status: 422,
+    body: { type: 'road_path', x: 8, y: 9, end_x: 9, end_y: 9, expected_revision: island.revision, request_id: 'rua-na-ilha' },
+  })
+  // Sem "local", a cidade é o Rio, e ele está aberto sem viagem nem prévia.
+  const home = await session('/api/city')
+  assert.equal(home.location_id, RIO)
+  assert.equal(home.scenic, false)
+  assert.ok(home.placements.some(item => item.kind === 'road'))
+  assert.deepEqual((await world(session)).desbloqueados, [ISLAND, RIO])
 })

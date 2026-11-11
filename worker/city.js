@@ -1,5 +1,5 @@
 import {
-  connectedRoads, getBuilding, getCityCatalog, getCityLayout, hasRoadFrontage, isPilotCity,
+  connectedRoads, getBuilding, getCityCatalog, getCityLayout, hasRoadFrontage, isPilotCity, isScenicCity,
   placementProblem, previewRoadPath, roadPath, tileKey,
 } from '../shared/game/city-layout.js'
 import { RULES } from '../shared/game/rules.js'
@@ -12,6 +12,7 @@ const actionFields = ['type', 'expected_revision', 'request_id', 'kind', 'x', 'y
 export function newTown(location) {
   const { roadSeeds } = getCityLayout(location)
   const started_at = new Date().toISOString()
+  if (isScenicCity(location)) return { revision: 0, started_at, placements: [] }
   const placements = [
     { id: 'core-plaza', kind: 'plaza', x: 8, y: 8 },
     { id: 'core-headquarters', kind: 'headquarters', x: 8, y: 7 },
@@ -33,13 +34,15 @@ export function newCity(location, testMode = false) {
 // Todo o terreno é construível desde o começo: a cidade vista de cima ocupa o terreno até perto das bordas.
 // (Antes a área crescia de 7x7 com as recompensas; isso deixava a maior parte do mapa sem uso.)
 function buildRadius(city, location) {
+  if (isScenicCity(location)) return -1
   return getCityLayout(location).max - 8
 }
 
 export function snapshot(city, location, testMode = false) {
   const { min, max, protectedTiles } = getCityLayout(location)
+  const scenic = isScenicCity(location)
   return {
-    ...city, catalog: getCityCatalog(location), level: 1 + Math.floor(city.reward_count / 10),
+    ...city, ...(scenic && { placements: [] }), scenic, catalog: getCityCatalog(location), level: 1 + Math.floor(city.reward_count / 10),
     unlock_radius: buildRadius(city, location, testMode),
     grid_min: min, grid_max: max, protected_tiles: protectedTiles,
     location_id: location, test_mode: testMode,
@@ -193,6 +196,7 @@ function applyPlacement(city, action, context) {
 }
 
 export function applyCityAction(city, action, location, testMode = false, extra = {}) {
+  if (isScenicCity(location)) throw new HttpError(422, 'A ilha é só para contemplar. Construa no Rio de Janeiro.')
   if (action.expected_revision !== city.revision) throw new HttpError(409, 'A cidade mudou. Atualize e tente novamente.')
   const context = { ...city, location_id: location, unlock_radius: buildRadius(city, location, testMode), activity_name: extra.nome }
   const { amount, label } = applyPlacement(city, action, context)
