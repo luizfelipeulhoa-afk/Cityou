@@ -93,11 +93,11 @@ const regionalCatalog = {
     building('island-fiber', 'Ateliê de fibra vegetal', 3, 3, 2.4, '#bc784a', 60),
   ],
   'cristo-redentor': [
-    building('rio-sobrado', 'Sobrado com comércio', 2, 2, 3.2, '#ddaf77', 20),
-    building('rio-botequim', 'Botequim de esquina', 2, 2, 2.1, '#5e9784', 30),
-    building('rio-kiosk', 'Quiosque esportivo', 3, 2, 1.7, '#75a4af', 35),
-    building('rio-fair', 'Pavilhão de feira', 3, 2, 2.5, '#c77955', 50, '/#/tarefas'),
-    building('rio-samba', 'Quadra de escola de samba', 3, 3, 3.2, '#588ab1', 60, '/#/agenda'),
+    building('rio-sobrado', 'Sobrado com comércio', 2, 2, 4.2, '#ddaf77', 20),
+    building('rio-botequim', 'Botequim de esquina', 2, 2, 2.8, '#5e9784', 30),
+    building('rio-kiosk', 'Quiosque esportivo', 3, 2, 2.0, '#75a4af', 35),
+    building('rio-fair', 'Pavilhão de feira', 3, 2, 3.0, '#c77955', 50, '/#/tarefas'),
+    building('rio-samba', 'Quadra de escola de samba', 3, 3, 3.8, '#588ab1', 60, '/#/agenda'),
   ],
 }
 

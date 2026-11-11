@@ -286,26 +286,53 @@ function pilotIsland(group, layout, shore, land) {
     sailboat(group, -17, -9, 1.4, 2.2),
   ]
 
-  // Coqueiros: tronco inclinado e duas coroas de folhas, tudo em duas chamadas de desenho.
-  const palms = pick(0.085, (x, z) => Math.hypot(x, z) < 2.2)
-  const lean = palms.map(() => (random() - 0.5) * 0.35)
-  const heights = palms.map(() => 1.1 + random() * 0.7)
-  instances(group, 'Troncos de coqueiro', new THREE.CylinderGeometry(0.035, 0.06, 1, 6), palms.map(({ x, z }, i) => ({
-    position: [x, heights[i] / 2 + 0.02, z], scale: [1, heights[i], 1], rotation: [0, 0, lean[i]], tint: 0x8c6a45,
-  })))
-  const crowns = palms.flatMap(({ x, z }, i) => [0, 1].map(layer => ({
-    position: [x - lean[i] * heights[i] * 0.5, heights[i] + 0.04 + layer * 0.1, z], scale: [0.78 - layer * 0.2, 0.14, 0.78 - layer * 0.2],
-    rotation: [0, i + layer * 0.8, 0], tint: layer ? 0x5fa253 : 0x4a8f48,
-  })))
-  instances(group, 'Folhas de coqueiro', new THREE.IcosahedronGeometry(1, 0), crowns)
+  // Pouca vegetação alta: 3 palmeiras e 3 coqueiros com cocos, em volta de uma cabana de abrigo.
+  const hut = { x: 6.2, z: -3.2 }
+  for (const [x, z, scale] of [[-7.5, -4.5, 2.3], [-3.2, 6.2, 2.0], [10.2, 3.6, 2.2]]) palm(group, x, z, scale)
+  const coconutMat = material(0x6b4a2f)
+  for (const [x, z, scale] of [[3.4, -6.4, 2.5], [9.2, -6.2, 2.2], [3.1, 0.6, 2.3]]) {
+    palm(group, x, z, scale)
+    for (const [dx, dz] of [[0.1, 0.06], [-0.08, 0.09], [0.02, -0.1]]) {
+      const coconut = new THREE.Mesh(new THREE.SphereGeometry(0.05 * scale, 6, 5), coconutMat)
+      coconut.position.set(x + dx * scale, 0.03 + 0.84 * scale, z + dz * scale)
+      group.add(coconut)
+    }
+  }
+  // Cabana de palha: um abrigo aberto, com banco, rede e uma lamparina que acende ao entardecer.
+  const wood = material(0x8c6a45), thatch = material(0xc9a35e), rope = material(0xe9dcc0)
+  const cabin = new THREE.Group()
+  cabin.position.set(hut.x, 0, hut.z)
+  cabin.rotation.y = -0.35
+  group.add(cabin)
+  box(cabin, 1.9, 0.09, 1.6, 0, 0.09, 0, material(0xb89468))
+  for (const x of [-0.8, 0.8]) for (const z of [-0.65, 0.65]) cylinder(cabin, 0.045, 1.05, x, 0.62, z, wood, 0.045, 6)
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(1.55, 0.95, 4), thatch)
+  roof.rotation.y = Math.PI / 4
+  roof.position.y = 1.62
+  roof.castShadow = true
+  cabin.add(roof)
+  box(cabin, 1.15, 0.07, 0.34, -0.1, 0.38, -0.5, wood)
+  for (const x of [-0.55, 0.35]) box(cabin, 0.06, 0.28, 0.06, x, 0.24, -0.5, wood)
+  const hammock = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.03, 10, 1, false, 0, Math.PI), rope)
+  hammock.rotation.set(0, 0, Math.PI / 2)
+  hammock.rotation.order = 'YXZ'
+  hammock.scale.set(1, 1, 1.5)
+  hammock.position.set(0.05, 0.62, 0.15)
+  cabin.add(hammock)
+  const lanternMat = material(0xffe0a0, { emissive: 0xffb84f, emissiveIntensity: 0.2 })
+  const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), lanternMat)
+  lantern.position.set(0.8, 0.98, 0.65)
+  cabin.add(lantern)
+  const around = ({ x, z }) => Math.hypot(x - hut.x, z - hut.z) < 2.2
+  const isFree = ({ x, z }) => !around({ x, z })
 
   // Vegetação rasteira, flores e pedras da praia.
-  const shrubs = pick(0.22, (x, z) => Math.hypot(x, z) < 1.6).map(({ x, z }) => {
+  const shrubs = pick(0.07, (x, z) => Math.hypot(x, z) < 1.6 || around({ x, z })).map(({ x, z }) => {
     const size = 0.16 + random() * 0.2
     return { position: [x + jitter(), size * 0.6, z + jitter()], scale: [size * 1.3, size, size * 1.3], tint: [0x6b9d57, 0x7db062, 0x578a50][Math.floor(random() * 3)] }
   })
   instances(group, 'Arbustos', new THREE.IcosahedronGeometry(1, 0), shrubs)
-  const flowers = pick(0.16).map(({ x, z }) => ({
+  const flowers = pick(0.1).filter(isFree).map(({ x, z }) => ({
     position: [x + jitter(), 0.1, z + jitter()], scale: [0.05, 0.05, 0.05], tint: [0xfff0f0, 0xffd54a, 0xff9ab5, 0xffffff][Math.floor(random() * 4)],
   }))
   instances(group, 'Flores', new THREE.IcosahedronGeometry(1, 0), flowers)
@@ -340,7 +367,6 @@ function pilotIsland(group, layout, shore, land) {
     { position: [x, -0.25, z], scale: [1.1, 0.7, 0.95], rotation: [0, i, 0], tint: 0x8c877a },
     { position: [x + 0.8, -0.3, z + 0.4], scale: [0.6, 0.45, 0.55], rotation: [0, i + 1, 0], tint: 0xa39d8d },
   ]))
-  for (const [x, z] of islets.slice(0, 2)) palm(group, x, z, 0.8)
 
   // Boias e recife raso.
   const buoys = [[-12, 14], [14, 19], [-20, -2], [21, 5], [6, -18], [-14, -15]]
@@ -438,12 +464,14 @@ function pilotIsland(group, layout, shore, land) {
     }
   }
   place(0, true)
-  return (time, reducedMotion) => {
+  const animateIsland = (time, reducedMotion) => {
     foam.material.opacity = reducedMotion ? 0.5 : 0.42 + Math.sin(time * 0.9) * 0.14
     if (reducedMotion) return
     for (let i = 0; i < boats.length; i++) boats[i].rotation.z = Math.sin(time * 0.7 + i) * 0.035
     place(time, false)
   }
+  animateIsland.setDusk = value => { lanternMat.emissiveIntensity = value ? 1.6 : 0.2 }
+  return animateIsland
 }
 
 function pilotRio(group, layout, shore) {
@@ -635,7 +663,7 @@ function createPilotEnvironment(group, region, layout) {
   const site = layout.landmarks[0]
   const landmarkY = island ? -0.42 : slopeHeight(site.x, site.y, layout.min)
   const landmark = addLandmark(group, region, site.x - layout.center, landmarkY, site.y - layout.center)
-  return { group, landmark, tileColor: island ? 0xdad0a7 : 0xc7c9ac, animate, lamps: [], setDusk() {} }
+  return { group, landmark, tileColor: island ? 0xdad0a7 : 0xc7c9ac, animate, lamps: [], setDusk(value) { animate.setDusk?.(value) } }
 }
 
 export function createEnvironment(scene, region) {
@@ -789,7 +817,8 @@ export function createDomainBuilding(definition, stage) {
   const group = new THREE.Group()
   const domain = String(definition.id || '').replace('dom-', '')
   const profile = DOMAIN_PROFILES[domain] || DOMAIN_PROFILES.organizacao
-  const color = definition.color || 0x7d9f91
+  // Cores um pouco mais quentes e menos saturadas, para combinar com a terra e a vegetação do terreno.
+  const color = new THREE.Color(definition.color || 0x7d9f91).lerp(new THREE.Color(0xf1e6cf), 0.14).getHex()
   const body = material(color), trim = material(new THREE.Color(color).multiplyScalar(0.7).getHex())
   const concrete = material(0xcfc8b8), earth = material(0xb59f7d), wood = material(0x9b7a52)
   const glass = material(0x9fd0d6, { roughness: 0.2 }), dark = material(0x4d4a45), accent = material(0xf2e9cf)
@@ -880,8 +909,61 @@ export function createDomainBuilding(definition, stage) {
   return group
 }
 
+// Prédios da cidade do Rio (catálogo regional): mesma família dos prédios das atividades, esguios, com fileiras de janelas,
+// e cores mais quentes para combinar com a encosta e a orla.
+const TOWN_PROFILES = {
+  'rio-sobrado': { w: 1.55, d: 1.5, h: 4.2, roof: 'tile' },
+  'rio-botequim': { w: 1.6, d: 1.5, h: 2.8, roof: 'awning' },
+  'rio-kiosk': { w: 2.5, d: 1.5, h: 2.0, roof: 'awning' },
+  'rio-fair': { w: 2.6, d: 1.6, h: 3.0, roof: 'pavilion' },
+  'rio-samba': { w: 2.6, d: 2.5, h: 3.8, roof: 'banner' },
+}
+
+function createTownBuilding(kind, definition) {
+  const { w, d, h, roof } = TOWN_PROFILES[kind]
+  const group = new THREE.Group()
+  const color = new THREE.Color(definition.color || 0xddaf77).lerp(new THREE.Color(0xf1e6cf), 0.12).getHex()
+  const body = material(color), trim = material(new THREE.Color(color).multiplyScalar(0.7).getHex())
+  const glass = material(0x9fd0d6, { roughness: 0.2 }), cream = material(0xf2e9cf), dark = material(0x4d4a45)
+  const tile = material(0xb4613f)
+  box(group, w + 0.3, 0.06, d + 0.3, 0, 0.03, 0, material(0xcfc8b8))
+  box(group, w, h, d, 0, 0.06 + h / 2, 0, body)
+  box(group, w + 0.1, 0.09, d + 0.1, 0, 0.06 + h, 0, trim)
+  windowRows(group, w, d, 0.55, h + 0.06, glass)
+  box(group, 0.36, 0.62, 0.05, 0, 0.37, d / 2 + 0.02, dark)
+  if (roof === 'tile') {
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w, d) * 0.78, 0.55, 4), tile)
+    cap.rotation.y = Math.PI / 4
+    cap.position.y = 0.06 + h + 0.32
+    cap.castShadow = true
+    group.add(cap)
+    box(group, w * 0.9, 0.05, 0.3, 0, 1.6, d / 2 + 0.16, trim)
+  } else if (roof === 'awning') {
+    for (let i = 0; i < 6; i++) box(group, w / 6, 0.05, 0.5, -w / 2 + w / 12 + i * w / 6, 1.05, d / 2 + 0.25, i % 2 ? cream : material(0xc4553f))
+    box(group, w, 0.05, d, 0, 0.12 + h + 0.03, 0, trim)
+  } else if (roof === 'pavilion') {
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(w * 0.72, 0.7, 4), tile)
+    cap.scale.z = d / w
+    cap.rotation.y = Math.PI / 4
+    cap.position.y = 0.06 + h + 0.4
+    cap.castShadow = true
+    group.add(cap)
+    for (let i = 0; i < 5; i++) box(group, 0.3, 0.3, 0.04, -w / 2 + 0.3 + i * (w - 0.6) / 4, 0.9, d / 2 + 0.03, i % 2 ? cream : material(0xe0773c))
+  } else {
+    box(group, w, 0.2, d, 0, 0.16 + h, 0, material(0xe0c04a))
+    box(group, w + 0.1, 0.08, d + 0.1, 0, 0.3 + h, 0, material(0x3f8f5e))
+    for (const x of [-w / 2 + 0.2, w / 2 - 0.2]) {
+      cylinder(group, 0.025, 1.1, x, h + 0.9, 0, dark, 0.025, 5)
+      box(group, 0.4, 0.22, 0.02, x + 0.22, h + 1.3, 0, material(0x3f8f5e))
+    }
+  }
+  group.userData.height = h + 0.8
+  return group
+}
+
 export function createCoreBuilding(kind, definition = {}, placement = null) {
   if (typeof kind === 'string' && kind.startsWith('dom-')) return createDomainBuilding(definition, placement?.etapa)
+  if (Object.hasOwn(TOWN_PROFILES, kind)) return createTownBuilding(kind, definition)
   const pilotBuilding = createPilotBuilding(kind, definition)
   if (pilotBuilding) return pilotBuilding
   const group = new THREE.Group()
