@@ -437,7 +437,8 @@ export default class CityWorld {
     }
     for (const placement of placements) {
       const definition = this.definitions.get(placement.kind) || {}
-      const key = `${placement.kind}:${definition.model || ''}`
+      // A etapa do prédio de uma atividade entra na chave: ao mudar, o volume é refeito.
+      const key = `${placement.kind}:${definition.model || ''}:${placement.etapa ?? ''}`
       let record = this.records.get(placement.id)
       if (record && record.key !== key) {
         this.removeRecord(record)
@@ -471,7 +472,7 @@ export default class CityWorld {
     // These are the original CubeCity SimObjects, with Rio geometry and model resources.
     const sim = new SimObject()
     sim.name = `${definition.label || placement.kind} · ${placement.id}`
-    const mesh = this.pilot && placement.kind === 'road' ? new THREE.Group() : createCoreBuilding(placement.kind, definition)
+    const mesh = this.pilot && placement.kind === 'road' ? new THREE.Group() : createCoreBuilding(placement.kind, definition, placement)
     if (placement.kind === 'road') mesh.userData.height = 0.065
     sim.setMesh(mesh)
     this.buildings.add(sim)

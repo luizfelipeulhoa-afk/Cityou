@@ -1,5 +1,5 @@
 import {
-  connectedRoads, getBuilding, getCityCatalog, getCityLayout, hasRoadFrontage, isPilotCity,
+  connectedRoads, getBuilding, getCityCatalog, getCityLayout, hasRoadFrontage, isPilotCity, isScenicCity,
   placementProblem, previewRoadPath, roadPath, tileKey,
 } from '../shared/game/city-layout.js'
 import { RULES } from '../shared/game/rules.js'
@@ -12,6 +12,7 @@ const actionFields = ['type', 'expected_revision', 'request_id', 'kind', 'x', 'y
 export function newTown(location) {
   const { roadSeeds } = getCityLayout(location)
   const started_at = new Date().toISOString()
+  if (isScenicCity(location)) return { revision: 0, started_at, placements: [] }
   const placements = [
     { id: 'core-plaza', kind: 'plaza', x: 8, y: 8 },
     { id: 'core-headquarters', kind: 'headquarters', x: 8, y: 7 },
@@ -30,15 +31,18 @@ export function newCity(location, testMode = false) {
   }
 }
 
-function buildRadius(city, location, testMode) {
-  const maximum = getCityLayout(location).max - 8
-  return testMode && isPilotCity(location) ? maximum : Math.min(maximum, 3 + Math.floor(city.reward_count / 10))
+// Todo o terreno é construível desde o começo: a cidade vista de cima ocupa o terreno até perto das bordas.
+// (Antes a área crescia de 7x7 com as recompensas; isso deixava a maior parte do mapa sem uso.)
+function buildRadius(city, location) {
+  if (isScenicCity(location)) return -1
+  return getCityLayout(location).max - 8
 }
 
 export function snapshot(city, location, testMode = false) {
   const { min, max, protectedTiles } = getCityLayout(location)
+  const scenic = isScenicCity(location)
   return {
-    ...city, catalog: getCityCatalog(location), level: 1 + Math.floor(city.reward_count / 10),
+    ...city, ...(scenic && { placements: [] }), scenic, catalog: getCityCatalog(location), level: 1 + Math.floor(city.reward_count / 10),
     unlock_radius: buildRadius(city, location, testMode),
     grid_min: min, grid_max: max, protected_tiles: protectedTiles,
     location_id: location, test_mode: testMode,
@@ -67,8 +71,9 @@ export function countsForTravel(placement) {
 
 export function normalizeAction(input) {
   const pathAction = input.type === 'road_path'
-  // Existing request receipts depend on the original serialization order.
-  const fields = pathAction ? [...actionFields, 'end_x', 'end_y'] : actionFields
+  // Existing request receipts depend on the original serialization order, so a field only joins when it is sent.
+  const linked = input.activity_id !== undefined
+  const fields = [...actionFields, ...(pathAction ? ['end_x', 'end_y'] : []), ...(linked ? ['activity_id'] : [])]
   const action = Object.fromEntries(fields.map(field => [field, input[field] ?? null]))
   const validCoordinate = value => Number.isSafeInteger(value) && value >= -8 && value <= 24
   if (Object.keys(input).some(field => !fields.includes(field)) ||
@@ -79,6 +84,7 @@ export function normalizeAction(input) {
       [action.x, action.y].some(value => value !== null && !validCoordinate(value)) ||
       (pathAction && ([action.x, action.y, action.end_x, action.end_y].some(value => !validCoordinate(value)) ||
         action.kind !== null || action.placement_id !== null || action.rotation !== null)) ||
+      (linked && (typeof action.activity_id !== 'string' || !/^[a-f0-9-]{36}$/.test(action.activity_id))) ||
       (action.rotation !== null && !integerIn(action.rotation, 3))) {
     throw new HttpError(422, 'Confira os dados da ação.')
   }
@@ -116,6 +122,17 @@ function buildRoadPath(city, context, { x, y, end_x, end_y }) {
   return { amount: -result.cost, label: `Construiu trecho de rua (${newRoads.length})` }
 }
 
+// Primeiro lote livre e válido, do centro para fora, para o prédio de uma atividade nascer sem a pessoa escolher o lugar.
+function findSite(context, kind, rotation) {
+  const { min, max, center } = getCityLayout(context.location_id)
+  const spots = []
+  for (let y = min; y <= max; y++) for (let x = min; x <= max; x++) spots.push({ x, y, far: Math.hypot(x - center - 0.5, y - center - 0.5) })
+  for (const spot of spots.sort((a, b) => a.far - b.far)) {
+    if (!placementProblem(context, { id: 'novo', kind, x: spot.x, y: spot.y, rotation })) return spot
+  }
+  throw new HttpError(422, 'Não há terreno livre. Remova uma construção ou desenhe mais ruas.')
+}
+
 function requireCredits(city, cost) {
   if (city.credits < cost) throw new HttpError(422, 'Moedas insuficientes. Conclua tarefas ou hábitos para ganhar mais.')
 }
@@ -125,14 +142,18 @@ function applyPlacement(city, action, context) {
   const { type, kind, x, y, rotation, placement_id } = action
   if (type === 'build') {
     const item = getCityCatalog(context.location_id).find(entry => entry.id === kind)
-    if (!item || core.has(kind) || x === null || y === null || placement_id !== null) {
+    const linked = action.activity_id !== null && action.activity_id !== undefined
+    const auto = linked && x === null && y === null
+    if (!item || core.has(kind) || (!auto && (x === null || y === null)) || placement_id !== null) {
       throw new HttpError(422, 'Escolha uma construção e coordenadas válidas.')
     }
-    const placement = { id: crypto.randomUUID(), kind, x, y, rotation: rotation ?? 0, level: 1 }
+    const site = auto ? findSite(context, kind, rotation ?? 0) : { x, y }
+    const placement = { id: crypto.randomUUID(), kind, x: site.x, y: site.y, rotation: rotation ?? 0, level: 1 }
+    if (linked) Object.assign(placement, { activity_id: action.activity_id, nome: context.activity_name })
     validateSite(context, placement)
     requireCredits(city, item.cost)
     city.placements.push(placement)
-    return { amount: -item.cost, label: `Construiu ${item.label}` }
+    return { amount: -item.cost, label: `Construiu ${placement.nome || item.label}` }
   }
 
   if (kind !== null || placement_id === null) throw new HttpError(422, 'Escolha uma construção da cidade.')
@@ -174,9 +195,10 @@ function applyPlacement(city, action, context) {
   return { amount: -cost, label: `Melhorou ${item.label} para nível ${placement.level}` }
 }
 
-export function applyCityAction(city, action, location, testMode = false) {
+export function applyCityAction(city, action, location, testMode = false, extra = {}) {
+  if (isScenicCity(location)) throw new HttpError(422, 'A ilha é só para contemplar. Construa no Rio de Janeiro.')
   if (action.expected_revision !== city.revision) throw new HttpError(409, 'A cidade mudou. Atualize e tente novamente.')
-  const context = { ...city, location_id: location, unlock_radius: buildRadius(city, location, testMode) }
+  const context = { ...city, location_id: location, unlock_radius: buildRadius(city, location, testMode), activity_name: extra.nome }
   const { amount, label } = applyPlacement(city, action, context)
   recordChange(city, label, amount)
 }

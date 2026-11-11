@@ -3,10 +3,15 @@ import { SPACE_ORDER } from '../src/world/worldSpaces.js'
 import { DOMAINS, RULES } from '../shared/game/rules.js'
 import { ProofError, parseProof, sha256Hex } from '../shared/game/proof.js'
 import { buildSummary } from '../shared/game/summary.js'
+import { kindForDomain, stageFor } from '../shared/game/buildings.js'
 import { newCity, newTown, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
 import { HttpError, json, errorResponse } from './http.js'
 
 const START = SPACE_ORDER[0]
+// A ilha é só cenário; a cidade onde se constrói começa aberta no Rio de Janeiro.
+const DEFAULT_CITY = 'cristo-redentor'
+// A ilha conta como concluída e o Rio já nasce aberto, para a primeira construção no Rio valer uma viagem.
+const withOpenDefault = progress => normalizeProgress({ ...progress, desbloqueados: [...progress.desbloqueados, DEFAULT_CITY], concluidos: [...progress.concluidos, START] })
 const COOKIE = 'cityou_demo'
 const SESSION_SECONDS = 30 * 24 * 60 * 60
 const previewEnabled = env => env?.CITYOU_TEST_OPEN_REGIONS === '1'
@@ -127,7 +132,7 @@ export class DemoSession {
   async fetch(request) {
     const url = new URL(request.url)
     const path = url.pathname
-    const location = url.searchParams.get('local') ?? START
+    const location = url.searchParams.get('local') ?? DEFAULT_CITY
     const [pattern, handlers] = routes.find(([pattern]) => pattern.test(path))
     const handler = handlers[request.method]
     const [, id, second] = path.match(pattern)
@@ -205,7 +210,7 @@ export class DemoSession {
     const proofs = this.list('proof').map(({ photo, ...rest }) => ({ ...rest, has_photo: Boolean(photo) }))
     const today = dateFormatter.format(new Date())
     const entries = this.list('entry')
-    return { entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), sources }
+    return { entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), predios: [...this.buildingActivityIds()], sources }
   }
 
   personal() { return json(this.overview()) }
@@ -296,14 +301,14 @@ export class DemoSession {
       this.write('task', id, task)
       this.reward('task', dateFormatter.format(completedAt), id, `Tarefa concluída: ${task.title}`)
     }
-    return json({ task, city: this.citySnapshot(START) })
+    return json({ task, city: this.citySnapshot(DEFAULT_CITY) })
   }
 
   cityState() { return this.read('city', 'state') ?? newCity(START, this.testMode) }
 
   requireLocation(location) {
     if (!SPACE_ORDER.includes(location)) throw new HttpError(404, 'Local desconhecido.')
-    if (location === START || this.testMode) return
+    if (location === START || location === DEFAULT_CITY || this.testMode) return
     const progress = this.progressState()
     if (!progress.desbloqueados.includes(location)) throw new HttpError(403, 'Este local ainda está bloqueado.')
   }
@@ -315,7 +320,50 @@ export class DemoSession {
     return { ...region, credits, earned, reward_count, history }
   }
 
-  citySnapshot(location) { return snapshot(this.regionalCity(location, this.cityState()), location, this.testMode) }
+  // Cada prédio de atividade mostra a etapa dele, calculada pelos dias e semanas com prática. Nada vem do navegador.
+  withStages(view) {
+    const placements = view.placements.map(item => {
+      if (!item.activity_id) return item
+      const days = this.sql.exec("SELECT json_extract(value, '$.day') AS day FROM records WHERE kind = 'checkin' AND id GLOB ? AND json_extract(value, '$.done') = 1", `${item.activity_id}:*`)
+        .toArray().map(row => row.day)
+      return { ...item, ...stageFor(days) }
+    })
+    return { ...view, placements }
+  }
+
+  // Só hábitos e metas viram prédio: são os que têm dias de prática para mostrar a evolução.
+  activity(id) {
+    const entry = this.read('entry', id)
+    return entry && ['habit', 'goal'].includes(entry.kind) ? entry : null
+  }
+
+  // Prédio de atividade: o tipo vem da área da atividade e o nome do local que a pessoa preencheu.
+  activityContext(action) {
+    if (action.activity_id == null || action.type !== 'build') return {}
+    const entry = this.activity(action.activity_id)
+    return { nome: (entry.place || entry.title).slice(0, 80) }
+  }
+
+  withActivity(action) {
+    if (action.activity_id == null) return action
+    if (action.type !== 'build') throw new HttpError(422, 'A atividade só se liga a uma construção nova.')
+    const entry = this.activity(action.activity_id)
+    if (!entry) throw new HttpError(404, 'Esta atividade não existe.')
+    const kind = kindForDomain(entry.domain ?? 'organizacao')
+    if (action.kind !== null && action.kind !== kind) throw new HttpError(422, 'O prédio precisa ser da mesma área da atividade.')
+    if (this.buildingActivityIds().has(action.activity_id)) throw new HttpError(409, 'Esta atividade já tem um prédio na cidade.')
+    return { ...action, kind }
+  }
+
+  buildingActivityIds() {
+    const ids = new Set()
+    for (const { value } of this.sql.exec("SELECT value FROM records WHERE kind IN ('city', 'regional-city')")) {
+      for (const placement of JSON.parse(value).placements ?? []) if (placement.activity_id) ids.add(placement.activity_id)
+    }
+    return ids
+  }
+
+  citySnapshot(location) { return this.withStages(snapshot(this.regionalCity(location, this.cityState()), location, this.testMode)) }
 
   city(_, location) { return json(this.citySnapshot(location)) }
 
@@ -368,10 +416,11 @@ export class DemoSession {
     const recorded = this.read('city-request', action.request_id)
     if (recorded !== null) {
       if (recorded !== fingerprint) throw new HttpError(409, 'Esse request_id já foi usado para outra ação.')
-      return json(snapshot(city, location, this.testMode))
+      return json(this.withStages(snapshot(city, location, this.testMode)))
     }
     const progress = this.progressState()
-    applyCityAction(city, action, location, this.testMode)
+    const resolved = this.withActivity(action)
+    applyCityAction(city, resolved, location, this.testMode, this.activityContext(resolved))
     if (location === START) {
       this.write('city', 'state', city)
     } else {
@@ -379,7 +428,7 @@ export class DemoSession {
       this.write('city', 'state', { ...home, credits, history, revision: home.revision + 1 })
       this.write('regional-city', location, { placements, revision, started_at })
     }
-    const firstBuilding = action.type === 'build' && countsForTravel(action) && !progress.concluidos.includes(location)
+    const firstBuilding = resolved.type === 'build' && countsForTravel(resolved) && !progress.concluidos.includes(location)
     if (firstBuilding) {
       if (this.testMode && !progress.desbloqueados.includes(location)) progress.desbloqueados.push(location)
       progress.concluidos.push(location)
@@ -388,10 +437,14 @@ export class DemoSession {
       this.write('world', 'regional-progress', normalizeProgress(progress))
     }
     this.saveRequest('city-request', action.request_id, fingerprint)
-    return json(snapshot(city, location, this.testMode))
+    return json(this.withStages(snapshot(city, location, this.testMode)))
   }
 
   progressState() {
+    return withOpenDefault(this.storedProgress())
+  }
+
+  storedProgress() {
     const regional = this.read('world', 'regional-progress')
     if (regional) return regional
 

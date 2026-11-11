@@ -42,7 +42,7 @@ const cityQuery = cityLocation ? '?' + new URLSearchParams({ local: cityLocation
 
 export const loadCity = async () => {
   const city = await request('/api/city' + cityQuery)
-  if (cityLocation && cityLocation !== 'ilha-inicial' && city.location_id !== cityLocation) {
+  if (cityLocation && city.location_id !== cityLocation) {
     throw new ApiError('Este servidor ainda não oferece cidades regionais.')
   }
   return city
