@@ -127,6 +127,8 @@ Vazio: "Sua agenda tem espaço." com "Novo compromisso".
 
 ### Hábitos
 
+Cada cartão tem, além de "Marcar como feito", o botão "Comprovar" (relato ou foto; +5 moedas, até 3 por dia, opcional e privado). O formulário de novo hábito, meta ou tarefa pede a **área** e o **local ou atividade**, que nomeiam o prédio na cidade.
+
 Ação principal: "Marcar como feito". Criar é a segunda.
 
 | Botão | Hoje | Rota | Tabela | Retorno |

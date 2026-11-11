@@ -1,6 +1,8 @@
 import { normalizeProgress, unlockSpace } from '../src/world/progress.js'
 import { SPACE_ORDER } from '../src/world/worldSpaces.js'
-import { RULES } from '../shared/game/rules.js'
+import { DOMAINS, RULES } from '../shared/game/rules.js'
+import { ProofError, parseProof, sha256Hex } from '../shared/game/proof.js'
+import { buildSummary } from '../shared/game/summary.js'
 import { newCity, newTown, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
 import { HttpError, json, errorResponse } from './http.js'
 
@@ -27,6 +29,7 @@ const routes = [
   [/^\/api\/personal\/entries$/, { POST: 'addEntry' }],
   [/^\/api\/personal\/entries\/([a-f0-9-]{36})\/checkin$/, { PUT: 'checkin' }],
   [/^\/api\/personal\/tasks$/, { POST: 'addTask' }],
+  [/^\/api\/personal\/proofs\/([a-f0-9-]{36})\/(\d{4}-\d{2}-\d{2})\/photo$/, { GET: 'proofPhoto' }],
   [/^\/api\/workspace\/tasks$/, { GET: 'tasks' }],
   [/^\/api\/workspace\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/city$/, { GET: 'city' }],
@@ -48,9 +51,11 @@ export async function demoApi(request, env, url) {
   if (!Object.hasOwn(route[1], request.method)) throw new HttpError(405, 'Método não permitido.')
   const token = sessionToken(request)
   if (!token) throw new HttpError(401, 'Abra o Cityou novamente com os cookies habilitados.')
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))
-  const key = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
-  const response = await env.DEMO_SESSIONS.getByName(key).fetch(request)
+  const key = await sha256Hex(new TextEncoder().encode(token))
+  // Só o Worker fala com a sessão: o cabeçalho é sempre reescrito aqui, nunca vem do navegador.
+  const headers = new Headers(request.headers)
+  headers.set('X-Travel-Open', env.TRAVEL_OPEN === 'false' ? '0' : '1')
+  const response = await env.DEMO_SESSIONS.getByName(key).fetch(new Request(request, { headers }))
   return new Response(response.body, response)
 }
 
@@ -87,10 +92,24 @@ function titleOf(value) {
   return value.trim()
 }
 
-function worldSnapshot(progress) {
+function worldSnapshot(progress, travelOpen = true) {
   const slots = progress.concluidos.length - (progress.desbloqueados.length - 1)
   const locked = SPACE_ORDER.length - progress.desbloqueados.length
-  return { ...progress, viagens_disponiveis: Math.max(0, Math.min(slots, locked)) }
+  return { ...progress, viagens_abertas: travelOpen, viagens_disponiveis: travelOpen ? Math.max(0, Math.min(slots, locked)) : 0 }
+}
+
+const TRAVEL_CLOSED = 'As viagens ainda não estão abertas. Por enquanto, desenvolva a cidade onde você está.'
+
+function place(value) {
+  if (value === undefined || value === null || value === '') return ''
+  if (typeof value !== 'string' || value.trim().length > 80) throw new HttpError(422, 'O local aceita até 80 caracteres.')
+  return value.trim()
+}
+
+function domainOf(value) {
+  if (value === undefined || value === null) return 'organizacao'
+  if (!DOMAINS.includes(value)) throw new HttpError(422, 'Escolha uma área válida.')
+  return value
 }
 
 export class DemoSession {
@@ -104,12 +123,23 @@ export class DemoSession {
     const url = new URL(request.url)
     const path = url.pathname
     const location = url.searchParams.get('local') ?? START
+    this.travelOpen = request.headers.get('X-Travel-Open') !== '0'
     const [pattern, handlers] = routes.find(([pattern]) => pattern.test(path))
     const handler = handlers[request.method]
-    const [, id] = path.match(pattern)
+    const [, id, second] = path.match(pattern)
     try {
       const writes = request.method !== 'GET'
       const body = writes ? await readBody(request) : undefined
+      let proof
+      if (handler === 'checkin' && body.proof !== undefined) {
+        try {
+          const parsed = parseProof(body.proof)
+          proof = { ...parsed, hash: parsed.photo ? await sha256Hex(parsed.photo.bytes) : null }
+        } catch (error) {
+          if (error instanceof ProofError) throw new HttpError(422, error.message)
+          throw error
+        }
+      }
       if (writes && await this.storage.getAlarm() === null) {
         await this.storage.setAlarm(Date.now() + SESSION_SECONDS * 1000)
       }
@@ -118,7 +148,8 @@ export class DemoSession {
           this.requireLocation(location)
           return this[handler](body, location)
         }
-        return this[handler](body, id)
+        if (handler === 'proofPhoto') return this.proofPhoto(id, second)
+        return this[handler](body, id, proof)
       })
     } catch (error) {
       if (error instanceof HttpError && handler === 'cityAction' && error.status !== 403 && error.status !== 404) {
@@ -167,40 +198,87 @@ export class DemoSession {
   }
 
   overview() {
-    return { entries: this.list('entry'), checkins: this.list('checkin'), today: dateFormatter.format(new Date()), sources }
+    const proofs = this.list('proof').map(({ photo, ...rest }) => ({ ...rest, has_photo: Boolean(photo) }))
+    const today = dateFormatter.format(new Date())
+    const entries = this.list('entry')
+    return { entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), sources }
   }
 
   personal() { return json(this.overview()) }
 
+  summary(day, entries) {
+    const city = this.cityState()
+    const paid = kind => this.sql.exec('SELECT count(*) AS total FROM records WHERE kind = ?', `reward:${kind}:${day}`).one().total
+    const habits = entries.filter(entry => entry.kind === 'habit')
+    const done = habits.filter(entry => this.read('checkin', `${entry.id}:${day}`)?.done === 1).length
+    return buildSummary({
+      credits: city.credits, earned: city.earned, rewardCount: city.reward_count,
+      paidToday: { habit: paid('habit'), task: paid('task'), proof: paid('proof') },
+      habits: { done, total: habits.length }, history: city.history,
+    })
+  }
+
   addEntry(input) {
     const { kind, day, body = '', category = 'pessoal', amount_cents = 0, direction = 'expense', target = 1 } = input
+    const domain = domainOf(input.domain)
+    const where = place(input.place)
     if (!kinds.includes(kind) || !isDate(day) || typeof body !== 'string' || body.length > 4000 ||
         typeof category !== 'string' || category.length > 50 || !['expense', 'income'].includes(direction) ||
         !Number.isInteger(amount_cents) || amount_cents < 0 || amount_cents > 100_000_000 ||
         !Number.isInteger(target) || target < 1 || target > 10_000) throw new HttpError(422, 'Confira os campos do registro.')
     if (kind === 'transaction' && amount_cents < 1) throw new HttpError(422, 'Informe um valor maior que zero.')
     if (kind === 'meal' && day > dateFormatter.format(new Date())) throw new HttpError(422, 'Registre uma refeição já realizada.')
-    const { id } = this.add('entry', { kind, day, title: titleOf(input.title), body, category, amount_cents, direction, target })
+    const { id } = this.add('entry', { kind, day, title: titleOf(input.title), body, category, amount_cents, direction, target, domain, place: where })
     return json({ ...this.overview(), created_id: id }, 201)
   }
 
-  checkin({ done }, id) {
+  checkin({ done }, id, proof) {
     if (typeof done !== 'boolean') throw new HttpError(422, 'Informe se o registro foi concluído.')
     const entry = this.read('entry', id)
     if (!entry) throw new HttpError(404, 'Este item não existe.')
     if (!['habit', 'goal'].includes(entry.kind)) throw new HttpError(422, 'Este item não tem conclusão diária.')
     const day = dateFormatter.format(new Date())
+    const proofResult = done && proof ? this.saveProof(entry, day, proof) : null
     this.write('checkin', `${id}:${day}`, { entry_id: id, day, done: Number(done) })
     if (done && entry.kind === 'habit') this.reward('habit', day, id, `Hábito concluído: ${entry.title}`)
     if (done && entry.kind === 'goal') this.rewardGoal(entry)
-    return this.personal()
+    const overview = this.overview()
+    return json(proofResult ? { ...overview, proof_result: proofResult } : overview)
+  }
+
+  // A comprovação é privada e opcional. Ela só rende o bônus uma vez por atividade por dia, até o teto diário, e uma
+  // mesma foto não vale duas vezes. O app não confere se a atividade aconteceu de verdade.
+  saveProof(entry, day, { note, photo, hash }) {
+    const key = `${entry.id}:${day}`
+    const existing = this.read('proof', key)
+    const used = hash ? this.read('proof-hash', hash) : null
+    if (used && used.key !== key) throw new HttpError(422, 'Esta foto já foi usada em outra comprovação. Tire uma foto nova.')
+    const { total } = this.sql.exec("SELECT count(*) AS total FROM records WHERE kind = 'proof'").one()
+    if (!existing && total >= RULES.proof.maxStored) throw new HttpError(422, `A demonstração guarda até ${RULES.proof.maxStored} comprovações.`)
+    this.write('proof', key, { entry_id: entry.id, day, note, photo: photo?.dataUrl ?? null, created_at: new Date().toISOString() })
+    if (hash) this.write('proof-hash', hash, { key })
+    if (existing) return { bonus: 0, reason: 'already_proved' }
+    const rewardKind = `reward:proof:${day}`
+    if (this.list(rewardKind, RULES.proof.maxBonusPerDay).length >= RULES.proof.maxBonusPerDay) return { bonus: 0, reason: 'daily_cap' }
+    this.grantBonus(RULES.proof.bonusCredits, `Comprovação: ${entry.title}`)
+    this.write(rewardKind, entry.id, true)
+    return { bonus: RULES.proof.bonusCredits, reason: null }
+  }
+
+  proofPhoto(id, day) {
+    const proof = this.read('proof', `${id}:${day}`)
+    const match = /^data:(image\/(?:jpeg|webp));base64,(.+)$/.exec(proof?.photo ?? '')
+    if (!match) throw new HttpError(404, 'Esta comprovação não tem foto.')
+    const binary = atob(match[2])
+    const bytes = Uint8Array.from(binary, char => char.charCodeAt(0))
+    return new Response(bytes, { headers: { 'Content-Type': match[1], 'Cache-Control': 'private, no-store' } })
   }
 
   tasks() { return json({ connected: false, tasks: this.list('task') }) }
 
-  addTask({ title, due_date = null }) {
+  addTask({ title, due_date = null, domain, place: where }) {
     if (due_date !== null && !isDate(due_date)) throw new HttpError(422, 'Confira a data da tarefa.')
-    return json(this.add('task', { title: titleOf(title), due_date, status: 'todo', completed_at: null }), 201)
+    return json(this.add('task', { title: titleOf(title), due_date, status: 'todo', completed_at: null, domain: domainOf(domain), place: place(where) }), 201)
   }
 
   finishTask(body, id) {
@@ -252,6 +330,14 @@ export class DemoSession {
     if (total < entry.target) return
     this.grantReward(RULES.rewards.goalDone.credits, `Meta concluída: ${entry.title}`)
     this.write(key, entry.id, true)
+  }
+
+  // Bônus de comprovação: só créditos. Não conta como recompensa para o nível da cidade.
+  grantBonus(amount, label) {
+    const city = this.cityState()
+    city.earned += amount
+    recordChange(city, label, amount)
+    this.write('city', 'state', city)
   }
 
   grantReward(amount, label) {
@@ -312,7 +398,7 @@ export class DemoSession {
     return normalizeProgress(legacy)
   }
 
-  world() { return json(worldSnapshot(this.progressState())) }
+  world() { return json(worldSnapshot(this.progressState(), this.travelOpen !== false)) }
 
   saveWorld(progress) {
     const { epoca = 0, desbloqueados = [], concluidos = [] } = progress
@@ -338,8 +424,9 @@ export class DemoSession {
     const progress = this.progressState()
     if (progress.desbloqueados.includes(local)) {
       if (recorded === null) this.saveRequest('travel-request', request_id, local)
-      return json(worldSnapshot(progress))
+      return json(worldSnapshot(progress, this.travelOpen))
     }
+    if (!this.travelOpen) throw new HttpError(409, TRAVEL_CLOSED)
     if (worldSnapshot(progress).viagens_disponiveis === 0) {
       throw new HttpError(409, 'Construa um prédio em uma cidade ainda não concluída para liberar uma viagem.')
     }
@@ -347,6 +434,6 @@ export class DemoSession {
     this.write('world', 'regional-progress', next)
     if (!this.read('regional-city', local)) this.write('regional-city', local, newTown())
     this.saveRequest('travel-request', request_id, local)
-    return json(worldSnapshot(next))
+    return json(worldSnapshot(next, this.travelOpen))
   }
 }

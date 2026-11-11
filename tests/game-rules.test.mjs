@@ -82,3 +82,35 @@ test('dias: não se marca o futuro nem mais de 7 dias para trás', () => {
   assert.equal(canMarkDay('2026-11-04', '2026-11-11'), true)
   assert.equal(canMarkDay('2026-11-03', '2026-11-11'), false)
 })
+
+import { buildSummary } from '../shared/game/summary.js'
+import { ProofError, parseProof } from '../shared/game/proof.js'
+
+test('resumo do painel: nível e progresso, tetos do dia e só os 5 últimos lançamentos', () => {
+  const history = Array.from({ length: 8 }, (_, i) => ({ label: `L${i}`, amount: i, created_at: `2026-11-11T0${i}:00:00Z`, extra: 'não vai' }))
+  const resumo = buildSummary({
+    credits: 80, earned: 130, rewardCount: 23,
+    paidToday: { habit: 3, task: 1, proof: 2 }, habits: { done: 3, total: 5 }, history,
+  })
+  assert.equal(resumo.level, 3)
+  assert.deepEqual(resumo.level_progress, { within: 3, size: 10 })
+  assert.deepEqual(resumo.today.paid.habit, { used: 3, cap: 8 })
+  assert.deepEqual(resumo.today.paid.task, { used: 1, cap: 10 })
+  assert.deepEqual(resumo.today.paid.proof, { used: 2, cap: 3, bonus: 5 })
+  assert.equal(resumo.recent.length, 5)
+  assert.deepEqual(Object.keys(resumo.recent[0]), ['label', 'amount', 'created_at'])
+  assert.ok(JSON.stringify(resumo).length < 1024, 'o resumo precisa caber em 1 KB')
+})
+
+test('comprovação: nota curta, foto falsa e campos extras são recusados; foto e nota válidas passam', () => {
+  const jpeg = 'data:image/jpeg;base64,' + btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xe0, 0, 16))
+  assert.throws(() => parseProof({ note: 'curta' }), ProofError)
+  assert.throws(() => parseProof({}), ProofError)
+  assert.throws(() => parseProof(null), ProofError)
+  assert.throws(() => parseProof({ note: 'x'.repeat(501) }), ProofError)
+  assert.throws(() => parseProof({ photo: 'data:image/png;base64,AAAA' }), ProofError)
+  assert.throws(() => parseProof({ photo: 'data:image/jpeg;base64,' + btoa('isso não é uma foto') }), ProofError)
+  assert.throws(() => parseProof({ note: 'a'.repeat(30), extra: 1 }), ProofError)
+  assert.equal(parseProof({ photo: jpeg }).photo.mime, 'image/jpeg')
+  assert.equal(parseProof({ note: '  ' + 'a'.repeat(20) + '  ' }).note, 'a'.repeat(20))
+})
