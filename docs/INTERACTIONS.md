@@ -243,6 +243,14 @@ Uma cidade por local liberado. Sem `local`, abre a cidade do local atual. As reg
 | Catálogo, filtros, luz do dia, entardecer, girar câmera, vista inicial, ajuda | Local | | | Igual |
 | Indicador de escritórios ativos; prédios de IA | Atividade do Fifones | | | **Saem** |
 
+Ao posicionar uma construção:
+
+- As células sob o prédio ficam verdes ou vermelhas no chão, não só o modelo.
+- Em vermelho, um texto curto diz o motivo e, quando existe, um botão resolve ("Precisa de rua ao lado · Construir rua").
+- Ao escolher um item do catálogo, o mapa destaca onde ele cabe.
+- A frente do prédio vira sozinha para a rua vizinha. A tecla `R` gira à mão.
+- Pintar rua é arrastar; o trecho inteiro é confirmado de uma vez ("Aplicar") ou descartado ("Desfazer"), e conta como uma ação só.
+
 Sem "Desfazer" para "Escolher melhoria": a escolha é definitiva, então o botão pede um segundo toque de confirmação. É a segunda exceção à regra geral, junto com apagar a conta.
 
 Quando um prédio muda de etapa, a animação toca na próxima abertura da cidade, uma vez.

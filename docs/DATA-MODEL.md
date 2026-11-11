@@ -91,13 +91,13 @@ As regras e os números estão em `GAME-DESIGN.md`. Aqui ficam só as tabelas.
 
 | Tabela | Colunas | Chave | Quem preenche | O que a pessoa vê |
 |---|---|---|---|---|
-| `player` | `user_id`, `xp`, `level`, `credits` ≥ 0, `current_location`, `updated_at` | `user_id` | Sistema: criada no cadastro (50 créditos, Ilha Inicial); atualizada a cada ação | Nível, barra de XP e créditos no topo |
-| `ledger` | `id` INTEGER AUTOINCREMENT, `user_id`, `source_key`, `amount`, `xp`, `multiplier`, `domain` NULL, `label`, `created_at` | único (`user_id`, `source_key`) | Sistema: a cada ganho ou gasto | Extrato: de onde veio cada crédito e cada XP |
+| `player` | `user_id`, `xp` (dentro do nível), `lifetime_xp`, `level`, `credits` ≥ 0, `credits_earned`, `credits_spent`, `current_location`, `updated_at` | `user_id` | Sistema: criada no cadastro (50 créditos, Ilha Inicial); atualizada a cada ação | Nível, barra de XP e créditos no topo |
+| `ledger` | `id` INTEGER AUTOINCREMENT, `user_id`, `source_key`, `reason`, `ref_id` NULL, `amount`, `balance_after`, `xp`, `multiplier`, `domain` NULL, `label`, `created_at` | único (`user_id`, `source_key`) | Sistema: a cada ganho ou gasto | Extrato: de onde veio cada crédito e cada XP |
 | `domain_progress` | `user_id`, `domain`, `xp`, `active_weeks`, `updated_at` | (`user_id`, `domain`) | Sistema: a cada ação com domínio | Barra de cada prédio de domínio |
 | `domain_days` | `user_id`, `domain`, `day` | (`user_id`, `domain`, `day`) | Sistema: primeira ação do dia no domínio | Nada. Serve para contar semanas ativas |
 | `presence_days` | `user_id`, `day` | (`user_id`, `day`) | Sistema: primeira ação real do dia | Calendário de presença e o degrau do bônus |
 | `cities` | `id`, `user_id`, `location_id`, `revision`, `started_at` | único (`user_id`, `location_id`) | Sistema: no cadastro (Ilha) e a cada viagem | A cidade daquele local |
-| `placements` | `id`, `user_id`, `city_id`, `kind`, `custom_name` NULL, `x`, `y`, `rotation` 0 a 3, `stage` 0 a 4 | `id`; índice (`city_id`) | Cidade → construir, mover, girar, remover; o sistema avança `stage` | A construção no mapa 3D, na etapa atual |
+| `placements` | `id`, `user_id`, `city_id`, `kind`, `custom_name` NULL, `x`, `y`, `rotation` 0 a 3, `stage` 0 a 4, `variant_seed` | `id`; índice (`city_id`) | Cidade → construir, mover, girar, remover; o sistema avança `stage` | A construção no mapa 3D, na etapa atual |
 | `travels` | `id`, `user_id`, `from_location`, `to_location`, `cost`, `created_at` | `id`; índice (`user_id`) | Globo → "Viajar" | Local liberado; rota desenhada no globo |
 | `upgrade_points` | `user_id`, `domain`, `available`, `earned_total` | (`user_id`, `domain`) | Sistema: meta curta concluída ou marco de XP do domínio | "1 melhoria disponível" no prédio |
 | `building_upgrades` | `id`, `user_id`, `placement_id`, `slot`, `upgrade_id`, `source_key`, `created_at` | `id`; único (`placement_id`, `slot`) | Prédio → "Escolher melhoria" | Sala ou equipamento novo no interior, com a data e a conquista |
@@ -112,7 +112,11 @@ Notas:
 - `tasks`, `habits` e `goals` ganham a coluna `domain` (`saude`, `alimentacao`, `financas`, `estudos`, `mente`, `organizacao`; padrão `organizacao`). Lançamentos, refeições, pesagens e reflexões têm domínio fixo pelo tipo.
 - `goals` ganha `completed_at`: é preenchida quando os passos atingem o alvo, e é o que dispara a recompensa de meta concluída.
 - `usage_counts` guarda só o nome da ação e a contagem, nunca o conteúdo.
-- O catálogo de construções, as opções de melhoria e todos os valores ficam em código (`worker/game/`), não no banco.
+- `ledger` nunca é alterado nem apagado: só recebe linhas. `reason` é uma palavra curta (`welcome`, `task`, `habit`, `goal_step`, `goal`, `record`, `comeback`, `build`, `remove`, `travel`) e `balance_after` é o saldo logo depois da linha. Com isso dá para conferir o saldo e medir de onde os créditos vêm e para onde vão.
+- `placements.variant_seed` é sorteado na construção e nunca muda: escolhe a variação visual daquele prédio.
+- `users` ganha `timezone_changed_at`: mudar o fuso só vale a partir do dia seguinte e no máximo uma vez a cada 30 dias.
+- O terreno de cada local (água, montanha, área reservada) é dado fixo em código, não vai para o banco. O banco guarda só o que a pessoa construiu.
+- O catálogo de construções, as opções de melhoria e todos os valores ficam em código (`shared/game/`), não no banco.
 
 ### Chaves de recompensa (`ledger.source_key`)
 
@@ -164,6 +168,24 @@ Abertas (propostas em `GAME-DESIGN.md`):
 2. Qual é o transporte da viagem.
 3. Domínio próprio para enviar o e-mail de recuperação de senha.
 4. Como a pessoa nomeia e escolhe os próprios prédios (ver `GAME-DESIGN.md`).
+
+## Onde os dados ficam (decisão em aberto)
+
+Decidido: o banco não será criado agora no leste da América do Norte. A escolha fica para depois.
+
+O que a documentação do Cloudflare diz: nem o D1 nem os Durable Objects rodam na América do Sul. Um Durable Object pedido para a América do Sul é criado no leste da América do Norte. Ou seja, dentro do Cloudflare não há opção mais próxima do Brasil.
+
+| Caminho | Latência do Brasil | Custo de adotar | Situação |
+|---|---|---|---|
+| D1 em `enam` | Cada gravação atravessa até os EUA | Baixo: é o que o código já testa | Adiado |
+| Banco externo com região em São Paulo | Baixa, se o provedor tiver a região | Médio: outro fornecedor, outra conta, credenciais | A pesquisar; nenhum provedor foi conferido |
+| Aparelho primeiro (recomendado para a experiência) | A tela não espera o servidor em nenhuma ação | Médio: fila de ações no aparelho e reconciliação | Independe do banco; combina com qualquer um dos dois acima |
+
+Como o trabalho segue sem a decisão:
+
+- O esquema é SQLite puro (`migrations/*.sql`). Serve para D1 e para qualquer banco compatível com SQLite; trocar por Postgres pede ajustes pequenos.
+- As regras do jogo ficam em `shared/game/`, sem banco. O Worker fala com o banco por uma camada fina (`worker/store/`), que é a única parte a trocar.
+- Tudo é desenvolvido e testado contra o D1 local. Em produção, as rotas que precisam de banco só ligam quando ele existir; até lá, `GET /api/health` mostra `db: not_configured`.
 
 ## A conferir na fase B1
 
