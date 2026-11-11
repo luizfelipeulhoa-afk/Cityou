@@ -12,7 +12,17 @@
 /models/world/*
   Cache-Control: public, max-age=3600, stale-while-revalidate=86400
 
-# A lista de modelos precisa estar sempre em dia.
+# As listas de modelos precisam estar sempre em dia.
 /models/world/manifest.json
   ! Cache-Control
   Cache-Control: no-cache
+
+/models/world/models.json
+  ! Cache-Control
+  Cache-Control: no-cache
+
+# Cópias dos modelos com o hash do conteúdo no nome (geradas no build; o globo chega a elas pelo models.json).
+# O conteúdo de um endereço nunca muda: cache de um ano, sem revalidação.
+/models/world/v/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable

@@ -68,6 +68,15 @@ const BRIGHT_SEA = hex('#5ff2e6')
 const SUNNY_SAND = hex('#fff0b8')
 export const OCEAN_COLOR = PALETTE.deep
 
+// Tamanho de cada zona em volta de um espaço, em múltiplos da meia base do modelo.
+// Com o tamanho que o globo usa (0,13 do raio, escala 1) a meia base mede 3,7°.
+const PAD = Object.freeze({
+  land: 1.45, // terra garantida sob a base inteira (até o canto de uma base quadrada), mesmo à beira-mar
+  flat: 1.5, // disco plano onde a base assenta
+  outer: 2.4, // onde o relevo natural volta por completo
+  lagoon: 0.71, shallow: 1.32, ocean: 1.39, // em volta da ilha: lagoa, água rasa e mar aberto forçado
+})
+
 // ---------- Polígonos em lon/lat ----------
 function withBounds(points) {
   let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity
@@ -184,12 +193,11 @@ function vividColor(out, base, kind, rand) {
   if (kind === 'ocean') return offsetHSL(mix(out, out, BRIGHT_SEA, 0.45), 0, 0.08, 0.04)
   if (kind === 'snow') return offsetHSL(out, 0, 0.04, 0.02)
   if (kind === 'beach') return mix(out, out, SUNNY_SAND, 0.5)
-  if (rand > 0.8) {
-    const flower = FLOWERS[Math.floor(rand * 997) % FLOWERS.length]
-    out[0] = flower[0]; out[1] = flower[1]; out[2] = flower[2]
-    return out
-  }
-  return offsetHSL(mix(out, out, LUSH, 0.6), 0, 0.12, 0.03)
+  // Terra: o mesmo bioma, mais viçoso. Uma face em dez vira um canteiro em tom pastel
+  // (a cor da flor diluída no verde), para ler como campo florido e não como confete.
+  offsetHSL(mix(out, out, LUSH, 0.55), 0, 0.12, 0.03)
+  if (rand > 0.9) mix(out, out, FLOWERS[Math.floor(rand * 997) % FLOWERS.length], 0.42)
+  return out
 }
 
 // ---------- Icosfera com vértices compartilhados ----------
@@ -250,15 +258,23 @@ function direction(lat, lon) {
  * Atributos (3 vértices por face): position, color (cor base da face),
  * vivid (cor "florescida"), center (direção do centróide da face) e
  * wave (1 em vértices de oceano, 0 em terra).
- * `surface[id]` é o raio da superfície sob cada espaço (platô plano em terra).
+ * `surface[id]` é o raio da superfície sob cada espaço (assento plano em terra).
+ * `markerSize` é o lado da base de um monumento, em fração do raio (multiplicado pela `escala` do espaço):
+ * o assento, a terra forçada sob ele e a lagoa da ilha acompanham esse tamanho.
  */
-export function buildGlobeData({ radius = 5, detail = 28, spaces = [] } = {}) {
+export function buildGlobeData({ radius = 5, detail = 28, spaces = [], markerSize = 0.12 } = {}) {
   const { dirs, index } = icosphere(detail)
   const V = dirs.length / 3
   const lat = new Float32Array(V), lon = new Float32Array(V)
   const land = new Uint8Array(V)
-  const anchors = spaces.map(s => ({ id: s.id, dir: direction(s.lat, s.lon), ocean: s.terreno === 'oceano' }))
-  const COS_OCEAN = Math.cos(5.5 * DEG), COS_LAND = Math.cos(2.4 * DEG)
+  const anchors = spaces.map((s) => {
+    const half = markerSize * (s.escala || 1) / 2 // meia base do modelo, em radianos sobre o globo
+    return {
+      id: s.id, dir: direction(s.lat, s.lon), ocean: s.terreno === 'oceano', half,
+      cosOcean: Math.cos(half * PAD.ocean), cosLand: Math.cos(half * PAD.land),
+      cosLagoon: Math.cos(half * PAD.lagoon), cosShallow: Math.cos(half * PAD.shallow),
+    }
+  })
 
   for (let i = 0; i < V; i++) {
     const x = dirs[i * 3], y = dirs[i * 3 + 1], z = dirs[i * 3 + 2]
@@ -267,8 +283,8 @@ export function buildGlobeData({ radius = 5, detail = 28, spaces = [] } = {}) {
     let isL = isLand(lat[i], lon[i])
     for (const a of anchors) {
       const dot = x * a.dir[0] + y * a.dir[1] + z * a.dir[2]
-      if (a.ocean && dot > COS_OCEAN) isL = false
-      else if (!a.ocean && dot > COS_LAND) isL = true
+      if (a.ocean && dot > a.cosOcean) isL = false
+      else if (!a.ocean && dot > a.cosLand) isL = true
     }
     land[i] = isL ? 1 : 0
   }
@@ -312,10 +328,9 @@ export function buildGlobeData({ radius = 5, detail = 28, spaces = [] } = {}) {
     elev[i] = Math.max(0.006, h)
   }
 
-  // Platôs planos sob os espaços em terra, para os modelos assentarem bem.
+  // Assento de cada monumento em terra: um disco realmente plano (o plano tangente, não uma calota),
+  // do tamanho da base do modelo, que volta ao relevo natural numa rampa suave.
   const surface = {}
-  const RADIUS_DEG = 3.6
-  const COS_PLATEAU = Math.cos(RADIUS_DEG * DEG)
   for (const a of anchors) {
     surface[a.id] = radius
     if (a.ocean) continue
@@ -326,17 +341,18 @@ export function buildGlobeData({ radius = 5, detail = 28, spaces = [] } = {}) {
     }
     const plateau = Math.min(Math.max(elev[best], 0.014), 0.03)
     surface[a.id] = radius * (1 + plateau)
+    const flat = a.half * PAD.flat, outer = a.half * PAD.outer
+    const cosOuter = Math.cos(outer)
     for (let i = 0; i < V; i++) {
       if (!land[i]) continue
       const dot = dirs[i * 3] * a.dir[0] + dirs[i * 3 + 1] * a.dir[1] + dirs[i * 3 + 2] * a.dir[2]
-      if (dot <= COS_PLATEAU) continue
-      const d = Math.acos(clamp(dot, -1, 1)) / DEG
-      elev[i] = lerp(elev[i], plateau, 1 - smoothstep(d / RADIUS_DEG, 0.62, 1))
+      if (dot <= cosOuter) continue
+      const seat = (1 + plateau) / dot - 1 // altura que põe o vértice no plano tangente
+      elev[i] = lerp(seat, elev[i], smoothstep(Math.acos(clamp(dot, -1, 1)), flat, outer))
     }
   }
 
-  const islands = anchors.filter(a => a.ocean).map(a => a.dir)
-  const COS_LAGOON = Math.cos(2.8 * DEG), COS_SHALLOW = Math.cos(5.2 * DEG)
+  const islands = anchors.filter(a => a.ocean)
 
   // Monta os atributos não indexados, com cor por face.
   const F = index.length / 3
@@ -378,10 +394,10 @@ export function buildGlobeData({ radius = 5, detail = 28, spaces = [] } = {}) {
     }
     else {
       let key = minSea <= 1 ? 'shallow' : minSea === 2 ? 'mid' : minSea <= 4 ? 'deep' : 'deeper'
-      for (const d of islands) {
-        const dot = cx * d[0] + cy * d[1] + cz * d[2]
-        if (dot > COS_LAGOON) key = 'lagoon'
-        else if (dot > COS_SHALLOW && key !== 'lagoon') key = 'shallow'
+      for (const a of islands) {
+        const dot = cx * a.dir[0] + cy * a.dir[1] + cz * a.dir[2]
+        if (dot > a.cosLagoon) key = 'lagoon'
+        else if (dot > a.cosShallow && key !== 'lagoon') key = 'shallow'
       }
       if (Math.abs(cLat) > 79) key = 'seaIce'
       const base = PALETTE[key]

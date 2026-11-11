@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints
 
 ROOT = Path(__file__).resolve().parent.parent
 LOCAL_HOSTS = frozenset({'localhost', '127.0.0.1', '::1'})
+WORLD_MODELS_VERSIONED = '/models/world/v/'
 SOURCE_OFFLINE = 'Fifones indisponível. Suas construções e moedas estão salvas.'
 CORE = frozenset({'headquarters', 'plaza'})
 CITY_TIMEZONE = ZoneInfo('America/Sao_Paulo')
@@ -440,7 +441,14 @@ def create_app(*, data_dir: str | Path | None = None, upstream_url: str | None =
             return JSONResponse({'message': 'A ação exige X-Fifones-City: 1.'}, status_code=403)
         response = await call_next(request)
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['Cache-Control'] = 'no-store' if request.url.path.startswith('/api/') else 'no-cache'
+        path = request.url.path
+        if path.startswith('/api/'):
+            response.headers['Cache-Control'] = 'no-store'
+        elif path.startswith(WORLD_MODELS_VERSIONED) and response.status_code < 400:
+            # O nome leva o hash do conteúdo: o arquivo nunca muda, então o navegador não precisa revalidar.
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        else:
+            response.headers['Cache-Control'] = 'no-cache'
         return response
 
     @application.exception_handler(CityError)
@@ -559,6 +567,20 @@ def create_app(*, data_dir: str | Path | None = None, upstream_url: str | None =
             return FileResponse(page)
         return JSONResponse({'message': 'Fifones City: execute npm run build para gerar a interface.'}, status_code=503)
 
+    # O build publica os modelos do mapa-mundo em dist: a lista models.json e as cópias com hash no nome.
+    # Essas rotas vêm antes de /models, que serve a pasta de origem.
+    world_models = dist / 'models' / 'world'
+
+    @application.get('/models/world/models.json')
+    async def world_models_index():
+        index = world_models / 'models.json'
+        if index.is_file():
+            return FileResponse(index, media_type='application/json')
+        return JSONResponse({'message': 'Lista de modelos ausente: execute npm run build.'}, status_code=404)
+
+    if (world_models / 'v').is_dir():
+        application.mount(WORLD_MODELS_VERSIONED.rstrip('/'), StaticFiles(directory=world_models / 'v'),
+                          name='world-models-versioned')
     models = ROOT / 'public-fifones' / 'models'
     if models.is_dir():
         application.mount('/models', StaticFiles(directory=models), name='models')

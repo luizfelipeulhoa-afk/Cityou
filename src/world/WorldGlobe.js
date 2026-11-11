@@ -1,19 +1,27 @@
 import * as THREE from 'three'
 import { gsap } from 'gsap'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import SpaceMarker from './SpaceMarker.js'
 import { geometryFromGlobeData } from './terrain.js'
 import { OCEAN_COLOR } from './terrainCore.js'
 import { loadGlobeData } from './terrainClient.js'
 import { DEG, angularDistance, latLonToVector3, slerpDirections, surfaceFrame, surfaceQuaternion } from './geo.js'
+import { WORLD_MODELS_INDEX, resolveModelSources } from './models.js'
 import { WORLD_MODELS_MANIFEST } from './worldSpaces.js'
 
 export const GLOBE_RADIUS = 5
+/** Lado da base de um monumento, em fração do raio do globo (vezes a `escala` do espaço). */
+export const MARKER_SIZE = 0.13
 const GLOBE_DETAIL = 28
 const MAX_SPACES = 8
+// Margens (px) que a seta do destino respeita: laterais, topo (HUD) e base (barra do objetivo).
+// `corner` é a área dos controles da câmera, no canto inferior direito.
+const GOAL_INSETS = { x: 88, top: 84, bottom: 118, corner: { width: 156, height: 262 } }
 const PITCH_MAX = 28 * DEG // inclinação da câmera quando bem perto da superfície
 const NOOP = () => {}
+const SPARKLE = new THREE.Color('#f2fbff')
+const CLOUD_TOP = new THREE.Color('#ffffff')
+const CLOUD_BELLY = new THREE.Color('#a9bfe6')
 
 // Marcas de tempo (User Timing) lidas por tools/world-perf.mjs.
 const mark = (name) => { try { performance.mark(name) } catch { /* sem Performance API */ } }
@@ -32,13 +40,21 @@ function mulberry32(seed) {
 
 // Linha pontilhada em arco sobre o globo (bolinhas instanciadas, um draw call).
 class DottedArc {
-  constructor(radius, { color, dotRadius, maxDots = 160, opacity = 1, spacing = 0.16 }) {
+  constructor(radius, { color, dotRadius, maxDots = 160, opacity = 1, spacing = 0.16, scale = { value: 1 } }) {
     this.R = radius
     this.spacing = spacing
     this.maxDots = maxDots
     this.segments = []
     this.material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false })
-    this.mesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(dotRadius, 1), this.material, maxDots)
+    // O tamanho dos pontos acompanha o zoom por um uniforme: de perto continuam pontos, sem refazer as instâncias.
+    this.material.onBeforeCompile = (shader) => {
+      shader.uniforms.uDotScale = scale
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform float uDotScale;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed *= uDotScale;')
+    }
+    this.material.customProgramCacheKey = () => 'buildu-path-dots'
+    this.mesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(dotRadius, 0), this.material, maxDots)
     this.mesh.frustumCulled = false
     this.mesh.count = 0
     this.mesh.renderOrder = 11 // depois das nuvens: some atrás delas, aparece na frente
@@ -92,14 +108,18 @@ class DottedArc {
  *
  * callbacks: onTap({space, locked, previous}|null), onOpen(space), onHover(space|null),
  * onTrack({x, y, visible}), onCinematic(bool), onUnlocked(space), onCompleted(space),
- * onModel({id, source}), onStats({fps, pixelRatio, calls, triangles})
+ * onModel({id, source}), onStats({fps, pixelRatio, calls, triangles}),
+ * onGoal({mode, x, y, angle}) a cada quadro para o destino marcado com setGoal(),
+ * onAway(bool) quando a câmera sai da visão inicial ou volta a ela,
+ * onLoad({loaded, total}) enquanto os GLB chegam
  */
 export default class WorldGlobe {
   constructor(canvas, { spaces = [], callbacks = {} } = {}) {
     this.canvas = canvas
     this.callbacks = {
       onTap: NOOP, onOpen: NOOP, onHover: NOOP, onTrack: NOOP, onCinematic: NOOP,
-      onUnlocked: NOOP, onCompleted: NOOP, onModel: NOOP, onStats: NOOP, onInteract: NOOP, onReady: NOOP, ...callbacks,
+      onUnlocked: NOOP, onCompleted: NOOP, onModel: NOOP, onStats: NOOP, onInteract: NOOP, onReady: NOOP,
+      onGoal: NOOP, onAway: NOOP, onLoad: NOOP, ...callbacks,
     }
     this.R = GLOBE_RADIUS
     this.spaces = spaces.slice(0, MAX_SPACES)
@@ -114,6 +134,9 @@ export default class WorldGlobe {
     this.cinematic = 0
     this.focusedId = null
     this.trackedId = null
+    this.goalId = null
+    this.goalInfo = { mode: 'hidden', x: 0, y: 0, angle: 0 }
+    this.away = false
     this.hoveredId = null
     this.hoverPointer = null
     this.hoverDirty = false
@@ -131,9 +154,12 @@ export default class WorldGlobe {
     this.occluder = new THREE.Sphere(new THREE.Vector3(), this.R * 0.99)
     this.tmp = new THREE.Vector3()
     this.tmp2 = new THREE.Vector3()
+    this.tmp3 = new THREE.Vector3()
     this.overviewDistance = this.R * 3.2
     this.focusDistance = this.R * 1.9
+    this.viewportWidth = 800
     this.viewportHeight = 600
+    this.dotScale = { value: 1 }
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' })
     this.pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75)
@@ -155,9 +181,8 @@ export default class WorldGlobe {
     this.camera.add(this.sun)
     this.scene.add(this.hemi)
 
-    // GLTFLoader, Meshopt e o ambiente PBR só são baixados quando existir um GLB.
+    // GLTFLoader e Meshopt só são baixados quando existir um GLB.
     this.loader = null
-    this.envTexture = null
     this.clouds = null
     this.isReady = false
     this.visible = true
@@ -167,8 +192,8 @@ export default class WorldGlobe {
     this.buildGlobe()
     this.buildAtmosphere()
     this.buildStars()
-    this.trail = new DottedArc(this.R, { color: '#ffffff', dotRadius: this.R * 0.0065, opacity: 0.55, spacing: this.R * 0.034 })
-    this.activePath = new DottedArc(this.R, { color: '#ffe08a', dotRadius: this.R * 0.008, opacity: 0.95, spacing: this.R * 0.03 })
+    this.trail = new DottedArc(this.R, { color: '#ffffff', dotRadius: this.R * 0.0065, opacity: 0.55, spacing: this.R * 0.034, scale: this.dotScale })
+    this.activePath = new DottedArc(this.R, { color: '#ffe08a', dotRadius: this.R * 0.008, opacity: 0.95, spacing: this.R * 0.03, scale: this.dotScale })
     this.scene.add(this.trail.mesh, this.activePath.mesh)
 
     this.setupControls()
@@ -188,7 +213,7 @@ export default class WorldGlobe {
   // nuvens e marcadores entram depois, um por quadro, sem travar a thread principal.
   async init() {
     const t0 = performance.now()
-    const data = await loadGlobeData({ radius: this.R, detail: GLOBE_DETAIL, spaces: this.spaces })
+    const data = await loadGlobeData({ radius: this.R, detail: GLOBE_DETAIL, spaces: this.spaces, markerSize: MARKER_SIZE })
     if (this.disposed) return
     measure('world:terrain', t0)
     const ts = performance.now()
@@ -206,7 +231,7 @@ export default class WorldGlobe {
       await nextFrame()
       if (this.disposed) return
       const tm = performance.now()
-      this.addMarker(new SpaceMarker(space, { index, surfaceRadius: (data.surface[space.id] ?? this.R) - this.R * 0.002, size: this.R * 0.12 }))
+      this.addMarker(new SpaceMarker(space, { index, surfaceRadius: (data.surface[space.id] ?? this.R) - this.R * 0.002, size: this.R * MARKER_SIZE }))
       measure(`world:step:marker-${space.id}`, tm)
     }
     measure('world:markers', t1)
@@ -233,6 +258,14 @@ export default class WorldGlobe {
       uBloomRadius: { value: 11 * DEG },
       uRimColor: { value: new THREE.Color('#a6dcff') },
       uRimStrength: { value: 0.5 },
+      // Por espaço, a sombra de contato no chão: cosseno do raio onde ela começa (a borda da base),
+      // cosseno de onde termina e a força. Em cosseno, o fragment shader não precisa de raiz nem de acos.
+      uContact: { value: Array.from({ length: MAX_SPACES }, () => new THREE.Vector3(1, 0.99, 0)) },
+      uSparkle: { value: new THREE.Color() }, // cor e força do cintilar do mar; acompanha o zoom em tick()
+      // Direção (espaço de câmera) do sol que faz o mar cintilar: acima e à esquerda, como a luz da cena,
+      // mas mais baixo. O reflexo cai a uns 37° do ponto sob a câmera, onde o mar aparece inclinado
+      // tanto na visão geral quanto de perto.
+      uSparkleDir: { value: new THREE.Vector3(-0.5, 0.82, 0.28).normalize() },
     }
     const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })
     material.onBeforeCompile = (shader) => {
@@ -248,31 +281,58 @@ uniform vec4 uBloom[${MAX_SPACES}];
 uniform float uBloomRadius;
 uniform float uReveal;
 uniform vec3 uOcean;
-varying vec3 vSphereNormal;`)
+uniform vec3 uContact[${MAX_SPACES}];
+uniform vec3 uSparkleDir;
+varying vec3 vSphereNormal;
+varying float vBuCos;
+flat varying vec3 vBuContact;
+flat varying float vBuSparkle;`)
         .replace('#include <color_vertex>', `#include <color_vertex>
 float buHash = fract(sin(dot(aCenter, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
 float buBloom = 0.0;
+float buNearest = -2.0;
+vec3 buSpace = vec3(0.0, 1.0, 0.0);
+vBuContact = vec3(1.0, 0.99, 0.0);
 for (int i = 0; i < ${MAX_SPACES}; i++) {
   vec4 b = uBloom[i];
+  float buDot = dot(aCenter, b.xyz);
+  // O espaço mais próximo da face inteira (um valor por face, sem interpolar) dá a sombra de contato.
+  if (buDot > buNearest) { buNearest = buDot; buSpace = b.xyz; vBuContact = uContact[i]; }
   if (b.w <= 0.0) continue;
-  float d = acos(clamp(dot(aCenter, b.xyz), -1.0, 1.0)) / uBloomRadius + (buHash - 0.5) * 0.3;
+  float d = acos(clamp(buDot, -1.0, 1.0)) / uBloomRadius + (buHash - 0.5) * 0.3;
   float w = clamp((b.w * 1.35 - d) / 0.35, 0.0, 1.0) * (1.0 - smoothstep(0.8, 1.05, d));
   buBloom = max(buBloom, w);
 }
 vColor.xyz = mix(vColor.xyz, aVivid, buBloom);
 vColor.xyz *= 1.0 + aWave * 0.05 * sin(uTime * 1.7 + buHash * 6.2831);
+// Cintilar do mar, resolvido por face aqui no vertex shader: cada face acende por um instante, fora de fase
+// com as vizinhas, e só perto do reflexo do sol. O fragment shader recebe o valor pronto.
+vec3 buFaceView = normalize(-(modelViewMatrix * vec4(aCenter * length(position), 1.0)).xyz);
+float buLobe = pow(max(dot(normalize(normalMatrix * aCenter), normalize(uSparkleDir + buFaceView)), 0.0), 14.0);
+vBuSparkle = aWave * buLobe * pow(0.5 + 0.5 * sin(uTime * 1.6 + buHash * 251.0), 56.0);
 vColor.xyz = mix(uOcean, vColor.xyz, uReveal);`)
         .replace('#include <begin_vertex>', `#include <begin_vertex>
 vec3 buDir = normalize(position);
 transformed += buDir * aWave * uWaveAmp * sin(uTime * 1.2 + dot(position, vec3(3.1, 2.3, 1.7)) * 1.4);
-vSphereNormal = normalize(normalMatrix * buDir);`)
+vSphereNormal = normalize(normalMatrix * buDir);
+vBuCos = dot(buDir, buSpace);`)
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <common>', `#include <common>
 uniform vec3 uRimColor;
 uniform float uRimStrength;
-varying vec3 vSphereNormal;`)
+uniform vec3 uSparkle;
+varying vec3 vSphereNormal;
+varying float vBuCos;
+flat varying vec3 vBuContact;
+flat varying float vBuSparkle;`)
+        // Sombra de contato: o chão escurece num anel suave em volta da base do monumento mais próximo.
+        // Custa um smoothstep por pixel: o cosseno da distância vem interpolado do vertex shader.
+        .replace('#include <color_fragment>', `#include <color_fragment>
+float buShade = smoothstep(vBuContact.y, vBuContact.x, vBuCos);
+diffuseColor.rgb *= 1.0 - vBuContact.z * buShade * buShade;`)
+        // Borda atmosférica e cintilar do mar (faces inteiras piscam, no estilo low poly).
         .replace('#include <opaque_fragment>', `float buRim = 1.0 - max(dot(normalize(vSphereNormal), normalize(vViewPosition)), 0.0);
-outgoingLight += uRimColor * pow(buRim, 3.0) * uRimStrength;
+outgoingLight += uRimColor * pow(buRim, 3.0) * uRimStrength + uSparkle * vBuSparkle;
 #include <opaque_fragment>`)
     }
     material.customProgramCacheKey = () => 'buildu-globe'
@@ -317,43 +377,66 @@ outgoingLight += uRimColor * pow(buRim, 3.0) * uRimStrength;
         }`,
       side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     })
-    this.atmosphere = new THREE.Mesh(new THREE.SphereGeometry(this.R * scale, 64, 40), material)
+    // A borda externa some em alfa zero, então a silhueta da malha não aparece: 48x20 basta.
+    this.atmosphere = new THREE.Mesh(new THREE.SphereGeometry(this.R * scale, 48, 20), material)
     this.atmosphere.renderOrder = 1
     this.scene.add(this.atmosphere)
   }
 
   buildClouds() {
+    // Nuvens low poly: 3 ou 4 tufos arredondados por nuvem, o do meio maior, todos com a base plana e a
+    // barriga azulada (cor por vértice, que dá volume sem mais uma luz). Voam baixo (5 a 8% do raio),
+    // para lerem como clima sobre o relevo e não como objetos soltos no espaço.
+    // Os vértices vão direto para dois arrays: sem uma geometria por tufo e sem fusões, a montagem
+    // cabe em poucos milissegundos.
     const rnd = mulberry32(11)
+    const template = new THREE.IcosahedronGeometry(1, 1) // 80 faces, não indexada
+    const unit = template.attributes.position.array
+    template.dispose()
+    const puffs = []
     const holder = new THREE.Object3D()
-    const clusters = []
-    for (let i = 0; i < 26; i++) {
-      const lat = (rnd() * 2 - 1) * 62
-      const lon = rnd() * 360 - 180
-      const puffs = []
-      const count = 3 + Math.floor(rnd() * 3)
+    for (let i = 0; i < 18; i++) {
+      const n = latLonToVector3((rnd() * 2 - 1) * 58, rnd() * 360 - 180, 1)
+      const count = 3 + Math.floor(rnd() * 2)
+      const size = this.R * (0.03 + rnd() * 0.014)
+      const middle = (count - 1) / 2
+      const offsets = []
       for (let p = 0; p < count; p++) {
-        const g = new THREE.IcosahedronGeometry(this.R * (0.026 + rnd() * 0.022), 0)
-        g.scale(1, 0.55, 1)
-        g.translate((p - count / 2) * this.R * 0.032 + (rnd() - 0.5) * this.R * 0.016, rnd() * this.R * 0.01, (rnd() - 0.5) * this.R * 0.026)
-        puffs.push(g)
+        const r = size * (1.18 - 0.3 * Math.abs(p - middle) + rnd() * 0.12)
+        offsets.push({ r, x: (p - middle) * size * 1.12 + (rnd() - 0.5) * size * 0.3, z: (rnd() - 0.5) * size * 0.7 })
       }
-      const cluster = mergeGeometries(puffs)
-      puffs.forEach(g => g.dispose())
-      const n = latLonToVector3(lat, lon, 1)
-      holder.position.copy(n).multiplyScalar(this.R * (1.1 + rnd() * 0.035))
+      holder.position.copy(n).multiplyScalar(this.R * (1.05 + rnd() * 0.03))
       holder.quaternion.copy(surfaceQuaternion(n))
       holder.rotateY(rnd() * Math.PI * 2)
       holder.updateMatrix()
-      cluster.applyMatrix4(holder.matrix)
-      clusters.push(cluster)
+      const matrix = holder.matrix.clone()
+      for (const offset of offsets) puffs.push({ ...offset, matrix })
     }
-    const geometry = mergeGeometries(clusters)
-    clusters.forEach(g => g.dispose())
+    const position = new Float32Array(puffs.length * unit.length)
+    const color = new Float32Array(puffs.length * unit.length)
+    const v = new THREE.Vector3()
+    const tint = new THREE.Color()
+    let o = 0
+    for (const { r, x, z, matrix } of puffs) {
+      const floor = -r * 0.2, span = r * 0.66 * 0.7 - floor
+      for (let k = 0; k < unit.length; k += 3, o += 3) {
+        const y = Math.max(unit[k + 1] * r * 0.66, floor) // base plana
+        tint.copy(CLOUD_BELLY).lerp(CLOUD_TOP, THREE.MathUtils.smoothstep((y - floor) / span, 0, 1))
+        v.set(unit[k] * r * 1.18 + x, y - floor, unit[k + 2] * r + z).applyMatrix4(matrix)
+        position[o] = v.x; position[o + 1] = v.y; position[o + 2] = v.z
+        color[o] = tint.r; color[o + 1] = tint.g; color[o + 2] = tint.b
+      }
+    }
+    // Sem normais: o flat shading as calcula no fragment shader.
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(position, 3))
+    geometry.setAttribute('color', new THREE.BufferAttribute(color, 3))
+    geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), this.R * 1.2)
     // As nuvens se abrem ao passar sobre os espaços, para nunca esconder um monumento.
     this.cloudUniforms = { uAvoid: { value: this.spaces.map(s => latLonToVector3(s.lat, s.lon, 1)) } }
     while (this.cloudUniforms.uAvoid.value.length < MAX_SPACES) this.cloudUniforms.uAvoid.value.push(new THREE.Vector3(0, -1, 0))
     this.cloudMaterial = new THREE.MeshLambertMaterial({
-      color: 0xffffff, emissive: 0xdde8ff, emissiveIntensity: 0.28, flatShading: true, transparent: true, opacity: 0.95,
+      color: 0xffffff, emissive: 0xd3e2ff, emissiveIntensity: 0.3, flatShading: true, vertexColors: true, transparent: true, opacity: 0.95,
     })
     this.cloudMaterial.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, this.cloudUniforms)
@@ -408,19 +491,39 @@ if (diffuseColor.a < 0.02) discard;`)
     this.hitProxies.push(marker.hitProxy)
     this.scene.add(marker.root)
     marker.root.updateMatrixWorld(true)
+    this.syncContact(marker)
     gsap.from(marker.vis, { pop: 0.001, duration: 0.55 / this.timeScale, ease: 'back.out(1.7)' })
   }
 
-  async readManifest() {
+  /** Liga a sombra de contato do globo à base medida do modelo (monumento em código ou GLB). */
+  syncContact(marker) {
+    const strength = marker.space.terreno === 'oceano' ? 0.24 : 0.44
+    const edge = marker.baseRadius / marker.surfaceRadius // raio angular da base, em radianos
+    this.globeUniforms.uContact.value[marker.index].set(Math.cos(edge), Math.cos(edge * 2.1), strength)
+  }
+
+  async readJson(url) {
     try {
-      const response = await fetch(WORLD_MODELS_MANIFEST, { cache: 'no-cache' })
+      const response = await fetch(url, { cache: 'no-cache' })
       if (!response.ok || !(response.headers.get('content-type') || '').includes('json')) return null
-      const ids = await response.json()
-      return Array.isArray(ids) ? ids : null
+      return await response.json()
     }
     catch {
       return null
     }
+  }
+
+  /**
+   * De onde vem o GLB de cada espaço, numa requisição: models.json (gerado no build) aponta para arquivos
+   * com hash no nome, que o navegador guarda sem revalidar. Sem ele (servidor de desenvolvimento, build antigo),
+   * vale o manifest.json com a lista de ids; sem nenhum dos dois, sonda os 8 em paralelo.
+   */
+  async findModels(order) {
+    const index = await this.readJson(WORLD_MODELS_INDEX)
+    const manifest = index ? null : await this.readJson(WORLD_MODELS_MANIFEST)
+    if (index || manifest) return resolveModelSources(this.spaces, { index, manifest })
+    const found = await Promise.all(order.map(marker => marker.probe()))
+    return new Map(order.filter((marker, i) => found[i]).map(marker => [marker.id, { url: marker.space.glbPath, fallbackUrl: null, kb: 1 }]))
   }
 
   /** Ordem de carga dos modelos: o espaço atual, os seguintes e depois os anteriores. */
@@ -433,40 +536,37 @@ if (diffuseColor.a < 0.02) discard;`)
   async loadModels() {
     const t0 = performance.now()
     const order = this.loadOrder()
-    // Uma requisição: o manifesto diz quais GLB existem. Sem manifesto, sonda os 8 em paralelo.
-    const listed = await this.readManifest()
-    const available = listed ? order.map(marker => listed.includes(marker.id)) : await Promise.all(order.map(marker => marker.probe()))
+    const sources = await this.findModels(order)
     if (this.disposed) return
     measure('world:model-probe', t0)
-    const found = order.filter((marker, i) => available[i])
-    for (const marker of order) if (!found.includes(marker)) this.callbacks.onModel({ id: marker.id, source: marker.modelSource })
+    const found = order.filter(marker => sources.has(marker.id))
+    for (const marker of order) if (!sources.has(marker.id)) this.callbacks.onModel({ id: marker.id, source: marker.modelSource })
     if (!found.length) return
 
-    const [{ GLTFLoader }, { MeshoptDecoder }, { RoomEnvironment }] = await Promise.all([
+    // O progresso conta KB, não arquivos: um modelo de 300 KB pesa mais na barra que um de 90 KB.
+    const total = found.reduce((sum, marker) => sum + sources.get(marker.id).kb, 0)
+    let loaded = 0
+    this.callbacks.onLoad({ loaded: 0, total })
+    const [{ GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
       import('three/addons/loaders/GLTFLoader.js'),
       import('three/addons/libs/meshopt_decoder.module.js'),
-      import('three/addons/environments/RoomEnvironment.js'),
     ])
     if (this.disposed) return
-    // Ambiente PBR leve para os GLB (o Tripo exporta MeshStandardMaterial).
-    const pmrem = new THREE.PMREMGenerator(this.renderer)
-    const room = new RoomEnvironment()
-    this.envTexture = pmrem.fromScene(room, 0.04).texture
-    room.dispose?.()
-    pmrem.dispose()
-    this.scene.environment = this.envTexture
-    this.scene.environmentIntensity = 0.55
     this.loader = new GLTFLoader()
     this.loader.setMeshoptDecoder(MeshoptDecoder)
 
     for (const marker of found) {
-      const ok = await marker.loadModel(this.loader)
+      const source = sources.get(marker.id)
+      const ok = await marker.loadModel(this.loader, source.url, source.fallbackUrl)
       if (this.disposed) return
       if (ok) {
         const i = this.hitProxies.findIndex(p => p.userData.spaceId === marker.id)
         if (i >= 0) this.hitProxies[i] = marker.hitProxy
+        this.syncContact(marker)
         this.updatePaths()
       }
+      loaded += source.kb
+      this.callbacks.onLoad({ loaded, total })
       this.callbacks.onModel({ id: marker.id, source: marker.modelSource })
     }
   }
@@ -702,12 +802,29 @@ if (diffuseColor.a < 0.02) discard;`)
     this.cancelFly()
     if (!this.spaces.some(space => space.id === id)) return Promise.resolve(false)
     const fromDir = this.camera.position.clone().normalize()
-    const fromDist = this.camera.position.length()
     const toDist = THREE.MathUtils.clamp(distance, this.controls.minDistance, this.controls.maxDistance)
     const toDir = this.focusDirection(id, toDist)
     const angle = angularDistance(fromDir, toDir)
-    const lift = Math.min(angle / Math.PI, 1) * this.R * 0.9
-    const time = (duration ?? THREE.MathUtils.clamp(0.9 + angle * 0.6, 0.9, 2.3)) / this.timeScale
+    return this.fly(fromDir, toDir, toDist, {
+      duration: duration ?? THREE.MathUtils.clamp(0.9 + angle * 0.6, 0.9, 2.3),
+      lift: Math.min(angle / Math.PI, 1) * this.R * 0.9,
+    })
+  }
+
+  /** Aproxima (fator < 1) ou afasta (fator > 1) sem mudar o ponto para onde a câmera olha. */
+  zoomBy(factor) {
+    const from = this.camera.position.length()
+    const to = THREE.MathUtils.clamp(from * factor, this.controls.minDistance, this.controls.maxDistance)
+    if (Math.abs(to - from) < 1e-3) return Promise.resolve(false)
+    this.cancelFly()
+    this.lastInteraction = performance.now()
+    this.focusedId = null
+    const dir = this.camera.position.clone().normalize()
+    return this.fly(dir, dir, to, { duration: 0.32, ease: 'power2.out' })
+  }
+
+  fly(fromDir, toDir, toDist, { duration, lift = 0, ease = 'power2.inOut' }) {
+    const fromDist = this.camera.position.length()
     // Zera a inércia do OrbitControls antes de assumir a câmera.
     this.controls.enableDamping = false
     this.controls.update()
@@ -718,7 +835,7 @@ if (diffuseColor.a < 0.02) discard;`)
     return new Promise((resolve) => {
       this.flyResolve = resolve
       this.flyTween = gsap.to(proxy, {
-        t: 1, duration: time, ease: 'power2.inOut',
+        t: 1, duration: duration / this.timeScale, ease,
         onUpdate: () => {
           slerpDirections(fromDir, toDir, proxy.t, dir).normalize()
           const d = THREE.MathUtils.lerp(fromDist, toDist, proxy.t) + Math.sin(Math.PI * proxy.t) * lift
@@ -809,6 +926,63 @@ if (diffuseColor.a < 0.02) discard;`)
 
   setTracked(id) { this.trackedId = id }
 
+  /** Espaço que a interface destaca: etiqueta sobre o marcador ou, fora da vista, seta na borda. */
+  setGoal(id) {
+    this.goalId = id
+    if (!id) { this.goalInfo.mode = 'hidden'; this.callbacks.onGoal(this.goalInfo) }
+  }
+
+  // Onde desenhar o destino: 'label' (ao pé do marcador, visível) ou 'pointer' (seta presa à borda,
+  // apontando para o lado em que o espaço está, atrás do globo ou fora da tela).
+  updateGoal() {
+    const m = this.markers.get(this.goalId)
+    if (!m) return
+    const info = this.goalInfo
+    const w = this.viewportWidth, h = this.viewportHeight
+    const anchor = m.getFoot(this.tmp)
+    const front = this.tmp2.copy(this.camera.position).sub(anchor).normalize().dot(m.normal) > 0.05
+    anchor.project(this.camera)
+    const x = (anchor.x + 1) / 2 * w, y = (1 - anchor.y) / 2 * h
+    const inX = Math.min(GOAL_INSETS.x, w * 0.24)
+    if (front && anchor.z < 1 && x > inX && x < w - inX && y > GOAL_INSETS.top && y < h - GOAL_INSETS.bottom) {
+      info.mode = 'label'; info.x = x; info.y = y; info.angle = 0
+      this.callbacks.onGoal(info)
+      return
+    }
+    // Direção na tela: do centro até o ponto projetado (se está deste lado) ou a normal do espaço
+    // vista pela câmera (se está atrás do globo, a seta indica por onde dar a volta).
+    let dx = x - w / 2, dy = y - h / 2
+    if (!front || anchor.z >= 1) {
+      const n = this.tmp2.copy(m.normal).transformDirection(this.camera.matrixWorldInverse)
+      dx = n.x; dy = -n.y
+    }
+    const length = Math.hypot(dx, dy)
+    if (length < 1e-4) { dx = 0; dy = -1 }
+    else { dx /= length; dy /= length }
+    // Para na borda do globo (visão geral) ou na margem da tela (de perto), o que vier antes.
+    const dist = this.camera.position.length()
+    const limb = Math.tan(Math.asin(Math.min(this.R / dist, 0.999))) * h / (2 * Math.tan(this.camera.fov * DEG / 2)) + 26
+    const reachX = dx > 1e-4 ? (w / 2 - inX) / dx : dx < -1e-4 ? (inX - w / 2) / dx : Infinity
+    const reachY = dy > 1e-4 ? (h / 2 - GOAL_INSETS.bottom) / dy : dy < -1e-4 ? (GOAL_INSETS.top - h / 2) / dy : Infinity
+    const reach = Math.max(0, Math.min(limb, reachX, reachY))
+    info.mode = 'pointer'; info.x = w / 2 + dx * reach; info.y = h / 2 + dy * reach; info.angle = Math.atan2(dy, dx)
+    const corner = GOAL_INSETS.corner
+    if (info.y > h - corner.height) info.x = Math.min(info.x, Math.max(w - corner.width, inX))
+    this.callbacks.onGoal(info)
+  }
+
+  // A câmera saiu da visão inicial (girou ou aproximou)? Avisa só quando o estado muda.
+  updateAway(dist) {
+    if (this.flying || this.cinematic) return
+    const home = this.markers.get(this.currentSpaceId())
+    if (!home) return
+    const turned = this.tmp3.copy(this.camera.position).normalize().dot(home.normal) < 0.94
+    const away = turned || Math.abs(dist - this.overviewDistance) > this.overviewDistance * 0.08
+    if (away === this.away) return
+    this.away = away
+    this.callbacks.onAway(away)
+  }
+
   updateHover() {
     this.hoverDirty = false
     const marker = this.hoverPointer && !this.flying ? this.pick(this.hoverPointer.x, this.hoverPointer.y) : null
@@ -827,7 +1001,7 @@ if (diffuseColor.a < 0.02) discard;`)
     const anchor = m.getAnchor(this.tmp)
     const facing = this.tmp2.copy(this.camera.position).sub(anchor).normalize().dot(m.normal)
     const p = anchor.project(this.camera)
-    const w = this.canvas.clientWidth, h = this.canvas.clientHeight
+    const w = this.viewportWidth, h = this.viewportHeight
     return { x: (p.x + 1) / 2 * w, y: (1 - p.y) / 2 * h, visible: facing > 0.05 && p.z < 1 }
   }
 
@@ -837,6 +1011,7 @@ if (diffuseColor.a < 0.02) discard;`)
     const w = el.clientWidth, h = el.clientHeight
     if (!w || !h) return
     this.renderer.setSize(w, h, false)
+    this.viewportWidth = w
     this.viewportHeight = h
     this.camera.aspect = w / h
     this.camera.fov = this.camera.aspect < 0.8 ? 46 : 35
@@ -872,6 +1047,9 @@ if (diffuseColor.a < 0.02) discard;`)
       this.controls.update(dt)
       this.applyPitch()
     }
+    // Matrizes da câmera já deste quadro: tooltip, etiqueta e seta do destino são projetados antes do
+    // render e, sem isto, andariam um quadro atrás do 3D enquanto o globo gira.
+    this.camera.updateMatrixWorld()
     const dist = this.camera.position.length()
     const zoom = THREE.MathUtils.clamp((dist - this.controls.minDistance) / (this.controls.maxDistance - this.controls.minDistance), 0, 1)
     this.controls.rotateSpeed = 0.16 + 0.5 * zoom
@@ -893,12 +1071,19 @@ if (diffuseColor.a < 0.02) discard;`)
     }
     this.pathPhase = (this.pathPhase + dt * 1.4) % 1
     this.activePath.update(this.pathPhase)
+    // 0 com a câmera no foco de um espaço, 1 na visão geral.
+    const wide = THREE.MathUtils.smoothstep(dist, this.focusDistance, this.overviewDistance)
+    this.dotScale.value = THREE.MathUtils.lerp(0.42, 1, wide)
+    // De perto as faces do mar são grandes na tela: o cintilar fica mais discreto.
+    this.globeUniforms.uSparkle.value.copy(SPARKLE).multiplyScalar(THREE.MathUtils.lerp(0.13, 0.3, wide))
 
     if (this.hoverDirty) this.updateHover()
     if (this.trackedId) {
       const pos = this.projectMarker(this.trackedId)
       if (pos) this.callbacks.onTrack(pos)
     }
+    if (this.goalId) this.updateGoal()
+    this.updateAway(dist)
 
     this.renderer.render(this.scene, this.camera)
     if (!this.firstFrameMarked) { this.firstFrameMarked = true; mark('world:first-frame') }
@@ -949,7 +1134,6 @@ if (diffuseColor.a < 0.02) discard;`)
       mesh.geometry.dispose()
       mesh.material.dispose()
     }
-    this.envTexture?.dispose()
     this.renderer.dispose()
     this.renderer.forceContextLoss()
   }

@@ -14,6 +14,7 @@
     "test:ui": "node tools/personal-playtest.mjs && node tools/browser-playtest.mjs",
     "test:world": "node tools/world-playtest.mjs",
     "perf:world": "node tools/world-perf.mjs",
+    "perf:world-frame": "node tools/world-frame-bench.mjs",
     "test:worker": "node --test tests/worker.test.mjs",
     "dev:worker": "wrangler dev --port 8787",
     "perf:api": "node tools/api-perf.mjs"

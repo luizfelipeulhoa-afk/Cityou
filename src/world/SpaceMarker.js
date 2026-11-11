@@ -6,8 +6,13 @@ import { buildPlaceholder } from './monuments.js'
 
 const GOLD = new THREE.Color('#ffd166')
 const LOCK_TINT = new THREE.Color('#c9d4ec')
-const LOCKED = { desat: 1, alpha: 0.6, glow: 0, ring: 0, lock: 1, fog: 1 }
-const UNLOCKED = { desat: 0, alpha: 1, glow: 1, ring: 1, lock: 0, fog: 0 }
+// Luz de céu local somada ao difuso (faces viradas para fora do globo recebem o valor cheio).
+const SKY_FILL = '0.24'
+const LOCKED = { desat: 1, glow: 0, ring: 0, lock: 1, fog: 1 }
+const UNLOCKED = { desat: 0, glow: 1, ring: 1, lock: 0, fog: 0 }
+// Ordem de desenho na passada opaca: globo (0), anel de chão (1), modelos e selos (2).
+const ORDER_RING = 1
+const ORDER_MODEL = 2
 
 // ---------- Utilidades ----------
 let dotTexture = null
@@ -62,6 +67,43 @@ export function fitModel(object, footprint, maxHeight) {
   wrapper.scale.setScalar(s)
   wrapper.userData.fittedHeight = size.y * s
   return wrapper
+}
+
+/**
+ * Raio da base de um modelo já normalizado por fitModel(): a maior distância ao eixo entre os vértices
+ * do décimo mais baixo. É a base que encosta no chão (o octógono do Cristo, não os braços abertos),
+ * e dela saem o anel de luz, a sombra de contato e a oclusão junto ao chão.
+ */
+export function measureBase(fitted) {
+  const height = fitted.userData.fittedHeight || 0
+  if (height <= 0) return 0
+  fitted.updateMatrixWorld(true)
+  const limit = height * 0.1
+  const v = new THREE.Vector3()
+  let r2 = 0
+  fitted.traverse((o) => {
+    const pos = o.isMesh && o.geometry.attributes.position
+    if (!pos) return
+    const step = Math.max(1, Math.floor(pos.count / 8000))
+    for (let i = 0; i < pos.count; i += step) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld)
+      if (v.y <= limit) r2 = Math.max(r2, v.x * v.x + v.z * v.z)
+    }
+  })
+  return Math.sqrt(r2)
+}
+
+// Os GLB do Tripo chegam como MeshStandardMaterial com rugosidade 0,9 e sem metal: na prática, só difuso.
+// O Lambert desenha esse mesmo difuso com uma fração do custo por pixel e dispensa o mapa de ambiente
+// (PMREM) que o PBR exigia. A luz de céu local e o contorno aceso entram em patchMaterial().
+function toLambert(material) {
+  if (!material.isMeshStandardMaterial) return material.clone()
+  return new THREE.MeshLambertMaterial({
+    name: material.name, map: material.map, color: material.color, vertexColors: material.vertexColors,
+    side: material.side, alphaTest: material.alphaTest, flatShading: material.flatShading,
+    normalMap: material.normalMap, normalScale: material.normalScale,
+    emissive: material.emissive, emissiveMap: material.emissiveMap, emissiveIntensity: material.emissiveIntensity,
+  })
 }
 
 async function glbAvailable(url) {
@@ -164,17 +206,20 @@ export default class SpaceMarker {
     this.hovered = false
     this.hoverAmount = 0
     this.modelSource = 'placeholder'
+    this.baseRadius = this.size * 0.5
     this.timeline = null
     this.disposed = false
-    this.uniforms = {
-      uDesat: { value: 1 }, uAlpha: { value: 0.6 }, uGlow: { value: 0 },
-      uGlowColor: { value: this.accent.clone() }, uLockTint: { value: LOCK_TINT },
-    }
 
     this.root = new THREE.Group()
     this.root.name = `space:${space.id}`
     this.root.position.copy(this.normal).multiplyScalar(surfaceRadius)
     this.root.quaternion.copy(surfaceQuaternion(this.normal))
+    // Um conjunto de uniforms para o modelo inteiro (todas as malhas e materiais do marcador).
+    this.uniforms = {
+      uDesat: { value: 1 }, uGlow: { value: 0 }, uFlash: { value: 0 },
+      uGlowColor: { value: this.accent.clone() }, uLockTint: { value: LOCK_TINT },
+      uBuOrigin: { value: this.root.position }, uBuUp: { value: this.normal }, uBuInvHeight: { value: 1 },
+    }
 
     this.content = new THREE.Group()
     this.root.add(this.content)
@@ -183,43 +228,62 @@ export default class SpaceMarker {
     this.applyVisuals(0)
   }
 
-  // Desatura, aplica translucidez e brilho via uniforms compartilhados por todo o modelo.
+  // Estado e luz do modelo no próprio material, por uniforms compartilhados:
+  // - bloqueado vira uma estátua de pedra clara (sem cor, opaca), em vez de vidro translúcido;
+  // - a base escurece junto ao chão e as faces viradas para o céu local recebem mais luz;
+  // - desbloqueado, o contorno acende na cor do espaço (fresnel), sem lavar a textura.
+  // Tudo opaco: os modelos entram na passada opaca, com descarte por profundidade e sem ordenação.
   patchMaterial(material) {
-    material.transparent = true
+    material.transparent = false
     material.depthWrite = true
-    material.forceSinglePass = true // transparente + DoubleSide faria 2 draws por malha
     const uniforms = this.uniforms
     material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, uniforms)
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>
+uniform vec3 uBuOrigin;
+uniform vec3 uBuUp;
+uniform float uBuInvHeight;
+varying float vBuHeight;
+varying vec3 vBuUpView;`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+vBuHeight = dot((modelMatrix * vec4(transformed, 1.0)).xyz - uBuOrigin, uBuUp) * uBuInvHeight;
+vBuUpView = (viewMatrix * vec4(uBuUp, 0.0)).xyz;`)
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <common>', `#include <common>
 uniform float uDesat;
-uniform float uAlpha;
 uniform float uGlow;
+uniform float uFlash;
 uniform vec3 uGlowColor;
-uniform vec3 uLockTint;`)
+uniform vec3 uLockTint;
+varying float vBuHeight;
+varying vec3 vBuUpView;`)
         .replace('#include <color_fragment>', `#include <color_fragment>
 float buLum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-diffuseColor.rgb = mix(diffuseColor.rgb, (0.32 + 0.75 * buLum) * uLockTint, uDesat);
-diffuseColor.a *= uAlpha;`)
+diffuseColor.rgb = mix(diffuseColor.rgb, (0.3 + 0.62 * buLum) * uLockTint, uDesat);
+diffuseColor.rgb *= mix(0.6, 1.0, smoothstep(-0.02, 0.26, vBuHeight));`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-totalEmissiveRadiance += uGlowColor * uGlow;`)
+float buSky = 0.5 + 0.5 * dot(normal, normalize(vBuUpView));
+float buEdge = 1.0 - max(dot(normal, normalize(vViewPosition)), 0.0);
+totalEmissiveRadiance += diffuseColor.rgb * (${SKY_FILL} * buSky)
+  + uGlowColor * (uGlow * buEdge * buEdge * (0.4 + 0.6 * buSky) + uFlash);`)
     }
     material.customProgramCacheKey = () => 'buildu-space-marker'
     material.needsUpdate = true
     return material
   }
 
-  patchModel(model) {
-    const cloned = new Map()
+  patchModel(model, convert = false) {
+    const patched = new Map()
     model.traverse((o) => {
       if (!o.isMesh) return
       o.castShadow = false
       o.receiveShadow = false
+      o.renderOrder = ORDER_MODEL
       const list = Array.isArray(o.material) ? o.material : [o.material]
       const next = list.map((m) => {
-        if (!cloned.has(m)) cloned.set(m, this.patchMaterial(m.clone()))
-        return cloned.get(m)
+        if (!patched.has(m)) patched.set(m, this.patchMaterial(convert ? toLambert(m) : m.clone()))
+        return patched.get(m)
       })
       o.material = Array.isArray(o.material) ? next : next[0]
     })
@@ -236,9 +300,12 @@ totalEmissiveRadiance += uGlowColor * uGlow;`)
       this.content.remove(this.model)
       disposeObject(this.model, { textures: this.modelSource === 'glb' })
     }
+    // Mede a base antes de pendurar o modelo no marcador (as matrizes ainda são locais ao modelo).
+    this.baseRadius = THREE.MathUtils.clamp(measureBase(fitted) || this.size * 0.5, this.size * 0.3, this.size * 0.75)
     this.model = fitted
     this.modelSource = source
     this.modelHeight = Math.max(fitted.userData.fittedHeight || 0, this.size * 0.3)
+    this.uniforms.uBuInvHeight.value = 1 / this.modelHeight
     this.content.add(fitted)
     this.updateProxy()
   }
@@ -248,40 +315,70 @@ totalEmissiveRadiance += uGlowColor * uGlow;`)
     return this.space.glbPath ? glbAvailable(this.space.glbPath) : Promise.resolve(false)
   }
 
-  /** Carrega o GLB em glbPath; se falhar, mantém o placeholder. Chame probe() antes. */
-  async loadModel(loader) {
-    const url = this.space.glbPath
+  /**
+   * Carrega o GLB e troca o monumento em código por ele. `url` vem de resolveModelSources() (arquivo com
+   * hash, quando o build gerou models.json); se ele falhar, tenta `fallbackUrl`. Sem GLB, fica o que estava.
+   */
+  async loadModel(loader, url = this.space.glbPath, fallbackUrl = null) {
     if (!url) return false
+    let gltf
     try {
-      const gltf = await loader.loadAsync(url)
-      if (this.disposed) { disposeObject(gltf.scene, { textures: true }); return false }
-      const model = this.patchModel(gltf.scene)
-      model.rotation.y += (this.space.rotacaoY || 0) * Math.PI / 180 // corrige GLB exportado de costas
-      this.setModel(fitModel(model, this.size, this.size * 1.05), 'glb')
-      return true
+      gltf = await loader.loadAsync(url)
     }
     catch (error) {
+      if (fallbackUrl) return this.loadModel(loader, fallbackUrl)
       console.warn(`[BuildU] Não foi possível carregar ${url}; mantendo o placeholder.`, error)
       return false
     }
+    if (this.disposed) { disposeObject(gltf.scene, { textures: true }); return false }
+    const model = this.patchModel(gltf.scene, true)
+    model.rotation.y += (this.space.rotacaoY || 0) * Math.PI / 180 // corrige GLB exportado de costas
+    this.setModel(fitModel(model, this.size, this.size * 1.05), 'glb')
+    // A troca aparece como um pulso curto, a não ser que uma animação de estado esteja tocando.
+    if (!this.timeline?.isActive()) gsap.fromTo(this.vis, { pop: 0.9 }, { pop: 1, duration: 0.5, ease: 'back.out(2.4)', overwrite: 'auto' })
+    return true
   }
 
   buildDecor() {
     const s = this.size
 
-    // Anel de luz hexagonal na base + onda que pulsa para fora.
-    const ringGeo = new THREE.RingGeometry(s * 0.6, s * 0.72, 6, 1)
-    ringGeo.rotateX(-Math.PI / 2)
-    ringGeo.rotateY(Math.PI / 6)
-    this.ringMaterial = new THREE.MeshBasicMaterial({ color: this.accent, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })
-    this.ring = new THREE.Mesh(ringGeo, this.ringMaterial)
-    this.ring.position.y = s * 0.03
-    this.ring.renderOrder = 3
-    this.rippleMaterial = this.ringMaterial.clone()
-    this.ripple = new THREE.Mesh(new THREE.RingGeometry(s * 0.62, s * 0.68, 6, 1).rotateX(-Math.PI / 2).rotateY(Math.PI / 6), this.rippleMaterial)
-    this.ripple.position.y = s * 0.025
-    this.ripple.renderOrder = 3
-    this.root.add(this.ring, this.ripple)
+    // Luz de chão: um anel fino em volta da base, um halo suave e uma onda que se expande, tudo num
+    // único plano com shader radial. É desenhado logo depois do globo, sem teste de profundidade:
+    // o relevo nunca o corta, e o modelo, desenhado em seguida, cobre a parte que fica atrás dele.
+    this.ringUniforms = {
+      uColor: { value: this.accent.clone() }, uOpacity: { value: 0 }, uPulse: { value: 0 },
+      uRipple: { value: 0 }, uRippleOn: { value: 1 },
+    }
+    this.ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.66, 40, 1).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
+      uniforms: this.ringUniforms,
+      vertexShader: /* glsl */`
+        varying vec2 vP;
+        void main() { vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: /* glsl */`
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        uniform float uPulse;
+        uniform float uRipple;
+        uniform float uRippleOn;
+        varying vec2 vP;
+        void main() {
+          float r = length(vP); // 1.0 = raio do anel
+          float aa = fwidth(r) * 1.25;
+          float band = 1.0 - smoothstep(0.028 - aa, 0.028 + aa, abs(r - 1.0));
+          float glow = max(1.0 - abs(r - 1.0) * 3.4, 0.0);
+          float halo = glow * glow * glow * (0.2 + 0.16 * uPulse);
+          float wave = (1.0 - smoothstep(0.02 - aa, 0.02 + aa, abs(r - 1.0 - uRipple * 0.62))) * (1.0 - uRipple) * uRippleOn;
+          float alpha = clamp(band * (0.72 + 0.28 * uPulse) + halo + wave * 0.5, 0.0, 1.0) * uOpacity;
+          gl_FragColor = vec4(uColor, alpha);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+      // Mistura normal na passada opaca: com transparent=true o anel iria para depois dos modelos.
+      blending: THREE.CustomBlending, transparent: false, depthTest: false, depthWrite: false,
+    }))
+    this.ring.position.y = s * 0.004
+    this.ring.renderOrder = ORDER_RING
+    this.root.add(this.ring)
 
     // Cadeado low poly flutuando acima do modelo.
     const lockMat = new THREE.MeshLambertMaterial({ color: '#e1e7f4', emissive: '#6f82b3', emissiveIntensity: 0.25, flatShading: true })
@@ -294,6 +391,7 @@ totalEmissiveRadiance += uGlowColor * uGlow;`)
     shackleGeo.dispose()
     const hole = new THREE.Mesh(new THREE.CylinderGeometry(s * 0.025, s * 0.025, s * 0.02, 6).rotateX(Math.PI / 2), keyMat)
     hole.position.set(0, -s * 0.01, s * 0.065)
+    body.renderOrder = hole.renderOrder = ORDER_MODEL
     this.lock.add(body, hole)
     this.root.add(this.lock)
 
@@ -327,7 +425,9 @@ totalEmissiveRadiance += uGlowColor * uGlow;`)
     starGeo.center()
     this.star = new THREE.Group()
     this.starSpin = new THREE.Group()
-    this.starSpin.add(new THREE.Mesh(starGeo, new THREE.MeshLambertMaterial({ color: '#ffd23f', emissive: '#ffae00', emissiveIntensity: 0.6, flatShading: true })))
+    const starMesh = new THREE.Mesh(starGeo, new THREE.MeshLambertMaterial({ color: '#ffd23f', emissive: '#ffae00', emissiveIntensity: 0.6, flatShading: true }))
+    starMesh.renderOrder = ORDER_MODEL
+    this.starSpin.add(starMesh)
     this.halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: getDotTexture(), color: GOLD, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }))
     this.halo.scale.setScalar(s * 0.9)
     this.star.add(this.halo, this.starSpin)
@@ -414,7 +514,7 @@ totalEmissiveRadiance += uGlowColor * uGlow;`)
         .to(v, { lock: 1.25, duration: 0.15, ease: 'power1.out' }, 0.12)
         .to(v, { lock: 0, duration: 0.35, ease: 'back.in(2)' }, 0.27)
         .to(v, { fog: 0, duration: 0.8, ease: 'power1.out' }, 0.2)
-        .to(v, { desat: 0, alpha: 1, duration: 0.9, ease: 'power2.out' }, 0.35)
+        .to(v, { desat: 0, duration: 0.9, ease: 'power2.out' }, 0.35)
         .fromTo(v, { pop: 0.82 }, { pop: 1, duration: 1, ease: 'elastic.out(1, 0.45)', immediateRender: false }, 0.4)
         .to(v, { flash: 0.7, duration: 0.2 }, 0.4)
         .to(v, { flash: 0, duration: 0.9 }, 0.6)
@@ -463,30 +563,36 @@ totalEmissiveRadiance += uGlowColor * uGlow;`)
     return this.root.localToWorld(target.set(0, this.modelHeight + this.size * 0.25, 0))
   }
 
+  /** Ponto no chão logo à frente da base (lado sul, que na tela fica embaixo), para a etiqueta do destino. */
+  getFoot(target = new THREE.Vector3()) {
+    return this.root.localToWorld(target.set(0, 0, this.baseRadius * 1.5))
+  }
+
   applyVisuals(t) {
     const v = this.vis
     const s = this.size
     const pulse = 0.5 + 0.5 * Math.sin(t * 2.4 + this.index * 0.9)
     this.uniforms.uDesat.value = v.desat
-    this.uniforms.uAlpha.value = v.alpha
-    this.uniforms.uGlowColor.value.copy(this.accent).lerp(GOLD, v.gold)
-    const breathing = this.shown.concluido ? 0.14 : 0.06 + 0.16 * pulse
-    this.uniforms.uGlow.value = v.glow * breathing + this.hoverAmount * 0.12 + v.flash
+    // Cor do contorno e do anel: a do espaço, dourada depois de concluído, neutra enquanto bloqueado.
+    this.uniforms.uGlowColor.value.copy(this.accent).lerp(GOLD, v.gold).lerp(LOCK_TINT, v.desat * 0.8)
+    // Contorno aceso: respira enquanto o espaço espera ser concluído, fica firme depois.
+    const breathing = this.shown.concluido ? 0.55 : 0.3 + 0.5 * pulse
+    this.uniforms.uGlow.value = v.glow * breathing + this.hoverAmount * 0.45
+    this.uniforms.uFlash.value = v.flash
 
     this.content.scale.setScalar(v.pop * (1 + this.hoverAmount * 0.06))
 
+    const ring = Math.min(v.ring, 1)
     this.ring.visible = v.ring > 0.01
-    this.ringMaterial.color.copy(this.accent).lerp(GOLD, v.gold)
-    this.ringMaterial.opacity = Math.min(v.ring, 1) * (0.55 + 0.35 * pulse)
-    this.ring.scale.setScalar(0.85 + 0.15 * Math.min(v.ring, 1.2) + this.hoverAmount * 0.08)
-
-    const showRipple = v.ring > 0.01 && v.gold < 0.99
-    this.ripple.visible = showRipple
-    if (showRipple) {
-      const phase = (t * 0.55 + this.index * 0.17) % 1
-      this.ripple.scale.setScalar(1 + phase * 0.9)
-      this.rippleMaterial.color.copy(this.ringMaterial.color)
-      this.rippleMaterial.opacity = (1 - phase) * 0.55 * Math.min(v.ring, 1) * (1 - v.gold)
+    if (this.ring.visible) {
+      const u = this.ringUniforms
+      u.uColor.value.copy(this.uniforms.uGlowColor.value)
+      u.uOpacity.value = ring
+      u.uPulse.value = pulse
+      u.uRipple.value = (t * 0.55 + this.index * 0.17) % 1
+      u.uRippleOn.value = 1 - v.gold
+      // O anel abraça a base medida do modelo, com folga para não encostar nela.
+      this.ring.scale.setScalar(this.baseRadius * 1.17 * (0.85 + 0.15 * Math.min(v.ring, 1.2) + this.hoverAmount * 0.08))
     }
 
     const top = this.modelHeight
