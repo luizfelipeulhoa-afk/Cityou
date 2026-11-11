@@ -1,6 +1,21 @@
 # Contrato da API do Cityou
 
-Rotas do backend em Cloudflare Workers + D1. Tabelas em `DATA-MODEL.md`; quem chama cada rota em `INTERACTIONS.md`. Implementado até agora (fase B1): `GET /api/health`, a proteção das escritas, o formato de erro, o `Server-Timing` e a primeira migração (tabelas de conta). O resto é especificação.
+Rotas do backend em Cloudflare Workers + D1. Tabelas em `DATA-MODEL.md`; quem chama cada rota em `INTERACTIONS.md`. Implementado até agora: `GET /api/health`, a proteção das escritas, o formato de erro, o `Server-Timing` e a primeira migração (tabelas de conta), mais a **demonstração em produção** do PR #8 descrita abaixo. O resto é especificação.
+
+## Demonstração em produção (PR #8)
+
+O Worker atende hoje, sem login, as rotas antigas do painel e da cidade. Cada visitante recebe um cookie `cityou_demo` (HttpOnly, 30 dias) ao abrir uma página; o Worker deriva um nome a partir do SHA-256 do cookie e entrega o pedido a um Durable Object com SQLite (`DemoSession`, binding `DEMO_SESSIONS`). Os dados somem 30 dias depois da primeira escrita (alarme). Limites: 100 registros por tipo e corpo de até 24 KB.
+
+| Rota | O que faz hoje |
+|---|---|
+| `GET /api/personal`, `POST /api/personal/entries`, `PUT /api/personal/entries/{id}/checkin`, `POST /api/personal/tasks` | Registros pessoais (hábitos, metas, notas, lançamentos, refeições, tarefas) |
+| `GET /api/workspace/tasks`, `POST /api/workspace/tasks/{id}/complete` | Tarefas e conclusão, com recompensa |
+| `GET /api/city?local=<id>`, `POST /api/city/actions?local=<id>`, `POST /api/rewards/sync?local=<id>` | Cidade do local (a Ilha por padrão); local bloqueado responde 403 |
+| `GET /api/world/progress` | Locais liberados, concluídos e `viagens_disponiveis` |
+| `POST /api/world/travel` | Corpo `{ local, request_id }`; libera o destino se houver viagem disponível, senão 409 |
+| `PUT /api/world/progress` | Ainda aceito por clientes antigos, mas ignorado: o acesso vem das ações no servidor |
+
+As rotas de projetos e atividade respondem "desconectado". O contrato de `POST /api/world/travel` de hoje difere do alvo desta página (sem nível nem passagem em créditos): ver `GAME-DESIGN.md`, seção "O que já está implementado". Para o alvo, esta demonstração vira a fonte de importação: os registros de um visitante podem ser trazidos para a conta dele quando o login existir.
 
 ## Arquitetura
 

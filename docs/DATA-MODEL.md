@@ -180,6 +180,8 @@ Abertas (propostas em `GAME-DESIGN.md`):
 | **Supabase** (Postgres) | Listado na página de regiões | Hyperdrive | Não confirmei se o plano grátis cria projeto em São Paulo |
 | **Turso** (SQLite) | `gru` | Cliente HTTP | Mantém o dialeto SQLite das migrações atuais; a região principal não muda depois de criada |
 
+**O que já existe em produção (PR #8):** uma demonstração sem login, com um Durable Object de SQLite por visitante (tabela `records (kind, id, value)`, validade de 30 dias). Os Durable Objects são criados perto do primeiro pedido do visitante, o que ajuda quem usa o app, mas não há região em São Paulo: para a América do Sul a documentação diz que eles caem numa região próxima, hoje o leste da América do Norte. A latência real dessa demonstração não foi medida. Ela serve como etapa intermediária e como origem de importação quando houver conta.
+
 **Recomendação: Neon em `aws-sa-east-1` com Hyperdrive.** Região confirmada, plano grátis para começar, e Postgres serve bem ao extrato e a vários usuários. A alternativa que menos reescreve é o Turso.
 
 O que o Cloudflare diz do Hyperdrive (conferido): faz a conexão perto do Worker, mantém o grupo de conexões perto do banco, pode guardar leituras em cache (sem invalidar ao gravar) e está nos planos grátis (100 mil consultas por dia) e pago. A opção `placement.region` (por exemplo `aws:sa-east-1`) põe o Worker perto do banco e baixa cada consulta de 20 a 30 ms para 1 a 3 ms quando há várias por pedido; com uma só, não ajuda.
