@@ -166,7 +166,7 @@ O PR #8 (`codex/regional-cities`) colocou no ar uma versão simples, sem login, 
 |---|---|---|
 | Cidade por local | Uma cidade por local, com terreno, construções e histórico próprios (`city.html?local=<id>`); créditos e recompensas são da pessoa, compartilhados entre as cidades | Igual |
 | Escolha do destino | Qualquer local ainda bloqueado pode ser escolhido na hora de viajar | Igual |
-| Condição para viajar | Construir um prédio (que não seja rua, árvore ou praça/sede) numa cidade ainda não concluída libera **uma** viagem (`viagens_disponiveis`) | Nível mínimo + prédios na etapa certa + passagem em créditos |
+| Condição para viajar | **Viagens fechadas por enquanto** (`TRAVEL_OPEN=false` em `wrangler.jsonc`). A regra de construir um prédio para liberar uma viagem continua escrita, mas não vale | Nível mínimo + prédios na etapa certa + passagem em créditos |
 | XP e nível | Não existe XP. O "nível" da cidade é `1 + recompensas ÷ 10` e define o tamanho do terreno | XP separado de créditos, nível pela curva de `shared/game/rules.js` |
 | Presença | Não existe | Bônus pelo ritmo dos últimos 7 dias |
 | Recompensas | Tarefa, hábito e meta concluída pagam créditos de `RULES.rewards`; teto diário por `RULES.paidHabitsPerDay` e `RULES.paidTasksPerDay` | Igual, mais XP e bônus de presença |
@@ -174,6 +174,30 @@ O PR #8 (`codex/regional-cities`) colocou no ar uma versão simples, sem login, 
 | Onde ficam os dados | Durable Object com SQLite por visitante (cookie `cityou_demo`, 30 dias) | Conta com login e banco em São Paulo |
 
 A regra de viagem de hoje é mais simples e mais fácil de entender (construa e escolha para onde ir). Proponho mantê-la como primeira fase e acrescentar nível e passagem depois, quando existirem XP e prédios de domínio. É decisão sua.
+
+## Comprovação das atividades (anti-trapaça sem vigilância)
+
+Créditos só valem se a pessoa estiver de fato se cuidando. O app não tem como provar isso, então o desenho é: **marcar vale sempre; comprovar rende mais.**
+
+| | Marcar sem comprovar | Marcar com comprovação |
+|---|---|---|
+| O que é | O toque de hoje (como já era) | Um relato de pelo menos 20 caracteres **ou** uma foto, anexado à atividade feita |
+| Recompensa | A de sempre | A de sempre **+5 créditos** |
+| Teto | 8 hábitos pagos e 10 tarefas pagas por dia | No máximo **3 bônus por dia**, um por atividade |
+| Quem vê | Só a pessoa | Só a pessoa (a foto não aparece para mais ninguém) |
+
+Medidas que dificultam o abuso, todas no servidor:
+
+- Uma foto só vale uma vez: o servidor guarda a impressão digital (SHA-256) e recusa a mesma foto em outra comprovação. Foto parecida, mas não idêntica, não é detectada.
+- O dia e a hora vêm do servidor; só vale o dia de hoje.
+- Foto só em JPEG ou WebP, até 250 KB, conferida pelos primeiros bytes do arquivo; o app reduz a foto no aparelho antes de enviar.
+- A comprovação não dá XP nem conta para o nível: só créditos.
+
+**Limite que precisa ficar claro:** quem quiser enganar o app consegue (uma foto qualquer, um texto inventado). A comprovação só aumenta o esforço de quem quer o bônus e põe um teto no ganho. Verificar a foto de verdade pediria um modelo de visão, com custo e questões de privacidade; não está no plano. Não há punição por não comprovar.
+
+## Nomes dos prédios
+
+O nome de um prédio vem da própria vida da pessoa: o **local ou atividade** que ela preenche ao criar um hábito, meta ou tarefa (campo "Local ou atividade", por exemplo "Academia Central"), na aba de organização do dia. A **área** (saúde, alimentação, finanças, estudos, mente, organização) define o tipo do prédio. O app não inventa nomes. Isso já é guardado em cada atividade; construir o prédio a partir dela é a próxima fase.
 
 ## O que veio do estudo de city builders
 

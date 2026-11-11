@@ -10,6 +10,8 @@
     "binding": "ASSETS",
     "run_worker_first": ["/api/*", "/", "/index.html", "/city", "/city.html", "/world", "/world.html"]
   },
+  // Viagens entre locais ficam fechadas por enquanto. Para abrir, troque para "true" (aqui e em previews).
+  "vars": { "TRAVEL_OPEN": "false" },
   "durable_objects": {
     "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
   },
@@ -18,6 +20,7 @@
     "enabled": true
   },
   "previews": {
+    "vars": { "TRAVEL_OPEN": "false" },
     "durable_objects": {
       "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
     }

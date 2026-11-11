@@ -22,6 +22,9 @@ class Entry(BaseModel):
     direction: Literal['expense', 'income'] = 'expense'
     day: date
     target: int = Field(default=1, ge=1, le=10000)
+    # Área e local só são guardados na demonstração do Cloudflare; aqui são aceitos e ignorados.
+    domain: str | None = None
+    place: str | None = Field(default=None, max_length=80)
 
     @field_validator('title')
     @classmethod
@@ -32,11 +35,14 @@ class Entry(BaseModel):
 class Toggle(BaseModel):
     model_config = ConfigDict(extra='forbid')
     done: bool
+    proof: dict | None = None  # comprovação: só vale na demonstração do Cloudflare
 
 class NewTask(BaseModel):
     model_config = ConfigDict(extra='forbid')
     title: str = Field(min_length=1, max_length=180)
     due_date: date | None = None
+    domain: str | None = None
+    place: str | None = Field(default=None, max_length=80)
 
 
 def register(application, root: Path, clock):

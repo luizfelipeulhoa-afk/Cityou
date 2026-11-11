@@ -11,6 +11,7 @@ import { newCity, normalizeAction } from '../worker/city.js'
 
 const ORIGIN = 'https://cityou.test'
 const harness = createTestHarness({ workers: [{ configPath: 'wrangler.test.jsonc' }] })
+const closedHarness = createTestHarness({ workers: [{ configPath: 'wrangler.test-closed.jsonc' }] })
 const call = (path, init) => harness.fetch(ORIGIN + path, init)
 let env
 
@@ -24,9 +25,10 @@ async function applyMigrations(db) {
 
 before(async () => {
   await harness.listen()
+  await closedHarness.listen()
   env = await harness.getWorker().getEnv()
 })
-after(() => harness.close())
+after(async () => { await harness.close(); await closedHarness.close() })
 
 test('health: sem banco ligado responde not_configured', async () => {
   const response = await worker.fetch(new Request(ORIGIN + '/api/health'), {})
@@ -91,20 +93,22 @@ const ISLAND = 'ilha-inicial'
 const PETRA = 'petra'
 const GREAT_WALL = 'grande-muralha'
 
-function newDemoSession() {
+function newDemoSession(target = call) {
   const cookie = sessionCookie(new URL(ORIGIN)).split(';')[0]
-  return async (path, { method = 'GET', body, status = 200 } = {}) => {
+  const session = async (path, { method = 'GET', body, status = 200 } = {}) => {
     const headers = { Cookie: cookie }
     if (body !== undefined) {
       headers.Origin = ORIGIN
       headers['X-Fifones-City'] = '1'
       headers['Content-Type'] = 'application/json'
     }
-    const response = await call(path, { method, headers, body: JSON.stringify(body) })
+    const response = await target(path, { method, headers, body: JSON.stringify(body) })
     const result = await response.json()
     assert.equal(response.status, status, `${method} ${path}: ${JSON.stringify(result)}`)
     return result
   }
+  session.cookie = cookie
+  return session
 }
 
 const city = (session, local) => session(`/api/city?local=${local}`)
@@ -230,4 +234,112 @@ test('metas premiam a carteira uma vez, ao atingir a quantidade de dias', async 
   const player = await city(session, ISLAND)
   assert.equal(player.credits, 75)
   assert.equal(player.reward_count, 1)
+})
+
+const closedCall = (path, init) => closedHarness.fetch(ORIGIN + path, init)
+
+test('viagens fechadas: ninguém abre destino novo, mas construir na cidade atual segue valendo', async () => {
+  const session = newDemoSession(closedCall)
+  const start = await city(session, ISLAND)
+  const withRoad = await build(session, ISLAND, 'estrada', start.revision, { kind: 'road' })
+  const withHouse = await build(session, ISLAND, 'casa-um', withRoad.revision, { x: 6 })
+  await build(session, ISLAND, 'casa-dois', withHouse.revision, { x: 5 })
+  const earned = await world(session)
+  assert.equal(earned.viagens_abertas, false)
+  assert.equal(earned.viagens_disponiveis, 0)
+  assert.deepEqual(earned.concluidos, [ISLAND])
+  const refused = await travel(session, PETRA, 'viagem-fechada', 409)
+  assert.match(refused.message, /ainda não estão abertas/)
+  await session(`/api/city?local=${PETRA}`, { status: 403 })
+  // O navegador não consegue reabrir as viagens: o cabeçalho interno é sempre reescrito pelo Worker.
+  const forged = await closedCall('/api/world/travel', {
+    method: 'POST',
+    headers: { Cookie: sessionCookie(new URL(ORIGIN)).split(';')[0], Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json', 'X-Travel-Open': '1' },
+    body: JSON.stringify({ local: PETRA, request_id: 'forjada' }),
+  })
+  assert.equal(forged.status, 409)
+})
+
+// Uma foto JPEG mínima, só para passar na checagem de formato. Cada uma tem um byte final diferente.
+const photo = n => 'data:image/jpeg;base64,' + btoa(String.fromCharCode(0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1, n))
+const NOTE = 'Treinei pernas por quarenta minutos na academia.'
+
+async function newHabit(session, extra = {}) {
+  const today = (await session('/api/personal')).today
+  return (await session('/api/personal/entries', {
+    method: 'POST', body: { kind: 'habit', day: today, title: 'Treinar', domain: 'saude', place: 'Academia Central', ...extra }, status: 201,
+  })).created_id
+}
+const checkin = (session, id, body, status) => session(`/api/personal/entries/${id}/checkin`, { method: 'PUT', body, status })
+
+test('atividades guardam área e local; área ou local inválidos são recusados', async () => {
+  const session = newDemoSession()
+  const id = await newHabit(session)
+  const entry = (await session('/api/personal')).entries.find(item => item.id === id)
+  assert.equal(entry.domain, 'saude')
+  assert.equal(entry.place, 'Academia Central')
+  const today = (await session('/api/personal')).today
+  const other = await session('/api/personal/entries', { method: 'POST', body: { kind: 'habit', day: today, title: 'Sem área' }, status: 201 })
+  assert.equal((await session('/api/personal')).entries.find(item => item.id === other.created_id).domain, 'organizacao')
+  await session('/api/personal/entries', { method: 'POST', body: { kind: 'habit', day: today, title: 'X', domain: 'jogos' }, status: 422 })
+  await session('/api/personal/entries', { method: 'POST', body: { kind: 'habit', day: today, title: 'X', place: 'a'.repeat(81) }, status: 422 })
+})
+
+test('comprovação: bônus uma vez por atividade por dia, com teto diário, e a nota fica guardada', async () => {
+  const session = newDemoSession()
+  const before = (await city(session, ISLAND)).credits
+  const habit = await newHabit(session)
+  const done = await checkin(session, habit, { done: true, proof: { note: NOTE } })
+  assert.deepEqual(done.proof_result, { bonus: 5, reason: null })
+  assert.equal((await city(session, ISLAND)).credits, before + 5 + 5)
+  assert.deepEqual(done.proofs.map(item => [item.entry_id, item.note, item.has_photo]), [[habit, NOTE, false]])
+  // Marcar de novo com outra nota atualiza a comprovação, mas não paga de novo.
+  const again = await checkin(session, habit, { done: true, proof: { note: NOTE + ' Mais uma série.' } })
+  assert.deepEqual(again.proof_result, { bonus: 0, reason: 'already_proved' })
+  assert.equal((await city(session, ISLAND)).credits, before + 10)
+  // O teto é de 3 bônus por dia.
+  const paid = []
+  for (const title of ['Ler', 'Meditar', 'Caminhar']) {
+    const id = await newHabit(session, { title })
+    paid.push((await checkin(session, id, { done: true, proof: { note: NOTE } })).proof_result)
+  }
+  assert.deepEqual(paid.map(item => item.bonus), [5, 5, 0])
+  assert.equal(paid[2].reason, 'daily_cap')
+})
+
+test('comprovação: marcar sem comprovar continua valendo e a comprovação é opcional', async () => {
+  const session = newDemoSession()
+  const before = (await city(session, ISLAND)).credits
+  const habit = await newHabit(session)
+  const plain = await checkin(session, habit, { done: true })
+  assert.equal(plain.proof_result, undefined)
+  assert.equal((await city(session, ISLAND)).credits, before + 5)
+  const undone = await checkin(session, habit, { done: false, proof: { note: NOTE } })
+  assert.equal(undone.proof_result, undefined)
+})
+
+test('comprovação: foto vale uma vez, só JPEG ou WebP, e a foto só volta para quem enviou', async () => {
+  const session = newDemoSession()
+  const first = await newHabit(session)
+  const second = await newHabit(session, { title: 'Outro' })
+  const result = await checkin(session, first, { done: true, proof: { photo: photo(1) } })
+  assert.equal(result.proof_result.bonus, 5)
+  assert.equal(result.proofs[0].has_photo, true)
+  assert.equal(JSON.stringify(result).includes('base64'), false)
+  const today = result.today
+  const fetchPhoto = cookie => call(`/api/personal/proofs/${first}/${today}/photo`, { headers: { Cookie: cookie } })
+  const image = await fetchPhoto(session.cookie)
+  assert.equal(image.status, 200)
+  assert.equal(image.headers.get('Content-Type'), 'image/jpeg')
+  assert.equal(new Uint8Array(await image.arrayBuffer())[0], 0xff)
+  // Outro visitante não enxerga a foto: cada sessão tem o seu próprio armazenamento.
+  assert.equal((await fetchPhoto(newDemoSession().cookie)).status, 404)
+  assert.equal((await call(`/api/personal/proofs/${first}/${today}/photo`)).status, 401)
+  await checkin(session, second, { done: true, proof: { photo: photo(1) } }, 422)
+  await checkin(session, second, { done: true, proof: { photo: 'data:image/gif;base64,R0lGODlh' } }, 422)
+  await checkin(session, second, { done: true, proof: { photo: 'data:image/jpeg;base64,AAAA' } }, 422)
+  await checkin(session, second, { done: true, proof: { note: 'curta' } }, 422)
+  await checkin(session, second, { done: true, proof: {} }, 422)
+  await checkin(session, second, { done: true, proof: { note: NOTE, extra: 1 } }, 422)
+  assert.equal((await checkin(session, second, { done: true, proof: { photo: photo(2) } })).proof_result.bonus, 5)
 })
