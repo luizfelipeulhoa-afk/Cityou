@@ -39,13 +39,15 @@ No desenvolvimento, o Vite encaminha `/api` para o `wrangler dev`, no lugar do F
 
 | Rota | Corpo | Resposta | Tabelas |
 |---|---|---|---|
-| `POST /api/auth/signup` | `email`, `password` (10 a 200 caracteres), `display_name` | 201 `{ user }` + cookie | `users`, `sessions`, `city`, `placements` (praça, sede e ruas iniciais), `ledger` (boas-vindas) |
+| `POST /api/auth/signup` | `email`, `password` (10 a 200 caracteres), `display_name` | 201 `{ user }` + cookie | `users`, `sessions`, `player`, `cities` (Ilha Inicial), `placements` (praça e ruas iniciais), `ledger` (boas-vindas) |
 | `POST /api/auth/login` | `email`, `password` | 200 `{ user }` + cookie. Erro 401 com a mesma mensagem para e-mail inexistente e senha errada | `sessions`, `login_attempts` |
+| `POST /api/auth/forgot` | `email` | 200 com a mesma mensagem, exista a conta ou não. O e-mail sai depois da resposta (`ctx.waitUntil`) | `password_resets` |
+| `POST /api/auth/reset` | `token`, `password` | 200 `{ user }` + cookie. 422 se o link venceu (30 minutos) ou já foi usado. Encerra as outras sessões da conta | `users`, `password_resets`, `sessions` |
 | `POST /api/auth/logout` | vazio | 200 `{}`, cookie apagado | `sessions` |
 | `GET /api/me` | | 200 `{ user: { id, email, display_name, timezone } }` | leitura |
 | `PATCH /api/me` | `display_name`, `timezone` | 200 `{ user }` | `users` |
-| `GET /api/me/export` (B7) | | 200 arquivo JSON com todos os dados da conta | leitura |
-| `DELETE /api/me` (B7) | `password` | 200 `{}`; apaga a conta e todos os dados | todas |
+| `GET /api/me/export` (B8) | | 200 arquivo JSON com todos os dados da conta | leitura |
+| `DELETE /api/me` (B8) | `password` | 200 `{}`; apaga a conta e todos os dados | todas |
 
 Senha: PBKDF2 pela Web Crypto, sal por usuário, comparação em tempo constante (`crypto.subtle.timingSafeEqual`). O número de iterações fica gravado em `users.password_iterations`.
 
@@ -57,7 +59,8 @@ Senha: PBKDF2 pela Web Crypto, sal por usuário, comparação em tempo constante
 {
   "today": "2026-11-10",
   "user": { "display_name": "…", "timezone": "America/Sao_Paulo" },
-  "credits": 60,
+  "player": { "xp": 120, "level": 2, "credits": 60, "current_location": "ilha-inicial" },
+  "presence": { "active_last_7": 4, "xp_bonus": 25, "credit_bonus": 0 },
   "tasks": [], "projects": [], "events": [],
   "habits": [], "habit_checkins": [],
   "goals": [], "goal_steps": [],
@@ -79,7 +82,7 @@ Tarefas, projetos, compromissos, hábitos, metas, lançamentos, refeições e no
 | `DELETE /api/{r}/{id}` | | 200 `{ item }` | preenche `deleted_at` |
 | `POST /api/{r}/{id}/restore` | vazio | 200 `{ item }` | limpa `deleted_at` (o "Desfazer") |
 
-Campos e validação por recurso:
+Campos e validação por recurso (`tasks`, `habits` e `goals` aceitam também `domain`, com padrão `organizacao`):
 
 | Recurso | Campos | Validação | Filtros de `GET` |
 |---|---|---|---|
@@ -96,32 +99,38 @@ Campos e validação por recurso:
 
 | Rota | Corpo | Resposta | Tabelas |
 |---|---|---|---|
-| `POST /api/tasks/{id}/complete` | vazio | 200 `{ item, credits, reward }` (`reward` é 10 na primeira vez, 0 nas seguintes) | `tasks`, `ledger`, `city` |
+| `POST /api/tasks/{id}/complete` | vazio | 200 `{ item, reward, player, events }` (recompensa só na primeira vez) | `tasks`, `ledger`, `player`, `domain_progress`, `presence_days` |
 | `POST /api/tasks/{id}/reopen` | vazio | 200 `{ item, credits }` (os créditos não mudam) | `tasks` |
-| `PUT /api/habits/{id}/checkins/{dia}` | `{ "done": true }` | 200 `{ checkin, credits, reward }` (`reward` é 5 na primeira marcação de hoje) | `habit_checkins`, `ledger`, `city` |
-| `PUT /api/goals/{id}/steps/{dia}` | `{ "done": true }` | 200 `{ step }` | `goal_steps` |
+| `PUT /api/habits/{id}/checkins/{dia}` | `{ "done": true }` | 200 `{ checkin, reward, player, events }` (recompensa na primeira marcação de hoje, até 8 hábitos por dia) | `habit_checkins`, `ledger`, `player`, `domain_progress`, `presence_days` |
+| `PUT /api/goals/{id}/steps/{dia}` | `{ "done": true }` | 200 `{ step, item, reward, player, events }` (`item` é a meta, com `completed_at` quando atinge o alvo) | `goal_steps`, `goals`, `ledger`, `player`, `domain_progress`, `upgrade_points` |
 | `PUT /api/weights/{dia}` | `grams`, `note` | 200 `{ item }` (cria ou substitui a pesagem do dia) | `weights` |
 | `DELETE /api/weights/{dia}` | | 200 `{ item }` | `weights` |
-| `GET /api/ledger` | `?limit=100` | 200 `{ credits, items: [{ label, amount, created_at }] }` | leitura |
 
 `{dia}` é `AAAA-MM-DD`, no máximo hoje (no fuso do usuário). O cliente não envia valores de crédito em nenhuma rota: o servidor calcula tudo a partir dos fatos gravados, como `backend/app.py` já exige.
 
-### Materiais (fase B7)
+### Materiais (fase B8)
 
-`POST /api/documents` (envio do arquivo para o R2), `GET /api/documents`, `GET /api/documents/{id}/file`, `GET /api/documents/{id}/cover`, `DELETE /api/documents/{id}`. O detalhamento fica para a B7, junto com o limite de tamanho por arquivo.
+`POST /api/documents` (envio do arquivo para o R2), `GET /api/documents`, `GET /api/documents/{id}/file`, `GET /api/documents/{id}/cover`, `DELETE /api/documents/{id}`. O detalhamento fica para a B8, junto com o limite de tamanho por arquivo.
 
 ## Jogo
 
+Regras e números em `GAME-DESIGN.md`. O navegador nunca envia XP, créditos, nível, etapa ou desbloqueio: qualquer campo desses no corpo é recusado com 422.
+
 | Rota | Corpo | Resposta | Tabelas |
 |---|---|---|---|
-| `GET /api/city` | | Retrato da cidade: `revision`, `credits`, `earned`, `reward_count`, `level`, `unlock_radius`, `started_at`, `placements`, `catalog`, `history` | leitura |
-| `POST /api/city/actions` | `type` (`build`, `move`, `rotate`, `remove`, `upgrade`), `expected_revision`, `request_id`, e `kind`, `x`, `y`, `rotation`, `placement_id` conforme a ação | O retrato atualizado. 409 se a `revision` mudou ou o `request_id` foi reusado com outro corpo; 422 se não couber, colidir ou faltar crédito | `placements`, `city`, `ledger`, `requests` |
-| `GET /api/world/progress` | | `{ versao, epoca, desbloqueados, concluidos, atualizado_em }` | leitura |
-| `PUT /api/world/progress` | `{ versao, epoca, desbloqueados, concluidos }` | O progresso depois da fusão | `world_progress`, `world_state` |
+| `GET /api/player` | | `{ xp, level, next_level_xp, credits, current_location, presence: { active_days, xp_bonus, credit_bonus } }` | leitura |
+| `GET /api/presence` | `?month=AAAA-MM` | `{ days: ["AAAA-MM-DD"], active_last_7, xp_bonus, credit_bonus }` | leitura |
+| `GET /api/ledger` | `?limit=100` | `{ credits, xp, items: [{ label, amount, xp, multiplier, created_at }] }` | leitura |
+| `GET /api/world` | | `{ current_location, locations: [{ id, state, requirements: { level, buildings, cost }, progress }] }` (`state` é `own`, `available` ou `locked`) | leitura |
+| `POST /api/world/travel` | `to`, `request_id` | 200 `{ city, player }`. 422 se faltar nível, prédio ou crédito, com `fields` dizendo o que falta | `travels`, `cities`, `player`, `ledger`, `requests` |
+| `GET /api/cities/{local}` | | Retrato da cidade: `revision`, `placements` (com `stage`), `catalog`, `unlock_radius`, mais `credits` e `level` da pessoa | leitura |
+| `POST /api/cities/{local}/actions` | `type` (`build`, `move`, `rotate`, `remove`), `expected_revision`, `request_id`, e `kind`, `x`, `y`, `rotation`, `placement_id` conforme a ação | O retrato atualizado. 409 se a `revision` mudou ou o `request_id` foi reusado com outro corpo; 422 se não couber, colidir ou faltar crédito | `placements`, `cities`, `player`, `ledger`, `requests` |
+| `GET /api/buildings/{id}` | | `{ kind, domain, stage, next_stage: { xp, weeks }, upgrades: [], empty_slots, points_available, next_point }` | leitura |
+| `POST /api/buildings/{id}/upgrades` | `slot`, `upgrade_id` | 201 `{ upgrade, points_available }`. 422 se não houver ponto, se o prédio não estiver concluído ou se a opção não foi oferecida | `building_upgrades`, `upgrade_points` |
 
-As duas rotas da cidade mantêm o contrato de `backend/README.md`, para `src/CityApp.vue` não mudar. O campo `source` do retrato (estado do Fifones) continua existindo com `connected: true`, até a tela deixar de lê-lo.
+As respostas das rotas de ação (`complete`, `checkins`, `steps`, registros) passam a trazer `{ reward: { xp, credits, multiplier }, player: { xp, level, credits }, events: [] }`. `events` lista o que mudou por causa da ação: subida de nível, etapa de prédio concluída, ponto de melhoria ganho, local que ficou disponível. A tela usa essa lista para animar sem fazer outra chamada.
 
-As rotas do mapa mantêm o contrato de `backend/world.py`, para `src/world/progressSync.js` seguir funcionando: o progresso só avança, e uma `epoca` maior substitui tudo. Quando a regra de marcos reais entrar (decisão pendente em `DATA-MODEL.md`), o servidor passa a ignorar `concluidos` vindo do navegador e a calcular os espaços pelo `reward_count`.
+`POST /api/cities/{local}/actions` mantém o formato de `POST /api/city/actions` (`backend/README.md`), menos o tipo `upgrade`, para `src/CityApp.vue` mudar pouco.
 
 ## Saúde
 
@@ -132,34 +141,49 @@ As rotas do mapa mantêm o contrato de `backend/world.py`, para `src/world/progr
 | Rota de hoje (FastAPI) | Arquivo | Destino |
 |---|---|---|
 | `GET /api/health` | `backend/app.py` | Mantida |
-| `GET /api/city` | `backend/app.py` | Mantida, por usuário |
-| `POST /api/city/actions` | `backend/app.py` | Mantida, por usuário |
+| `GET /api/city` | `backend/app.py` | `GET /api/cities/{local}` |
+| `POST /api/city/actions` | `backend/app.py` | `POST /api/cities/{local}/actions`, sem o tipo `upgrade` |
 | `GET /api/workspace/tasks` | `backend/app.py` | `GET /api/tasks` (ou `GET /api/overview`) |
 | `GET /api/workspace/projects` | `backend/app.py` | `GET /api/projects` |
 | `GET /api/workspace/activity` | `backend/app.py`, `backend/activity.py` | Removida: eram sinais do Fifones |
 | `POST /api/rewards/sync` | `backend/app.py` | Removida: o crédito é gravado na hora da ação |
 | `POST /api/workspace/tasks/{id}/complete` | `backend/app.py` | `POST /api/tasks/{id}/complete` |
 | `GET /api/personal` | `backend/personal.py` | `GET /api/overview` |
-| `GET /api/personal/documents/{id}/cover` | `backend/personal.py` | `GET /api/documents/{id}/cover` (B7) |
+| `GET /api/personal/documents/{id}/cover` | `backend/personal.py` | `GET /api/documents/{id}/cover` (B8) |
 | `POST /api/personal/entries` | `backend/personal.py` | `POST /api/habits`, `/goals`, `/notes`, `/transactions`, `/meals` |
 | `PUT /api/personal/entries/{id}/checkin` | `backend/personal.py` | `PUT /api/habits/{id}/checkins/{dia}` e `PUT /api/goals/{id}/steps/{dia}` |
 | `POST /api/personal/tasks` | `backend/personal.py` | `POST /api/tasks` |
-| `GET /api/world/progress` | `backend/world.py` | Mantida, por usuário |
-| `PUT /api/world/progress` | `backend/world.py` | Mantida, por usuário |
+| `GET /api/world/progress` | `backend/world.py` | `GET /api/world` |
+| `PUT /api/world/progress` | `backend/world.py` | Removida: o navegador não envia mais progresso; viajar é `POST /api/world/travel` |
 | `GET /` e arquivos estáticos | `backend/app.py` | Servidos pelo Cloudflare, sem passar pelo Worker |
 
 ## Ordem de construção
 
 | Fase | Rotas |
 |---|---|
-| B1 | `GET /api/health`, banco e migrações |
-| B2 | `/api/auth/*`, `GET` e `PATCH /api/me` |
-| B3 | `tasks`, `habits`, `goals`, `GET /api/ledger`, `GET /api/overview` |
+| B1 | `GET /api/health`, banco, migrações, `Server-Timing`, medição de latência |
+| B2 | `/api/auth/*` (com recuperação de senha), `GET` e `PATCH /api/me` |
+| B3 | `tasks`, `habits`, `goals`, `GET /api/overview`, `GET /api/player`, `GET /api/presence`, `GET /api/ledger` |
 | B4 | `transactions`, `meals`, `notes`, `events`, `weights` |
-| B5 | `/api/city*`, `/api/world/progress` |
-| B7 | `projects`, `documents`, `GET /api/me/export`, `DELETE /api/me` |
+| B5 | `GET /api/world`, `POST /api/world/travel`, `/api/cities/*` |
+| B6 | `/api/buildings/*` |
+| B8 | `projects`, `documents`, `GET /api/me/export`, `DELETE /api/me` |
 
-Cada fase entra com testes do Worker contra um D1 local e com um teste de isolamento: duas contas, uma tentando ler e alterar os dados da outra.
+A fase B7 é de interface (atalhos, paleta, barra inferior, cache local) e não cria rotas.
+
+Cada fase entra com testes do Worker contra um D1 local e com dois testes fixos: duas contas, uma tentando ler e alterar os dados da outra; e um envio de XP ou créditos pelo navegador, que precisa ser recusado.
+
+## Velocidade
+
+| Meta | Como se mede |
+|---|---|
+| Resposta na tela em até 50 ms depois do toque | Teste de navegador: tempo entre o toque e a mudança visível, sem esperar a rede |
+| Processamento no servidor em até 60 ms na mediana | Cabeçalho `Server-Timing` em toda resposta; `tools/api-perf.mjs` anota mediana e percentil 95 |
+| App abre sem esperar a rede | A última resposta de `GET /api/overview` fica guardada no aparelho e é mostrada na hora; a nova substitui ao chegar |
+
+Regras para manter o servidor rápido: a sessão é lida uma vez por pedido; cada ação é um único `env.DB.batch()`; toda listagem tem índice; nenhuma rota faz chamada externa no caminho da resposta (o envio de e-mail vai em `ctx.waitUntil`).
+
+O tempo de ida e volta pela rede não entra na meta: depende da conexão da pessoa e da distância até o banco. Ele é medido e anotado, mas não prometido.
 
 ## Conferido na documentação do Cloudflare
 
@@ -169,4 +193,4 @@ Cada fase entra com testes do Worker contra um D1 local e com um teste de isolam
 - A Web Crypto dos Workers oferece PBKDF2 em `deriveBits` e a função `timingSafeEqual`.
 - O limite de chamadas (`ratelimits`) é aproximado e vale por localidade do Cloudflare, com janela de 10 ou 60 segundos. Por isso o bloqueio de senha errada também é contado no banco (`login_attempts`).
 
-Ainda não conferido: limite de iterações do PBKDF2, limites e preços do D1, restauração de backup, comportamento padrão das chaves estrangeiras.
+Ainda não conferido: limite de iterações do PBKDF2, limites e preços do D1, restauração de backup, comportamento padrão das chaves estrangeiras, escolha da região do banco e leitura por réplicas (as duas afetam a latência), e o serviço de envio de e-mail para a recuperação de senha (exige um domínio próprio).

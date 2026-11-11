@@ -2,7 +2,7 @@
 
 Especificação do banco para o backend em Cloudflare Workers + D1. Ainda não há código: este documento, `INTERACTIONS.md` e `API.md` são a fase B0 do plano. O esquema vira `migrations/0001_init.sql` na fase B1.
 
-Decisões já tomadas: backend no Cloudflare (Workers + D1), vários usuários com login, tabelas próprias para todas as áreas (sem depender do Fifones na porta 8765).
+Decisões já tomadas: backend no Cloudflare (Workers + D1), vários usuários com login, tabelas próprias para todas as áreas (sem depender do Fifones na porta 8765). As regras do jogo (XP, presença, viagens, prédios) estão em `GAME-DESIGN.md`.
 
 ## De onde partimos
 
@@ -10,9 +10,9 @@ Hoje existem três bancos SQLite locais, sem usuário:
 
 | Arquivo | Tabelas | Destino |
 |---|---|---|
-| `data/city.sqlite3` (`backend/app.py`) | `city`, `placements`, `rewards`, `history`, `requests` | `city`, `placements`, `ledger`, `requests`, agora por usuário |
+| `data/city.sqlite3` (`backend/app.py`) | `city`, `placements`, `rewards`, `history`, `requests` | `player`, `cities`, `placements`, `ledger`, `requests`, por usuário |
 | `data/personal.sqlite3` (`backend/personal.py`) | `entries`, `checkins` | `habits`, `habit_checkins`, `goals`, `goal_steps`, `notes`, `transactions`, `meals` |
-| `data/world.sqlite3` (`backend/world.py`) | `world_progress`, `world_meta` | `world_progress`, `world_state`, por usuário |
+| `data/world.sqlite3` (`backend/world.py`) | `world_progress`, `world_meta` | Substituídas por `cities` e `travels` (o mapa deixa de ser linear) |
 
 Tarefas, projetos, agenda, peso, materiais e memórias vinham do Fifones. Passam a ter tabela própria.
 
@@ -57,6 +57,10 @@ Preenchida por: "Entrar" e "Criar conta". Apagada por "Sair" e ao apagar a conta
 
 `email` TEXT, `window_start` TEXT, `count` INTEGER, chave primária (`email`, `window_start`). Preenchida pelo sistema a cada senha errada. Depois de 5 erros em 15 minutos, o login daquele e-mail espera o fim da janela.
 
+### `password_resets`
+
+`token_hash` TEXT PK (SHA-256 do token do link), `user_id`, `created_at`, `expires_at` (30 minutos), `used_at` NULL. Preenchida por: "Esqueci minha senha". O link vale uma vez; usar preenche `used_at` e apaga as sessões abertas da conta.
+
 ## Dados do usuário
 
 Todas têm as colunas comuns (`id`, `user_id`, `created_at`, `updated_at`, `deleted_at`).
@@ -72,7 +76,7 @@ Todas têm as colunas comuns (`id`, `user_id`, `created_at`, `updated_at`, `dele
 | `meals` | `title`, `body`, `day` (não pode ser futuro), `meal_time` NULL | (`user_id`, `day`) | Alimentação → "Registrar refeição" | Cartão na lista |
 | `notes` | `kind` (`note`, `reflection`, `memory`), `title`, `body`, `day` | (`user_id`, `kind`, `day`) | Seu dia → "Anotar" (`note`); Autoconhecimento → "Registrar meu momento" (`reflection`); Memórias → "Nova memória" (`memory`) | Cartão no topo da lista da área |
 | `weights` | `day`, `grams`, `note`; único por (`user_id`, `day`) | (`user_id`, `day`) | Fitness → "Registrar peso" | "Última pesagem" e a lista "Sua evolução" |
-| `documents` (fase B7) | `name`, `mime`, `size_bytes`, `r2_key` | (`user_id`) | Biblioteca → "Adicionar material" | Capa na grade; o arquivo fica no R2 |
+| `documents` (fase B8) | `name`, `mime`, `size_bytes`, `r2_key` | (`user_id`) | Biblioteca → "Adicionar material" | Capa na grade; o arquivo fica no R2 |
 
 Marcações diárias (sem `id` próprio nem `deleted_at`; desmarcar grava `done = 0`):
 
@@ -83,31 +87,48 @@ Marcações diárias (sem `id` próprio nem `deleted_at`; desmarcar grava `done 
 
 ## Jogo
 
+As regras e os números estão em `GAME-DESIGN.md`. Aqui ficam só as tabelas.
+
 | Tabela | Colunas | Chave | Quem preenche | O que a pessoa vê |
 |---|---|---|---|---|
-| `ledger` | `id` INTEGER AUTOINCREMENT, `user_id`, `source_key`, `amount`, `label`, `created_at` | único (`user_id`, `source_key`) | Sistema: ao concluir tarefa, marcar hábito, construir ou remover na cidade | Contador de créditos no topo; "Histórico de moedas" na cidade |
-| `city` | `user_id`, `revision`, `credits` ≥ 0, `earned`, `reward_count`, `started_at` | `user_id` | Sistema: criada no cadastro com 50 créditos de boas-vindas | Saldo, nível e raio liberado |
-| `placements` | `id`, `user_id`, `kind`, `x`, `y`, `rotation` 0 a 3, `level` 1 a 3 | `id` | Cidade → construir, mover, girar, melhorar, remover | A construção no mapa 3D |
-| `requests` | `user_id`, `request_id`, `fingerprint`, `response`, `created_at` | (`user_id`, `request_id`) | Sistema: cada ação da cidade | Nada. Evita cobrar duas vezes quando a rede repete o envio |
-| `world_progress` | `user_id`, `space_id`, `unlocked`, `completed` | (`user_id`, `space_id`) | Sistema: ao atingir um marco (ver decisões pendentes) | Monumento liberado no globo |
-| `world_state` | `user_id`, `epoch`, `updated_at` | `user_id` | Sistema: reset do mapa aumenta `epoch` | Nada |
+| `player` | `user_id`, `xp`, `level`, `credits` ≥ 0, `current_location`, `updated_at` | `user_id` | Sistema: criada no cadastro (50 créditos, Ilha Inicial); atualizada a cada ação | Nível, barra de XP e créditos no topo |
+| `ledger` | `id` INTEGER AUTOINCREMENT, `user_id`, `source_key`, `amount`, `xp`, `multiplier`, `domain` NULL, `label`, `created_at` | único (`user_id`, `source_key`) | Sistema: a cada ganho ou gasto | Extrato: de onde veio cada crédito e cada XP |
+| `domain_progress` | `user_id`, `domain`, `xp`, `active_weeks`, `updated_at` | (`user_id`, `domain`) | Sistema: a cada ação com domínio | Barra de cada prédio de domínio |
+| `domain_days` | `user_id`, `domain`, `day` | (`user_id`, `domain`, `day`) | Sistema: primeira ação do dia no domínio | Nada. Serve para contar semanas ativas |
+| `presence_days` | `user_id`, `day` | (`user_id`, `day`) | Sistema: primeira ação real do dia | Calendário de presença e o degrau do bônus |
+| `cities` | `id`, `user_id`, `location_id`, `revision`, `started_at` | único (`user_id`, `location_id`) | Sistema: no cadastro (Ilha) e a cada viagem | A cidade daquele local |
+| `placements` | `id`, `user_id`, `city_id`, `kind`, `x`, `y`, `rotation` 0 a 3, `stage` 0 a 4 | `id`; índice (`city_id`) | Cidade → construir, mover, girar, remover; o sistema avança `stage` | A construção no mapa 3D, na etapa atual |
+| `travels` | `id`, `user_id`, `from_location`, `to_location`, `cost`, `created_at` | `id`; índice (`user_id`) | Globo → "Viajar" | Local liberado; rota desenhada no globo |
+| `upgrade_points` | `user_id`, `domain`, `available`, `earned_total` | (`user_id`, `domain`) | Sistema: meta curta concluída ou marco de XP do domínio | "1 melhoria disponível" no prédio |
+| `building_upgrades` | `id`, `user_id`, `placement_id`, `slot`, `upgrade_id`, `source_key`, `created_at` | `id`; único (`placement_id`, `slot`) | Prédio → "Escolher melhoria" | Sala ou equipamento novo no interior, com a data e a conquista |
+| `requests` | `user_id`, `request_id`, `fingerprint`, `response`, `created_at` | (`user_id`, `request_id`) | Sistema: ações da cidade e viagens | Nada. Evita cobrar duas vezes quando a rede repete o envio |
 | `usage_counts` | `user_id`, `action`, `day`, `count` | (`user_id`, `action`, `day`) | Sistema: a cada ação de escrita | Nada. Mostra quais funções são de fato usadas |
 
-`ledger` une as antigas `rewards` (chave única de cada recompensa) e `history` (extrato). `usage_counts` guarda só o nome da ação e a contagem, nunca o conteúdo.
+Notas:
 
-### Regras de crédito
+- `player` substitui a antiga `city` de linha única: créditos, XP e nível são da pessoa, e as cidades são várias.
+- Um local está liberado quando existe uma linha em `cities` para ele. `world_progress` e `world_meta` deixam de existir.
+- `ledger` une as antigas `rewards` (chave única de cada recompensa) e `history` (extrato). `multiplier` guarda o bônus de presença aplicado, em centésimos (100 = normal, 200 = em dobro).
+- `tasks`, `habits` e `goals` ganham a coluna `domain` (`saude`, `alimentacao`, `financas`, `estudos`, `mente`, `organizacao`; padrão `organizacao`). Lançamentos, refeições, pesagens e reflexões têm domínio fixo pelo tipo.
+- `goals` ganha `completed_at`: é preenchida quando os passos atingem o alvo, e é o que dispara a recompensa de meta concluída.
+- `usage_counts` guarda só o nome da ação e a contagem, nunca o conteúdo.
+- O catálogo de construções, as opções de melhoria e todos os valores ficam em código (`worker/game/`), não no banco.
 
-Portadas de `backend/app.py` (classe `Store`), com os mesmos casos de `tests/test_backend.py`:
+### Chaves de recompensa (`ledger.source_key`)
 
-| Origem | `source_key` | Valor | Regra |
-|---|---|---|---|
-| Boas-vindas | `welcome` | +50 | uma vez por conta; não conta em `earned` |
-| Tarefa concluída | `task:<id>` | +10 | uma vez por tarefa, para sempre: reabrir e concluir de novo não paga outra vez |
-| Hábito feito | `habit:<id>:<dia>` | +5 | uma vez por hábito por dia; só paga quando `dia` é hoje |
-| Construir, melhorar | `city:<request_id>` | negativo | custo do catálogo; melhorar custa custo-base × nível atual |
-| Remover construção | `city:<request_id>` | +metade do custo | arredondado para baixo |
+| Origem | Chave |
+|---|---|
+| Boas-vindas | `welcome` |
+| Tarefa concluída | `task:<id>` |
+| Hábito feito | `habit:<id>:<dia>` |
+| Passo de meta | `goalstep:<id>:<dia>` |
+| Meta concluída | `goal:<id>` |
+| Registro do dia | `record:<tipo>:<dia>` |
+| Retorno | `return:<dia>` |
+| Cidade (construir, remover) | `city:<request_id>` |
+| Viagem | `travel:<local>` |
 
-Nunca há punição: desmarcar um hábito ou reabrir uma tarefa não tira créditos. Não existe recompensa por tempo nem perda de sequência. Nível = 1 + `reward_count` ÷ 10; raio liberado = 3 + `reward_count` ÷ 10, até 8.
+A chave única por usuário é o que impede pagar duas vezes pela mesma coisa.
 
 ## Mudanças em relação ao que existe
 
@@ -115,23 +136,36 @@ Nunca há punição: desmarcar um hábito ou reabrir uma tarefa não tira crédi
 - `checkins` servia hábitos e metas; vira `habit_checkins` e `goal_steps`.
 - Tudo ganha `user_id`, edição e exclusão com desfazer. Hoje só existe criação.
 - Recompensas passam a ser gravadas na hora da ação, na mesma transação (`env.DB.batch()`). Acaba a reconciliação com o Fifones (`POST /api/rewards/sync`).
-- Hábitos criados no Cityou passam a gerar créditos. Hoje só o hábito do Fifones gera.
+- Hábitos criados no Cityou passam a gerar XP e créditos. Hoje só o hábito do Fifones gera.
+- Uma cidade única vira uma cidade por local, e o mapa linear vira escolha da pessoa.
+- O nível deixa de vir da contagem de recompensas e passa a vir do XP.
 
-## Importação (fase B7)
+## Importação (fase B8)
 
 `tools/import-local.mjs` lê os três SQLite locais e, se o Fifones estiver aberto, as rotas `/api/tasks`, `/api/projects`, `/api/events`, `/api/fitness` e `/api/memories`. Tudo entra na conta de quem estiver logado. Recompensas antigas entram no `ledger` com valor 0, como `ignore_historical` já faz, para não pagar de novo.
 
-## Decisões pendentes
+## Decisões
 
-1. **Passo de meta dá crédito?** Proposta: não. A meta já tem a própria barra, e o hábito diário é o que paga.
-2. **Teto diário de hábitos pagos.** Sem teto, criar 50 hábitos e marcar todos rende 250 créditos por dia. Proposta: os 5 primeiros do dia pagam; os demais contam no anel, sem crédito.
-3. **Regra para abrir espaços do mapa.** Hoje é o botão "Concluir fase (simulação)". Proposta: um espaço a cada 10 recompensas (`reward_count`), a mesma medida do nível da cidade.
-4. **Marcar dias passados.** Proposta: permitir até 7 dias para trás, sem crédito.
-5. **Prédios de IA da cidade** (ChatGPT, Claude, Gemini, Grok). Dependiam da atividade do Fifones. Proposta: continuam como construções decorativas, sem o painel de atividade.
-6. **Recuperar senha.** Exige envio de e-mail. Proposta: lançar o login sem isso e decidir depois entre e-mail e "Entrar com Google".
+Fechadas:
+
+| Assunto | Decisão |
+|---|---|
+| Teto diário de hábitos pagos | 8 por dia |
+| Abertura de locais no mapa | Por nível, prédios construídos e passagem em créditos; a pessoa escolhe o destino |
+| Presença | Dias ativos registrados; bônus de XP e créditos por ritmo da semana, sem zerar |
+| Prédios | Um por domínio, construído pelo uso real e depois melhorado por conquistas menores |
+| Recuperar senha | Link enviado ao e-mail |
+
+Abertas (propostas em `GAME-DESIGN.md`):
+
+1. Os números: nível da primeira viagem, custos, degraus do bônus, limites de cada etapa.
+2. Oitava maravilha: hoje são a Ilha e 7 monumentos.
+3. Nomes e lista dos prédios por domínio; qual é o transporte.
+4. Domínio próprio para enviar o e-mail de recuperação de senha.
 
 ## A conferir na fase B1
 
 - Limite de iterações do PBKDF2 no runtime dos Workers (a documentação confirma o algoritmo, não o limite).
 - Limites e preços do plano do D1, e como funciona a restauração de backup.
+- Região do banco e leitura por réplicas, por causa da meta de latência (`API.md`, seção Velocidade).
 - Se o D1 aplica chaves estrangeiras por padrão. Até confirmar, o Worker valida os vínculos (`project_id`, `habit_id`, `goal_id`) antes de gravar.
