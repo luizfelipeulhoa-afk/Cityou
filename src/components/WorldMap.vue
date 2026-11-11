@@ -180,7 +180,7 @@ const debugComplete = id => commit(completeSpace(localProgress.value, id, order.
 const debugReset = () => { hideTooltip(); commit(resetProgress(localProgress.value, order.value)) }
 const debugCompleteCurrent = () => debugComplete(currentId.value)
 const debugReplay = id => globe.value?.replayUnlock(id)
-const focus = id => globe.value?.focusSpace(id)
+const focus = (id, options) => globe.value?.focusSpace(id, options)
 const overview = () => globe.value?.resetView()
 const zoom = factor => globe.value?.zoomBy(factor)
 const activate = id => globe.value?.activate(id)

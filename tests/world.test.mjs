@@ -283,3 +283,26 @@ test('publicação dos modelos: cópia com o hash no nome, models.json e triâng
     fs.rmSync(temp, { recursive: true, force: true })
   }
 })
+
+test('gestos de seleção cancelam arraste de ida e volta, pinça e troca de alvo', async () => {
+  const { createTapGesture } = await import('../src/interaction/tapGesture.js')
+  const taps = createTapGesture(() => 10)
+  const event = (pointerId, clientX = 100, clientY = 100) => ({ pointerId, clientX, clientY })
+  taps.down(event(1), 'rio')
+  taps.move(event(1, 109))
+  assert.equal(taps.up(event(1), 'rio'), false)
+  assert.equal(taps.active, false)
+
+  taps.down(event(1), 'rio')
+  taps.down(event(2), 'rio')
+  taps.up(event(2), 'rio')
+  assert.equal(taps.up(event(1), 'rio'), false)
+
+  taps.down(event(1), 'rio')
+  assert.equal(taps.up(event(1), 'ilha'), false)
+  taps.down(event(1), 'ilha')
+  taps.cancel(event(1))
+  assert.equal(taps.up(event(1), 'ilha'), false)
+  taps.down(event(1), 'ilha')
+  assert.equal(taps.up(event(1, 105), 'ilha'), true)
+})

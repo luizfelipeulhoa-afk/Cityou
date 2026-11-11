@@ -1,6 +1,30 @@
 # Contrato da API do Cityou
 
-Rotas do backend em Cloudflare Workers + D1. Tabelas em `DATA-MODEL.md`; quem chama cada rota em `INTERACTIONS.md`. Implementado até agora (fase B1): `GET /api/health`, a proteção das escritas, o formato de erro, o `Server-Timing` e a primeira migração (tabelas de conta). O resto é especificação.
+Rotas do backend em Cloudflare Workers + D1. Tabelas em `DATA-MODEL.md`; quem chama cada rota em `INTERACTIONS.md`. Implementado até agora: `GET /api/health`, a proteção das escritas, o formato de erro, o `Server-Timing` e a primeira migração (tabelas de conta), mais a **demonstração em produção** do PR #8 descrita abaixo. O resto é especificação.
+
+## Demonstração em produção (PR #8)
+
+O Worker atende hoje, sem login, as rotas antigas do painel e da cidade. Cada visitante recebe um cookie `cityou_demo` (HttpOnly, 30 dias) ao abrir uma página; o Worker deriva um nome a partir do SHA-256 do cookie e entrega o pedido a um Durable Object com SQLite (`DemoSession`, binding `DEMO_SESSIONS`). Os dados somem 30 dias depois da primeira escrita (alarme). Limites: 100 registros por tipo e corpo de até 24 KB.
+
+| Rota | O que faz hoje |
+|---|---|
+| `GET /api/personal`, `POST /api/personal/entries`, `PUT /api/personal/entries/{id}/checkin`, `POST /api/personal/tasks` | Registros pessoais (hábitos, metas, notas, lançamentos, refeições, tarefas) |
+| `GET /api/workspace/tasks`, `POST /api/workspace/tasks/{id}/complete` | Tarefas e conclusão, com recompensa |
+| `GET /api/city?local=<id>`, `POST /api/city/actions?local=<id>`, `POST /api/rewards/sync?local=<id>` | Cidade do local (a Ilha por padrão); local bloqueado responde 403 |
+| `GET /api/world/progress` | Locais liberados, concluídos e `viagens_disponiveis` |
+| `POST /api/world/travel` | Corpo `{ local, request_id }`; libera o destino se houver viagem disponível, senão 409 |
+| `PUT /api/world/progress` | Ainda aceito por clientes antigos, mas ignorado: o acesso vem das ações no servidor |
+| `GET /api/personal/proofs/{atividade}/{dia}/photo` | A foto de uma comprovação, só para a sessão que a enviou; 404 se não houver |
+
+**Atividades.** Hábitos, metas e tarefas aceitam `domain` (`saude`, `alimentacao`, `financas`, `estudos`, `mente`, `organizacao`; padrão `organizacao`) e `place` (até 80 caracteres), que dão tipo e nome ao prédio da atividade.
+
+**Comprovação.** `PUT /api/personal/entries/{id}/checkin` aceita `{ done: true, proof: { note?, photo? } }`. A nota tem de 20 a 500 caracteres; a foto é um `data:` JPEG ou WebP de até 250 KB. A resposta inclui `proof_result: { bonus, reason }` (`reason`: `null`, `daily_cap` ou `already_proved`) e `proofs` (sem as fotos). Erros 422 com mensagem para a pessoa: nota curta, foto repetida, formato inválido, limite de 100 comprovações.
+
+**Resumo.** `GET /api/personal` e a resposta das marcações trazem `resumo` (ver `DASHBOARD.md`).
+
+**Viagens fechadas.** Com `TRAVEL_OPEN=false`, `POST /api/world/travel` para um destino novo responde 409 e `GET /api/world/progress` traz `viagens_abertas: false` e `viagens_disponiveis: 0`. O Durable Object lê a configuração diretamente do ambiente. Na prévia isolada com `CITYOU_TEST_OPEN_REGIONS=1`, os oito destinos ficam acessíveis para teste.
+
+As rotas de projetos e atividade respondem "desconectado". O contrato de `POST /api/world/travel` de hoje difere do alvo desta página (sem nível nem passagem em créditos): ver `GAME-DESIGN.md`, seção "O que já está implementado". Para o alvo, esta demonstração vira a fonte de importação: os registros de um visitante podem ser trazidos para a conta dele quando o login existir.
 
 ## Arquitetura
 
@@ -124,7 +148,7 @@ Regras e números em `GAME-DESIGN.md`. O navegador nunca envia XP, créditos, n�
 | `GET /api/ledger` | `?limit=100` | `{ credits, xp, items: [{ label, amount, xp, multiplier, created_at }] }` | leitura |
 | `GET /api/world` | | `{ current_location, locations: [{ id, state, requirements: { level, buildings, cost }, progress }] }` (`state` é `own`, `available` ou `locked`) | leitura |
 | `POST /api/world/travel` | `to`, `request_id` | 200 `{ city, player }`. 422 se faltar nível, prédio ou crédito, com `fields` dizendo o que falta | `travels`, `cities`, `player`, `ledger`, `requests` |
-| `GET /api/cities/{local}` | | Retrato da cidade: `revision`, `placements` (com `stage`), `catalog`, `unlock_radius`, mais `credits` e `level` da pessoa | leitura |
+| `GET /api/cities/{local}` | | Retrato da cidade: `revision`, `placements` (com `stage`), `catalog`, `unlock_radius` (agora o terreno inteiro; `-1` na ilha), `scenic` (`true` na Ilha Inicial: sem catálogo nem construção), mais `credits` e `level` da pessoa | leitura |
 | `POST /api/cities/{local}/actions` | `type` (`build`, `move`, `rotate`, `remove`), `expected_revision`, `request_id`, e `kind`, `x`, `y`, `rotation`, `placement_id` conforme a ação | O retrato atualizado. 409 se a `revision` mudou ou o `request_id` foi reusado com outro corpo; 422 se não couber, colidir ou faltar crédito | `placements`, `cities`, `player`, `ledger`, `requests` |
 | `GET /api/buildings/{id}` | | `{ kind, domain, stage, next_stage: { xp, weeks }, upgrades: [], empty_slots, points_available, next_point }` | leitura |
 | `POST /api/buildings/{id}/upgrades` | `slot`, `upgrade_id` | 201 `{ upgrade, points_available }`. 422 se não houver ponto, se o prédio não estiver concluído ou se a opção não foi oferecida | `building_upgrades`, `upgrade_points` |
@@ -201,7 +225,7 @@ Regras para manter o servidor rápido: a sessão é lida uma vez por pedido; cad
 
 **Aparelho primeiro.** Para a tela nunca esperar o servidor, cada ação é aplicada na hora no aparelho e entra numa fila local com o seu identificador. A fila é enviada em segundo plano e reenviada se a rede falhar; como cada ação tem identificador, o reenvio não duplica nada. O servidor recalcula XP e créditos e a resposta dele substitui a previsão do aparelho. Se os dois divergirem, vale o servidor. A previsão usa as mesmas regras (`shared/game/rules.js`), então a divergência é rara. Isso torna a experiência independente de onde o banco fica.
 
-**Limite conhecido do D1.** O D1 não roda na América do Sul. As regiões são América do Norte (leste e oeste), Europa (oeste e leste), Ásia-Pacífico e Oceania, e as réplicas de leitura ficam nessas mesmas regiões. Para quem está no Brasil, o Worker roda perto, mas cada ida ao banco atravessa até a América do Norte. Por isso a meta de 60 ms no servidor pode não ser atingida em produção com o D1; o número real só sai da medição no site publicado (`npm run perf:api -- https://<site>`). O que continua garantido é a resposta na tela, que não espera o servidor. Os Durable Objects não resolvem: a documentação diz que eles também não são criados na América do Sul (um pedido para lá cai no leste da América do Norte). A alternativa real para aproximar o banco é um provedor externo com região em São Paulo, ainda não pesquisado. A decisão de onde os dados ficam está em aberto (`DATA-MODEL.md`).
+**Banco em São Paulo.** O D1 e os Durable Objects não rodam na América do Sul, então os dados ficam num banco externo em São Paulo (provedor ainda em escolha, ver `DATA-MODEL.md`), ligado pelo Hyperdrive. Com `placement.region` apontando para a região do banco, as consultas de um pedido custam de 1 a 3 ms cada, em vez de 20 a 30 ms. A meta de 60 ms no servidor só se confirma medindo no site publicado (`npm run perf:api -- https://<site>`); não foi medida.
 
 A medição local (`wrangler dev`) dá perto de 0 ms e não diz nada sobre produção: não há rede entre o Worker e o banco, e o relógio do Worker só avança em operações de entrada e saída.
 

@@ -12,5 +12,11 @@
   {"id":"chatgpt","label":"ChatGPT","cost":70,"model":"/models/chatgpt-building-v2.glb","width":2,"depth":2,"height":3.8,"color":"#47a58b","destination":"/#/cidade/chatgpt"},
   {"id":"claude","label":"Claude","cost":60,"model":"/models/claude-building-v2.glb","width":2,"depth":2,"height":3.3,"color":"#d58f73","destination":"/#/cidade/claude"},
   {"id":"gemini","label":"Gemini","cost":50,"model":"/models/gemini-building-v2.glb","width":2,"depth":2,"height":2.8,"color":"#7896d4","destination":"/#/cidade/gemini"},
-  {"id":"grok","label":"Grok","cost":50,"model":"/models/grok-building-v2.glb","width":2,"depth":2,"height":2.7,"color":"#888a99","destination":"/#/cidade/grok"}
+  {"id":"grok","label":"Grok","cost":50,"model":"/models/grok-building-v2.glb","width":2,"depth":2,"height":2.7,"color":"#888a99","destination":"/#/cidade/grok"},
+  {"id":"dom-saude","label":"Prédio de Saúde","cost":20,"model":null,"width":2,"depth":2,"height":2.4,"color":"#e5736d","destination":null},
+  {"id":"dom-alimentacao","label":"Prédio de Alimentação","cost":20,"model":null,"width":2,"depth":2,"height":2.4,"color":"#e8a24c","destination":null},
+  {"id":"dom-financas","label":"Prédio de Finanças","cost":20,"model":null,"width":2,"depth":2,"height":2.4,"color":"#5aa6c9","destination":null},
+  {"id":"dom-estudos","label":"Prédio de Estudos","cost":20,"model":null,"width":2,"depth":2,"height":2.4,"color":"#7b86d6","destination":null},
+  {"id":"dom-mente","label":"Prédio de Mente","cost":20,"model":null,"width":2,"depth":2,"height":2.4,"color":"#9a7fd0","destination":null},
+  {"id":"dom-organizacao","label":"Prédio de Organização","cost":20,"model":null,"width":2,"depth":2,"height":2.4,"color":"#5cba8a","destination":null}
 ]

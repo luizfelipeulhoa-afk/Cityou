@@ -16,6 +16,9 @@ Kit montado em 10/11/2026 para o trabalho no BuildU (mapa-mundo, UI, backend e d
 | workers-best-practices, wrangler, web-perf | [cloudflare/skills](https://github.com/cloudflare/skills) | `6eb6c78` (06/11/2026) | Apache-2.0 |
 | async-python-patterns, api-design-principles | [wshobson/agents](https://github.com/wshobson/agents) | `9c61ab2` (08/11/2026) | MIT |
 | durable-objects, cloudflare-email-service | [cloudflare/skills](https://github.com/cloudflare/skills) | `cbf893b` (10/11/2026) | Apache-2.0 |
+| threejs-gameplay-systems (só `SKILL.md` e `references/`) | [majidmanzarpour/threejs-game-skills](https://github.com/majidmanzarpour/threejs-game-skills) | `8286774` (27/09/2026) | MIT |
+| ux-heuristics | [wondelai/skills](https://github.com/wondelai/skills) | `d8d5d75` (02/11/2026) | MIT |
+| form-design | [owl-listener/designer-skills](https://github.com/owl-listener/designer-skills) | `9a6930c` (05/09/2026) | MIT |
 | find-skills | [vercel-labs/skills](https://github.com/vercel-labs/skills) | `e781cb4` (10/11/2026) | MIT |
 | fastapi | pacote `fastapi==0.141.1` do PyPI (`fastapi/.agents/skills/fastapi`) | wheel 0.141.1 | MIT |
 

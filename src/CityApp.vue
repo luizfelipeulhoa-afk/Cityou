@@ -1,5 +1,6 @@
 <script setup>
-import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { previewRoadPath, roadPath } from '../shared/game/city-layout.js'
 import { findSpace } from './world/worldSpaces.js'
 import CityWorld from './fifones/CityWorld.js'
 import { progression } from './fifones/progression.js'
@@ -45,8 +46,19 @@ const nav = [
   { id: 'settings', icon: 'settings', label: 'Conexões', path: '/#/configuracoes' },
 ]
 const canvas = ref(null)
-const region = findSpace(new URLSearchParams(window.location.search).get('local'))
+const requestedRegion = findSpace(new URLSearchParams(window.location.search).get('local'))
 const state = ref(null)
+const region = computed(() => requestedRegion ?? findSpace(state.value?.location_id))
+// A Ilha Inicial é só cenário: sem catálogo, ruas nem prédios. As construções ficam no Rio de Janeiro.
+const scenic = computed(() => state.value?.scenic === true)
+const tileCoordinates = ref({ x: 8, y: 8 })
+const roadStart = ref(null)
+const roadEnd = ref(null)
+const roadCoordinates = ref({ x: 8, y: 9, end_x: 8, end_y: 12 })
+const activeInterior = ref(null)
+const interiorPending = ref(false)
+let interiorSequence = 0
+let interiorReturnFocus
 const tasks = ref([])
 const projects = ref([])
 const tasksConnected = ref(null)
@@ -105,11 +117,21 @@ let returnFocus = null
 let responsiveMedia = null
 function onCompactViewport(event) { if (event.matches) tasksOpen.value = false }
 const sourceConnected = computed(() => Boolean(state.value?.source?.connected) && tasksConnected.value !== false)
-const availableCatalog = computed(() => (state.value?.catalog || []).filter(item => Number(item.cost) > 0))
+// Prédios de atividade (dom-*) nascem da atividade da pessoa, na aba de organização do dia; não saem do catálogo.
+const availableCatalog = computed(() => (state.value?.catalog || []).filter(item => Number(item.cost) > 0 && !item.id.startsWith('dom-')))
 const filteredCatalog = computed(() => availableCatalog.value.filter(item => activeFilter.value === 'all' || (activeFilter.value === 'life' ? ['home', 'tree', 'road'].includes(item.id) : !['home', 'tree', 'road'].includes(item.id))))
 const chosen = computed(() => state.value?.catalog?.find(item => item.id === selectedKind.value))
 const selected = computed(() => state.value?.placements?.find(item => item.id === selectedId.value))
 const selectedCatalog = computed(() => state.value?.catalog?.find(item => item.id === selected.value?.kind))
+const usesRoadEditor = computed(() => state.value?.grid_max === 24)
+const roadPreview = computed(() => {
+  if (!roadStart.value || !state.value) return null
+  const start = roadStart.value
+  const end = roadEnd.value ?? start
+  return previewRoadPath(state.value, roadPath(start.x, start.y, end.x, end.y))
+})
+watch(roadPreview, value => engine?.setRoadPreview(value?.points ?? []))
+
 const activityStates = new Set(['working', 'observed', 'focus', 'waiting', 'idle', 'unknown'])
 function placeActivity(kind) {
   const signal = activity.value?.places?.[kind]
@@ -124,7 +146,7 @@ const activeOfficeCount = computed(() => [...new Set((state.value?.placements ||
 }).length)
 const openTasks = computed(() => tasks.value.filter(task => task.status !== 'done' && !task.completed_at))
 const doneTasks = computed(() => tasks.value.length - openTasks.value.length)
-const protectedBuilding = computed(() => ['headquarters', 'plaza'].includes(selected.value?.kind))
+const protectedBuilding = computed(() => ['headquarters', 'plaza'].includes(selected.value?.kind) || selected.value?.id.startsWith('seed-road-'))
 const toolText = computed(() => mode.value === 'build' ? `Toque no terreno para construir ${chosen.value?.label || ''}` : mode.value === 'move' ? 'Escolha o novo terreno para este prédio' : mode.value === 'remove' ? 'Selecione uma construção para demolir' : '')
 const upgradeCost = computed(() => Number(selectedCatalog.value?.cost || 0) * Number(selected.value?.level || 1))
 const day = computed(() => {
@@ -141,13 +163,16 @@ function applySnapshot(value) {
   if (disposed) return false
   const snapshot = value?.city || value
   if (!snapshot || !Array.isArray(snapshot.placements)) return false
-  if (region && region.id !== 'ilha-inicial' && snapshot.location_id !== region.id) return false
+  if (requestedRegion && snapshot.location_id !== requestedRegion.id) return false
   if (state.value && Number(snapshot.revision) < Number(state.value.revision)) return false
   const previous = state.value
   state.value = snapshot
   if (previous && snapshot.earned > previous.earned) celebrate(snapshot.earned - previous.earned, snapshot.level > previous.level)
   if (!snapshot.source?.connected) engine?.setInUse?.(null)
-  if (selectedId.value && !snapshot.placements.some(item => item.id === selectedId.value)) selectedId.value = null
+  if (selectedId.value && !snapshot.placements.some(item => item.id === selectedId.value)) {
+    if (activeInterior.value || interiorPending.value) closeInterior()
+    selectedId.value = null
+  }
   engine?.setState(snapshot)
   return true
 }
@@ -207,13 +232,21 @@ async function refreshAll(manual = false) {
   finally { refreshing.value = false }
 }
 function updateTool() { engine?.setTool({ mode: mode.value, kind: selectedKind.value, rotation: rotation.value, placementId: selectedId.value }) }
-function cancelTool() { mode.value = 'select'; selectedKind.value = null; rotation.value = 0; updateTool() }
+function cancelTool() {
+  mode.value = 'select'
+  selectedKind.value = null
+  rotation.value = 0
+  roadStart.value = null
+  roadEnd.value = null
+  updateTool()
+}
 function pickItem(item) {
-  if (saving.value || refreshing.value) return
+  if (saving.value || refreshing.value || activeInterior.value) return
+  cancelTool()
   if (state.value.credits < item.cost) { setGoal(item.id); notify(`${item.label} é sua próxima construção. Faltam ${coins(item.cost - state.value.credits)} moedas.`, 'info'); return }
   selectedId.value = null
   selectedKind.value = item.id
-  mode.value = 'build'
+  mode.value = item.id === 'road' && usesRoadEditor.value ? 'road' : 'build'
   rotation.value = 0
   updateTool()
 }
@@ -239,8 +272,82 @@ async function performAction(action, message) {
   }
   finally { saving.value = false }
 }
+function setRoadEndpoint(tile) {
+  if (!roadStart.value || roadEnd.value) {
+    roadStart.value = tile
+    roadEnd.value = null
+    Object.assign(roadCoordinates.value, tile)
+  } else {
+    roadEnd.value = tile
+    Object.assign(roadCoordinates.value, { end_x: tile.x, end_y: tile.y })
+  }
+}
+
+function previewRoadCoordinates() {
+  const { x, y, end_x, end_y } = roadCoordinates.value
+  if (![x, y, end_x, end_y].every(Number.isInteger)) return
+  roadStart.value = { x, y }
+  roadEnd.value = { x: end_x, y: end_y }
+}
+
+async function confirmRoad() {
+  if (!roadEnd.value || !roadPreview.value || roadPreview.value.error || !roadPreview.value.cost) return
+  const { x, y } = roadStart.value
+  const { x: end_x, y: end_y } = roadEnd.value
+  const cost = roadPreview.value.cost
+  if (await performAction({ type: 'road_path', x, y, end_x, end_y }, `Via construída · −${coins(cost)} moedas`)) cancelTool()
+}
+
+function enterInteriorWorkspace(design) {
+  if (!design) return
+  const destination = new URL(design.destination, window.location.origin)
+  if (window.parent !== window && window.parent.location.origin === window.location.origin) {
+    window.parent.location.assign(destination)
+  } else {
+    window.location.assign(destination)
+  }
+}
+
+async function openSelectedInterior() {
+  const placement = selected.value
+  const definition = selectedCatalog.value
+  if (!placement || !definition?.interior || interiorPending.value || activeInterior.value) return
+  interiorReturnFocus = document.activeElement
+  const sequence = ++interiorSequence
+  interiorPending.value = true
+  try {
+    const { buildInterior, getInterior } = await import('./fifones/pilotInteriors.js')
+    if (disposed || sequence !== interiorSequence || selectedId.value !== placement.id) return
+    const design = getInterior(definition.interior)
+    const group = buildInterior(definition.interior, definition)
+    if (!group || !engine?.openInterior(placement.id, group, () => enterInteriorWorkspace(design))) {
+      notify('Não foi possível abrir este interior.', 'error')
+      return
+    }
+    cancelTool()
+    activeInterior.value = { ...design, title: definition.label }
+    nextTick(() => document.querySelector('.pilot-interior-close')?.focus())
+  } catch {
+    if (!disposed) notify('Não foi possível carregar este interior. Tente novamente.', 'error')
+  } finally {
+    if (sequence === interiorSequence) interiorPending.value = false
+  }
+}
+
+function closeInterior() {
+  interiorSequence++
+  interiorPending.value = false
+  engine?.closeInterior()
+  activeInterior.value = null
+  nextTick(() => {
+    const target = interiorReturnFocus?.isConnected ? interiorReturnFocus : document.querySelector('.building-panel .open-building')
+    target?.focus()
+  })
+}
+
 async function onTile({ x, y }) {
-  if (saving.value || refreshing.value || workspace.value) return
+  if (saving.value || refreshing.value || workspace.value || activeInterior.value) return
+  if (mode.value === 'road') { setRoadEndpoint({ x, y }); return }
   historyOpen.value = false
   if (mode.value === 'build' && chosen.value) {
     const item = chosen.value
@@ -252,7 +359,7 @@ async function onTile({ x, y }) {
   }
 }
 function onSelect(placement) {
-  if (saving.value || refreshing.value || workspace.value) return
+  if (saving.value || refreshing.value || workspace.value || activeInterior.value) return
   selectedId.value = placement?.id || null
   if (mode.value === 'remove' && placement) { askRemove(); return }
   if (mode.value !== 'build' && mode.value !== 'move') cancelTool()
@@ -323,6 +430,7 @@ function reloadPage() { window.location.reload() }
 function iframeLoaded() { iframeLoading.value = false; clearTimeout(iframeTimer) }
 function useNav(item) {
   historyOpen.value = false
+  if (activeInterior.value) closeInterior()
   if (item.id === 'city') { closeWorkspace(); cancelTool(); selectedId.value = null; engine?.home() }
   else openWorkspace(item.label, item.path)
 }
@@ -333,9 +441,10 @@ function onKeydown(event) {
   if (event.key === 'Escape') {
     if (confirmation.value) confirmation.value = null
     else if (workspace.value) closeWorkspace()
+    else if (activeInterior.value || interiorPending.value) closeInterior()
     else { cancelTool(); selectedId.value = null; helpOpen.value = false; historyOpen.value = false }
   }
-  if (event.key.toLowerCase() === 'r' && !workspace.value && !confirmation.value) { event.preventDefault(); rotateSelected() }
+  if (event.key.toLowerCase() === 'r' && !workspace.value && !confirmation.value && !activeInterior.value && mode.value !== 'road') { event.preventDefault(); rotateSelected() }
   if (event.key === 'Tab' && (workspace.value || confirmation.value)) {
     const dialog = document.querySelector(confirmation.value ? '.confirmation' : '.workspace')
     const items = dialog?.querySelectorAll('button:not(:disabled), iframe, a[href]')
@@ -380,16 +489,28 @@ onMounted(async () => {
   responsiveMedia.addEventListener('change', onCompactViewport)
   document.addEventListener('keydown', onKeydown)
   document.addEventListener('visibilitychange', onVisibility)
-  try {
-    engine = new CityWorld(canvas.value, { region, onSelect, onTile, onError: error => { sceneError.value = error?.message || String(error) }, onReady: () => { if (state.value) engine?.setState(state.value); engine?.setActivity?.(activity.value) } })
-    window.__fifonesCity = { get state() { return state.value }, get activity() { return activity.value }, get engine() { return engine } }
+  function initializeScene() {
+    if (disposed) return
+    try {
+      engine = new CityWorld(canvas.value, {
+        region: region.value, onSelect, onTile,
+        onError: error => { sceneError.value = error?.message || String(error) },
+        onReady: () => {
+          if (state.value) engine?.setState(state.value)
+          engine?.setActivity?.(activity.value)
+        },
+      })
+      window.__fifonesCity = { get state() { return state.value }, get activity() { return activity.value }, get engine() { return engine } }
+    } catch (error) { sceneError.value = error.message }
   }
-  catch (error) { sceneError.value = error.message }
   const initializeCity = async () => {
-    try { applySnapshot(await loadCity()) }
-    catch (error) { if (!disposed) bootError.value = error.message }
+    try {
+      applySnapshot(await loadCity())
+      if (!requestedRegion) initializeScene()
+    } catch (error) { if (!disposed) bootError.value = error.message }
     finally { if (!disposed) loading.value = false }
   }
+  if (requestedRegion) initializeScene()
   await Promise.allSettled([initializeCity(), reloadWorkspace(), refreshActivity()])
   startPolling()
 })
@@ -410,7 +531,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="city-app" :class="{ 'is-dusk': lighting === 'dusk', 'catalog-hidden': !catalogOpen }">
+  <main class="city-app" :class="{ 'is-dusk': lighting === 'dusk', 'catalog-hidden': !catalogOpen, 'is-cutaway': !!activeInterior }">
     <canvas ref="canvas" class="city-canvas" :aria-label="`Cidade 3D em ${region?.nome ?? 'Rio de Janeiro'}. Arraste para explorar e use a roda do mouse para aproximar.`" />
     <div class="scene-vignette" aria-hidden="true" />
 
@@ -420,7 +541,7 @@ onUnmounted(() => {
         <span class="brand-copy"><strong>Cityou</strong><small>{{ region?.nome ?? 'Sua vida, em construção.' }}</small></span>
       </button>
       <div class="city-location"><span class="location-dot" /><span>{{ region?.nome ?? 'Rio de Janeiro' }}</span><span class="location-line" /><span class="city-day">Dia {{ day }}</span></div>
-      <div class="topbar-right"><a class="city-world-link" href="./world.html">Voltar ao globo</a><span v-if="activeOfficeCount > 0" class="office-activity-count" title="Execuções detectadas/observadas em seus escritórios" :aria-label="`${activeOfficeCount} escritórios com execuções detectadas ou observadas`"><span />{{ activeOfficeCount }}<span class="office-activity-caption">em atividade</span></span>
+      <div class="topbar-right"><small v-if="state?.test_mode" class="pilot-test-mode" title="Oito regiões abertas e créditos de teste">Prévia de teste</small><a class="city-world-link" :href="region ? `./world.html?de=${encodeURIComponent(region.id)}` : './world.html'">Voltar ao globo</a><span v-if="activeOfficeCount > 0" class="office-activity-count" title="Execuções detectadas/observadas em seus escritórios" :aria-label="`${activeOfficeCount} escritórios com execuções detectadas ou observadas`"><span />{{ activeOfficeCount }}<span class="office-activity-caption">em atividade</span></span>
         <div class="save-status" role="status"><span :class="{ busy: saving || refreshing }" />{{ saving ? 'Salvando…' : refreshing ? 'Sincronizando…' : state ? 'Salvo no servidor' : 'Conectando…' }}</div>
         <button class="balance" :aria-label="`Saldo: ${coins(state?.credits)} moedas. Ver histórico`" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen"><span class="coin-glyph"><Icon name="coin" :size="18" /></span><strong>{{ coins(state?.credits) }}</strong><span class="balance-label">moedas</span></button>
         <div class="level-badge" :title="`${progress.remaining} ações recompensadas para o próximo nível`"><span>NÍVEL</span><strong>{{ state?.level || 1 }}</strong><span class="level-track" role="progressbar" aria-label="Progresso para o próximo nível" :aria-valuenow="progress.withinLevel" :aria-valuemin="0" :aria-valuemax="10"><i :style="{ transform: `scaleX(${progress.withinLevel / 10})` }" /></span></div>
@@ -434,7 +555,9 @@ onUnmounted(() => {
       <button class="rail-button help-button" :class="{ active: helpOpen }" aria-label="Como jogar" :aria-expanded="helpOpen" @click="helpOpen = !helpOpen"><Icon name="help" :size="21" /><span class="rail-tooltip">Como jogar</span></button>
     </nav>
 
-    <aside v-if="progress.goal && !loading" class="next-build panel" aria-label="Próxima construção">
+    <aside v-if="scenic && !loading" class="next-build scenic-note panel" aria-label="Sobre a ilha"><span class="eyebrow">ILHA INICIAL</span><p>Aqui é só para contemplar o mar. Suas construções ficam no Rio de Janeiro.</p><a class="goal-action" href="./city.html?local=cristo-redentor"><span>Ir para o Rio de Janeiro</span></a></aside>
+
+    <aside v-if="!scenic && progress.goal && !loading" class="next-build panel" aria-label="Próxima construção">
       <div class="goal-topline"><span class="eyebrow">SUA PRÓXIMA CONSTRUÇÃO</span><span class="goal-ready" v-if="!progress.missing">Pode construir</span><span v-else>{{ Math.round(progress.goalPercent) }}%</span></div>
       <div class="goal-main"><img :src="thumbnail(progress.goal)" alt="" /><div><label class="goal-picker"><span class="sr-only">Escolher próxima construção</span><select :value="progress.goal.id" aria-label="Escolher próxima construção" @change="setGoal($event.target.value)"><option v-for="item in availableCatalog" :key="item.id" :value="item.id">{{ item.label }}</option></select><Icon name="down" :size="14" /></label><span class="goal-cost">{{ coins(Math.min(state.credits, progress.goal.cost)) }} <span>/ {{ coins(progress.goal.cost) }} moedas</span></span></div></div>
       <div class="goal-track" role="progressbar" :aria-label="`Moedas para ${progress.goal.label}`" :aria-valuenow="Math.min(state.credits, progress.goal.cost)" :aria-valuemin="0" :aria-valuemax="progress.goal.cost"><i :style="{ transform: `scaleX(${progress.goalPercent / 100})` }" /></div>
@@ -459,21 +582,56 @@ onUnmounted(() => {
       </div>
     </aside>
 
-    <section v-if="selected && !workspace" class="building-panel panel" aria-label="Construção selecionada">
-      <div class="building-heading"><img v-if="selectedCatalog" :src="thumbnail(selectedCatalog)" alt="" /><div><span class="eyebrow">NA SUA CIDADE</span><h2>{{ selectedCatalog?.label || selected.kind }}</h2><p>Nível {{ selected.level || 1 }} <span>· {{ selected.x }}, {{ selected.y }}</span></p></div><button class="icon-button" aria-label="Fechar detalhes da construção" @click="selectedId = null; cancelTool()"><Icon name="close" :size="16" /></button></div>
+    <section v-if="selected && !workspace && !activeInterior" class="building-panel panel" aria-label="Construção selecionada">
+      <div class="building-heading"><img v-if="selectedCatalog" :src="thumbnail(selectedCatalog)" alt="" /><div><span class="eyebrow">NA SUA CIDADE</span><h2>{{ selected.nome || selectedCatalog?.label || selected.kind }}</h2><p v-if="selected.activity_id">{{ selectedCatalog?.label }} <span>· {{ selected.x }}, {{ selected.y }}</span></p><p v-else>Nível {{ selected.level || 1 }} <span>· {{ selected.x }}, {{ selected.y }}</span></p></div><button class="icon-button" aria-label="Fechar detalhes da construção" @click="selectedId = null; cancelTool()"><Icon name="close" :size="16" /></button></div>
+      <div v-if="selected.activity_id" class="building-stage"><strong>{{ selected.etapa_nome }}</strong><span>{{ selected.dias }} {{ selected.dias === 1 ? 'dia' : 'dias' }} com prática · {{ selected.semanas }} {{ selected.semanas === 1 ? 'semana' : 'semanas' }}</span><i class="stage-track" role="progressbar" aria-label="Etapa do prédio" :aria-valuenow="selected.etapa" aria-valuemin="0" aria-valuemax="4"><b :style="{ transform: `scaleX(${selected.etapa / 4})` }" /></i><small v-if="selected.proxima">Próxima etapa, {{ selected.proxima.etapa_nome }}: {{ selected.proxima.dias }} dias em {{ selected.proxima.semanas }} semanas com prática. O prédio avança com a sua prática, no seu ritmo.</small><small v-else>Prédio concluído.</small></div>
       <div v-if="selectedActivity" class="building-activity" :class="`signal-${selectedActivity.state}`"><span class="activity-dot" /><span>{{ selectedActivity.label }}</span></div>
-      <button v-if="selected.target || selectedCatalog?.destination" class="open-building" @click="openWorkspace(selectedCatalog?.label || 'Seu espaço', selected.target || selectedCatalog?.destination)">Entrar neste espaço <Icon name="arrow" :size="16" /></button>
-      <div class="building-actions"><button :disabled="saving || refreshing" :class="{ selected: mode === 'move' }" @click="moveSelected"><Icon name="move" :size="17" /><span>Mover</span></button><button :disabled="saving || refreshing" @click="rotateSelected"><Icon name="rotate" :size="17" /><span>Girar</span></button><button v-if="!protectedBuilding" :disabled="saving || refreshing || selected.level >= 3 || state.credits < upgradeCost" :title="selected.level >= 3 ? 'Nível máximo' : `Evoluir por ${upgradeCost} moedas`" @click="upgradeSelected"><Icon name="upgrade" :size="17" /><span>{{ selected.level >= 3 ? 'Máximo' : `Evoluir · ${upgradeCost}` }}</span></button><button v-if="!protectedBuilding" class="danger-action" :disabled="saving || refreshing" @click="askRemove"><Icon name="demolish" :size="17" /><span>Demolir</span></button></div>
+      <button v-if="selectedCatalog?.interior" class="open-building" :disabled="interiorPending" @click="openSelectedInterior">{{ interiorPending ? 'Abrindo interior…' : 'Abrir corte do prédio' }} <Icon name="expand" :size="16" /></button>
+      <button v-else-if="selected.target || selectedCatalog?.destination" class="open-building" @click="openWorkspace(selectedCatalog?.label || 'Seu espaço', selected.target || selectedCatalog?.destination)">Entrar neste espaço <Icon name="arrow" :size="16" /></button>
+      <div class="building-actions"><button :disabled="saving || refreshing" :class="{ selected: mode === 'move' }" @click="moveSelected"><Icon name="move" :size="17" /><span>Mover</span></button><button :disabled="saving || refreshing" @click="rotateSelected"><Icon name="rotate" :size="17" /><span>Girar</span></button><button v-if="!protectedBuilding && !selected.activity_id" :disabled="saving || refreshing || selected.level >= 3 || state.credits < upgradeCost" :title="selected.level >= 3 ? 'Nível máximo' : `Evoluir por ${upgradeCost} moedas`" @click="upgradeSelected"><Icon name="upgrade" :size="17" /><span>{{ selected.level >= 3 ? 'Máximo' : `Evoluir · ${upgradeCost}` }}</span></button><button v-if="!protectedBuilding" class="danger-action" :disabled="saving || refreshing" @click="askRemove"><Icon name="demolish" :size="17" /><span>Demolir</span></button></div>
     </section>
+
+    <section v-if="activeInterior" class="pilot-interior-panel panel" aria-label="Interior do prédio">
+      <h2>{{ activeInterior.title }}</h2>
+      <button class="primary-button" type="button" @click="enterInteriorWorkspace(activeInterior)">{{ activeInterior.label }}</button>
+      <button class="secondary-button pilot-interior-close" type="button" @click="closeInterior">Fechar interior</button>
+    </section>
+
+    <section v-if="mode === 'road'" class="road-editor panel" aria-label="Traçar uma via">
+      <p role="status">{{ roadEnd ? (roadPreview?.error || `Trecho · ${coins(roadPreview?.cost)} moedas`) : roadStart ? 'Toque no fim do trecho.' : 'Toque no início da via.' }}</p>
+      <div class="road-editor-actions">
+        <button class="primary-button" :disabled="saving || !roadEnd || !!roadPreview?.error || !roadPreview?.cost" @click="confirmRoad">Confirmar via</button>
+        <button class="secondary-button" :disabled="saving" @click="cancelTool">Cancelar</button>
+      </div>
+      <details>
+        <summary>Usar coordenadas</summary>
+        <form class="road-editor-fields" @submit.prevent="previewRoadCoordinates">
+          <label>Início X<input v-model.number="roadCoordinates.x" type="number" :min="state.grid_min" :max="state.grid_max" required /></label>
+          <label>Início Y<input v-model.number="roadCoordinates.y" type="number" :min="state.grid_min" :max="state.grid_max" required /></label>
+          <label>Fim X<input v-model.number="roadCoordinates.end_x" type="number" :min="state.grid_min" :max="state.grid_max" required /></label>
+          <label>Fim Y<input v-model.number="roadCoordinates.end_y" type="number" :min="state.grid_min" :max="state.grid_max" required /></label>
+          <button type="submit" class="secondary-button">Prévia da via</button>
+        </form>
+      </details>
+    </section>
+
+    <details v-if="usesRoadEditor && (mode === 'build' || mode === 'move')" class="tile-coordinates panel">
+      <summary>Escolher terreno por coordenadas</summary>
+      <form class="road-editor-fields" @submit.prevent="onTile(tileCoordinates)">
+        <label>Coluna X<input v-model.number="tileCoordinates.x" type="number" :min="state.grid_min" :max="state.grid_max" required /></label>
+        <label>Linha Y<input v-model.number="tileCoordinates.y" type="number" :min="state.grid_min" :max="state.grid_max" required /></label>
+        <button type="submit" class="secondary-button" :disabled="saving || refreshing">Usar terreno</button>
+      </form>
+    </details>
 
     <div v-if="toolText && !workspace" class="tool-hint" role="status"><span class="hint-dot" /><span>{{ toolText }}</span><kbd>R</kbd><span class="rotation-hint">girar</span><button aria-label="Girar construção" title="Girar construção (R)" @click="rotateSelected"><Icon name="rotate" :size="16" /></button><button aria-label="Cancelar construção" @click="cancelTool"><Icon name="close" :size="16" /></button></div>
 
-    <section class="catalog panel" :class="{ 'catalog-is-closed': !catalogOpen }" aria-label="Catálogo de construções">
+    <section v-if="!scenic" class="catalog panel" :class="{ 'catalog-is-closed': !catalogOpen }" aria-label="Catálogo de construções">
       <div class="catalog-toolbar"><button class="catalog-title" :aria-expanded="catalogOpen" @click="catalogOpen = !catalogOpen"><span class="build-icon"><Icon name="plus" :size="18" /></span>Construir <Icon name="down" :size="14" /></button><div v-if="catalogOpen" class="catalog-filters" role="group" aria-label="Filtrar construções"><button :class="{ selected: activeFilter === 'all' }" @click="activeFilter = 'all'">Tudo</button><button :class="{ selected: activeFilter === 'life' }" @click="activeFilter = 'life'">Bairro</button><button :class="{ selected: activeFilter === 'work' }" @click="activeFilter = 'work'">Seus espaços</button></div><span v-if="catalogOpen" class="catalog-spacer" /><button v-if="catalogOpen" class="select-tool" :class="{ selected: mode === 'select' }" aria-label="Selecionar construção" @click="cancelTool"><Icon name="pointer" :size="16" /><span>Selecionar</span></button></div>
       <div v-if="catalogOpen" class="catalog-items"><button v-for="item in filteredCatalog" :key="item.id" class="catalog-card" :class="{ chosen: selectedKind === item.id, unaffordable: state.credits < item.cost, 'is-goal': progress.goal?.id === item.id }" :aria-pressed="selectedKind === item.id" :aria-label="`Construir ${item.label}, ${item.cost} moedas`" :disabled="saving || refreshing" @click="pickItem(item)"><span class="card-thumbnail"><img :src="thumbnail(item)" alt="" loading="eager" /></span><span class="card-name">{{ item.label }}</span><span class="card-price"><Icon name="coin" :size="12" />{{ coins(item.cost) }}</span><span v-if="state.credits < item.cost" class="card-missing">Faltam {{ coins(item.cost - state.credits) }}</span><span v-else class="card-missing card-fit">{{ item.width }} × {{ item.depth }} terrenos</span><span v-if="progress.goal?.id === item.id" class="card-goal-dot" title="Sua próxima construção" /><span v-if="selectedKind === item.id" class="card-selected"><Icon name="check" :size="11" /></span></button><div v-if="!filteredCatalog.length" class="catalog-empty">{{ loading ? 'Preparando sua cidade…' : 'O catálogo aparece quando a cidade se conectar.' }}</div></div>
     </section>
 
-    <div class="view-controls"><div class="light-switch" role="group" aria-label="Iluminação da cidade"><button :class="{ selected: lighting === 'day' }" aria-label="Luz do dia" :aria-pressed="lighting === 'day'" @click="setLighting('day')"><Icon name="sun" :size="18" /></button><button :class="{ selected: lighting === 'dusk' }" aria-label="Entardecer" :aria-pressed="lighting === 'dusk'" @click="setLighting('dusk')"><Icon name="moon" :size="17" /></button></div><div class="camera-controls"><button aria-label="Girar câmera" title="Girar câmera" @click="engine?.rotateCamera()"><Icon name="rotate" :size="18" /></button><button aria-label="Voltar à vista inicial" title="Vista inicial" @click="engine?.home()"><Icon name="expand" :size="18" /></button></div><span class="view-caption">{{ lighting === 'day' ? 'Luz do dia' : 'Entardecer' }}<span>·</span>Rio 2035</span></div>
+    <div class="view-controls"><div class="light-switch" role="group" aria-label="Iluminação da cidade"><button :class="{ selected: lighting === 'day' }" aria-label="Luz do dia" :aria-pressed="lighting === 'day'" @click="setLighting('day')"><Icon name="sun" :size="18" /></button><button :class="{ selected: lighting === 'dusk' }" aria-label="Entardecer" :aria-pressed="lighting === 'dusk'" @click="setLighting('dusk')"><Icon name="moon" :size="17" /></button></div><div class="camera-controls"><button aria-label="Girar câmera" title="Girar câmera" @click="engine?.rotateCamera()"><Icon name="rotate" :size="18" /></button><button aria-label="Voltar à vista inicial" title="Vista inicial" @click="engine?.home()"><Icon name="expand" :size="18" /></button></div><span class="view-caption">{{ lighting === 'day' ? 'Luz do dia' : 'Entardecer' }}<span>·</span>{{ region?.nome ?? 'Rio 2035' }}</span></div>
 
     <div v-if="helpOpen" class="help-popover panel"><button class="icon-button" aria-label="Fechar ajuda" @click="helpOpen = false"><Icon name="close" :size="16" /></button><h2>Cuide da vida.<br />Construa sua cidade.</h2><p>Você começa com 50 moedas. Tarefas concluídas valem 10; hábitos, 5. A cada 10 recompensas, seu nível sobe e a cidade ganha mais espaço.</p><dl><div><dt>Explorar</dt><dd>Arraste a cidade</dd></div><div><dt>Aproximar</dt><dd>Role o mouse</dd></div><div><dt>Girar construção</dt><dd><kbd>R</kbd></dd></div><div><dt>Cancelar</dt><dd><kbd>Esc</kbd></dd></div></dl><p class="help-footnote">Seu progresso fica salvo neste computador.</p></div>
 

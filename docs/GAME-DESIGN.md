@@ -103,7 +103,10 @@ O globo tem 8 locais: a Ilha Inicial e 7 monumentos (Cristo Redentor, Machu Picc
 - **Nada se perde ao viajar.** As cidades anteriores continuam no globo. A pessoa pode voltar a qualquer uma, sem custo, e seguir melhorando.
 - **Créditos, XP e nível são da pessoa**, não da cidade. O saldo é um só.
 - **Prédios de domínio são por cidade.** O progresso do domínio (XP e semanas ativas) é da pessoa: numa cidade nova, o prédio começa do terreno, mas avança no ritmo do que ela já pratica.
-- **Tamanho do terreno.** O raio liberado cresce com o nível: `3 + nível ÷ 3`, até 8.
+- **Tamanho do terreno.** Todo o terreno é construível desde o começo (17×17 nas cidades antigas, 33×33 nas ilhas-piloto, respeitando água, encosta e rua de acesso). A cidade vista de cima ocupa o mapa até perto das bordas; o crescimento por nível foi removido.
+- **Ilha Inicial só de cenário.** Sem ruas, prédios nem catálogo (`scenic: true` em `shared/game/city-layout.js`; o servidor recusa qualquer ação de construção com 422). Ela mostra mar aberto, coqueiros, rochas, recife, espuma, golfinhos, tartarugas e gaivotas. A cidade onde se constrói é o **Rio de Janeiro**, que já nasce aberto (sem viagem), e a ilha conta como concluída; a primeira construção no Rio vale a primeira vaga de viagem, hoje fechada.
+- **Prédios das atividades.** Cada hábito, tarefa ou meta com área vira um prédio 2×2 (`dom-<área>`), mais alto que os do catálogo, posto sozinho perto do centro e nomeado pelo `local` ou título da atividade. A etapa (Terreno, Fundação, Estrutura, Acabamento, Concluído) vem dos dias e semanas com prática (8/30/70/120 dias; 2/8/16/26 semanas), calculada no servidor. Ficam fora do catálogo manual.
+- **Monumento da região.** O modelo do Tripo da região aparece maior (base ~8,8, altura ~7,6) e mais perto do terreno.
 
 A tela de um local bloqueado diz o que falta em linguagem direta: "Nível 10 (você está no 8)", "Banco na etapa estrutura (está na fundação)", "250 créditos (você tem 180)".
 
@@ -157,6 +160,47 @@ Os prédios de IA do catálogo atual (ChatGPT, Claude, Gemini, Grok, StuntSync) 
 | Transporte | 1 modelo (barco ou avião) para a animação de viagem | B5 |
 
 Os prompts para o Tripo entram em `TRIPO-PROMPTS.md` na fase B6. Até a arte existir, cada etapa usa um modelo provisório em código, como `src/world/monuments.js` faz para os monumentos.
+
+## O que já está implementado (demonstração em produção)
+
+O PR #8 (`codex/regional-cities`) colocou no ar uma versão simples, sem login, que já segue a ideia de uma cidade por local. Os documentos abaixo descrevem o alvo; esta seção diz onde o código de hoje está diferente.
+
+| Tema | Hoje, em produção | Alvo deste documento |
+|---|---|---|
+| Cidade por local | Uma cidade por local, com terreno, construções e histórico próprios (`city.html?local=<id>`); créditos e recompensas são da pessoa, compartilhados entre as cidades | Igual |
+| Escolha do destino | Qualquer local ainda bloqueado pode ser escolhido na hora de viajar | Igual |
+| Condição para viajar | **Viagens fechadas por enquanto** (`TRAVEL_OPEN=false` em `wrangler.jsonc`). A regra de construir um prédio para liberar uma viagem fica suspensa. A prévia de teste abre os oito destinos em sessões isoladas | Nível mínimo + prédios na etapa certa + passagem em créditos |
+| XP e nível | Não existe XP. O "nível" da cidade é `1 + recompensas ÷ 10` e define o tamanho do terreno | XP separado de créditos, nível pela curva de `shared/game/rules.js` |
+| Presença | Não existe | Bônus pelo ritmo dos últimos 7 dias |
+| Recompensas | Tarefa, hábito e meta concluída pagam créditos de `RULES.rewards`; teto diário por `RULES.paidHabitsPerDay` e `RULES.paidTasksPerDay` | Igual, mais XP e bônus de presença |
+| Prédios de domínio | Não existem; o catálogo é o antigo (Tarefas, Agenda, Memória, Projetos, IA) | Cinco etapas por uso real e melhorias escolhidas |
+| Onde ficam os dados | Durable Object com SQLite por visitante (cookie `cityou_demo`, 30 dias) | Conta com login e banco em São Paulo |
+
+A regra de viagem de hoje é mais simples e mais fácil de entender (construa e escolha para onde ir). Proponho mantê-la como primeira fase e acrescentar nível e passagem depois, quando existirem XP e prédios de domínio. É decisão sua.
+
+## Comprovação das atividades (anti-trapaça sem vigilância)
+
+Créditos só valem se a pessoa estiver de fato se cuidando. O app não tem como provar isso, então o desenho é: **marcar vale sempre; comprovar rende mais.**
+
+| | Marcar sem comprovar | Marcar com comprovação |
+|---|---|---|
+| O que é | O toque de hoje (como já era) | Um relato de pelo menos 20 caracteres **ou** uma foto, anexado à atividade feita |
+| Recompensa | A de sempre | A de sempre **+5 créditos** |
+| Teto | 8 hábitos pagos e 10 tarefas pagas por dia | No máximo **3 bônus por dia**, um por atividade |
+| Quem vê | Só a pessoa | Só a pessoa (a foto não aparece para mais ninguém) |
+
+Medidas que dificultam o abuso, todas no servidor:
+
+- Uma foto só vale uma vez: o servidor guarda a impressão digital (SHA-256) e recusa a mesma foto em outra comprovação. Foto parecida, mas não idêntica, não é detectada.
+- O dia e a hora vêm do servidor; só vale o dia de hoje.
+- Foto só em JPEG ou WebP, até 250 KB, conferida pelos primeiros bytes do arquivo; o app reduz a foto no aparelho antes de enviar.
+- A comprovação não dá XP nem conta para o nível: só créditos.
+
+**Limite que precisa ficar claro:** quem quiser enganar o app consegue (uma foto qualquer, um texto inventado). A comprovação só aumenta o esforço de quem quer o bônus e põe um teto no ganho. Verificar a foto de verdade pediria um modelo de visão, com custo e questões de privacidade; não está no plano. Não há punição por não comprovar.
+
+## Nomes dos prédios
+
+O nome de um prédio vem da própria vida da pessoa: o **local ou atividade** que ela preenche ao criar um hábito, meta ou tarefa (campo "Local ou atividade", por exemplo "Academia Central"), na aba de organização do dia. A **área** (saúde, alimentação, finanças, estudos, mente, organização) define o tipo do prédio. O app não inventa nomes. Isso já é guardado em cada atividade; construir o prédio a partir dela é a próxima fase.
 
 ## O que veio do estudo de city builders
 

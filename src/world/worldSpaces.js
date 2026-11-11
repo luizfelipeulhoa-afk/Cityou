@@ -50,7 +50,7 @@ export const WORLD_SPACES = Object.freeze([
   space({
     id: 'petra', ordem: 6, nome: 'Petra', local: 'Ma’an · Jordânia',
     descricao: 'A cidade rosa esculpida na rocha.',
-    lat: 30.33, lon: 35.44, cor: '#ff7eb3', placeholder: 'petra', escala: 0.92,
+    lat: 30.33, lon: 35.44, cor: '#ff7eb3', placeholder: 'petra',
   }),
   space({
     id: 'taj-mahal', ordem: 7, nome: 'Taj Mahal', local: 'Agra · Índia',

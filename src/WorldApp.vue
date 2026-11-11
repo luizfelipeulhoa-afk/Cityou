@@ -10,8 +10,12 @@ const progress = ref(loadProgress())
 const mode = ref('loading')
 const syncStatus = ref('local')
 const availableTrips = ref(0)
+const travelOpen = ref(true)
 const visitError = ref('')
 const visiting = ref(false)
+const arrival = ref(null)
+const returnedFrom = new URLSearchParams(window.location.search).get('de')
+let departureTimer
 const listOpen = ref(false)
 const selectedId = ref(null)
 const map = ref(null)
@@ -22,6 +26,7 @@ function acceptRegionalProgress(value) {
   mode.value = 'regional'
   progress.value = value
   availableTrips.value = value.viagens_disponiveis
+  travelOpen.value = value.viagens_abertas !== false
   syncStatus.value = 'sincronizado'
 }
 
@@ -61,7 +66,7 @@ watch(progress, p => {
 }, { deep: true })
 const onPageHide = () => sync?.flushOnExit()
 onMounted(() => { void loadMap(); window.addEventListener('pagehide', onPageHide) })
-onBeforeUnmount(() => { window.removeEventListener('pagehide', onPageHide); sync?.stop() })
+onBeforeUnmount(() => { window.removeEventListener('pagehide', onPageHide); sync?.stop(); clearTimeout(departureTimer) })
 
 const spaces = computed(() => applyProgress(WORLD_SPACES, progress.value))
 const done = computed(() => spaces.value.filter(s => s.concluido).length)
@@ -94,10 +99,23 @@ function dismissHint() {
 }
 
 function enterCity(id) {
+  const destination = spaces.value.find(space => space.id === id)
+  if (!destination || arrival.value) return
   visiting.value = true
   const url = new URL('./city.html', window.location.href)
   url.searchParams.set('local', id)
-  window.location.assign(url)
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    window.location.assign(url)
+    return
+  }
+  arrival.value = destination
+  departureTimer = setTimeout(() => window.location.assign(url), 200)
+}
+
+function restoreDestination() {
+  if (!WORLD_SPACES.some(space => space.id === returnedFrom)) return
+  map.value?.focusSpace(returnedFrom, { instant: true })
+  nextTick(() => document.querySelector('.world-app__menu')?.focus({ preventScroll: true }))
 }
 
 function onOpen(id) {
@@ -160,8 +178,11 @@ function stateLabel(space) {
 
 <template>
   <main class="world-app">
-    <WorldMap ref="map" :progress="progress" :regional="mode === 'regional'" class="world-app__map" @open-world="onOpen" @locked="onLocked" @update:progress="mode === 'legacy' && (progress = $event)" @interact="dismissHint" @select="dismissHint" />
+    <WorldMap ref="map" :progress="progress" :regional="mode === 'regional'" class="world-app__map" @open-world="onOpen" @locked="onLocked" @ready="restoreDestination" @update:progress="mode === 'legacy' && (progress = $event)" @interact="dismissHint" @select="dismissHint" />
 
+    <div v-if="arrival" class="world-app__departure" :style="{ '--destination-color': arrival.cor }" role="status">
+      <strong>{{ arrival.nome }}</strong>
+    </div>
     <header class="world-app__hud">
       <div class="world-app__brand">
         <span class="world-app__logo" aria-hidden="true">B</span>
@@ -206,7 +227,7 @@ function stateLabel(space) {
         </button>
         <div v-if="mode === 'regional'" class="world-app__goal">
           <small>{{ spaces.filter(space => space.desbloqueado).length }} de {{ spaces.length }} cidades abertas</small>
-          <strong>{{ availableTrips ? 'Escolha um novo destino' : 'Visite uma cidade' }}</strong>
+          <strong>{{ !travelOpen ? 'Desenvolva sua cidade' : availableTrips ? 'Escolha um novo destino' : 'Visite uma cidade' }}</strong>
         </div>
         <div v-else-if="finished" class="world-app__goal">
           <small>Jornada completa</small>
@@ -227,7 +248,7 @@ function stateLabel(space) {
         <h1>{{ selected.nome }}</h1>
         <p class="world-app__place">{{ selected.local }}</p>
         <p v-if="mode === 'legacy'">{{ selected.descricao }}</p>
-        <p v-else-if="!selected.desbloqueado">{{ availableTrips ? 'Use uma viagem disponível para abrir sua cidade aqui.' : 'Construa seu primeiro prédio em uma cidade aberta para ganhar uma viagem.' }}</p>
+        <p v-else-if="!selected.desbloqueado">{{ !travelOpen ? 'As viagens ainda não estão abertas. Por enquanto, desenvolva a cidade onde você está.' : availableTrips ? 'Use uma viagem disponível para abrir sua cidade aqui.' : 'Construa seu primeiro prédio em uma cidade aberta para ganhar uma viagem.' }}</p>
         <p v-if="visitError" role="alert">{{ visitError }}</p>
         <div class="world-app__actions">
           <button v-if="mode === 'regional' && selected.desbloqueado" type="button" class="is-primary" @click="enterCity(selected.id)">Entrar na cidade</button>
@@ -261,6 +282,18 @@ body {
   color: #f4f7ff;
 }
 .world-app__map { position: absolute; inset: 0; }
+.world-app__departure {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  background: #0b1430;
+  color: var(--destination-color);
+  font-size: clamp(24px, 5vw, 48px);
+  animation: departure 200ms ease-out both;
+}
+@keyframes departure { from { opacity: 0; } to { opacity: 1; } }
 .world-app button { font: inherit; color: inherit; cursor: pointer; }
 .world-app button:focus-visible { outline: 2px solid #ffd166; outline-offset: 2px; }
 

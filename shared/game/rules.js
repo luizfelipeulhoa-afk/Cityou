@@ -2,6 +2,9 @@
 // Sem banco, sem rede, sem relógio próprio: tudo entra por parâmetro.
 // Os números são propostas de docs/GAME-DESIGN.md e mudam aqui, num lugar só.
 
+// Áreas da vida. Cada atividade pertence a uma; é o que dá nome e tipo ao prédio dela na cidade.
+export const DOMAINS = Object.freeze(['saude', 'alimentacao', 'financas', 'estudos', 'mente', 'organizacao'])
+
 export const RULES = Object.freeze({
   levelCap: 60,
   xpBase: 100,       // XP do nível 1 para o 2
@@ -28,6 +31,9 @@ export const RULES = Object.freeze({
   ]),
   // O que cada nível libera. Nível é porta, não poder.
   unlocks: Object.freeze({ 5: ['travel'] }),
+  // Comprovação opcional: foto ou texto anexados a uma atividade feita. Rende um bônus em créditos, com teto diário.
+  // O app não consegue provar que a atividade aconteceu; a comprovação só eleva o esforço de quem quiser o bônus.
+  proof: Object.freeze({ bonusCredits: 5, maxBonusPerDay: 3, noteMinChars: 20, noteMaxChars: 500, photoMaxBytes: 250_000, maxStored: 100 }),
 })
 
 /** XP para ir do nível `level` ao seguinte. */

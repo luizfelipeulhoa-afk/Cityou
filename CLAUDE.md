@@ -24,7 +24,7 @@ Organização pessoal gamificada. O repositório tem três páginas Vite e um ba
 - `terrain.js` + `continents.js`: geração do globo (terra/mar, relevo, biomas, cor por face).
 - `SpaceMarker.js`: GLB ou monumento em código, normalização de escala, medida da base, anel de chão, estados e animações de cada espaço.
 - `models.js`: de onde vem cada GLB (`models.json` do build, com hash no nome e cache imutável, ou `manifest.json`).
-- `monuments.js`: os 8 monumentos low poly feitos em código, usados quando não há GLB. Ilha Inicial, Cristo Redentor, Chichén Itzá, Coliseu, Petra, Taj Mahal e Grande Muralha já têm GLB do Tripo (só o Machu Picchu ainda usa o de código); o GLB, quando existe, tem prioridade.
+- `monuments.js`: os 8 monumentos low poly feitos em código, usados quando não há GLB. Ilha Inicial, Cristo Redentor, Machu Picchu, Chichén Itzá, Coliseu, Taj Mahal e Grande Muralha já têm GLB do Tripo (só o Petra usa o de código); o GLB, quando existe, tem prioridade.
 - `worldSpaces.js`: os 8 espaços. `progress.js`: progresso (funções puras + localStorage). `geo.js`: `latLonToVector3`.
 - `src/components/WorldMap.vue`: componente (`v-model:progress`, evento `open-world`, painel de debug com a tecla D ou `?debug=1`).
 - `src/components/WorldMapHud.vue`: etiqueta do destino, seta de borda, controles da câmera e aviso de carga.
@@ -49,7 +49,11 @@ O FastAPI acima é local e sem usuário. O destino é um Worker do Cloudflare co
 - `docs/INTERACTIONS.md`: cada tela, botão e atalho, com a rota e a tabela que toca.
 - `docs/API.md`: contrato das rotas, o destino de cada rota atual e as metas de velocidade.
 
-Código: `worker/` (entrada em `worker/index.js`, uma rota por arquivo em `worker/routes/`), esquema em `migrations/*.sql`. `npm run test:worker` roda os testes contra um D1 local (`wrangler.test.jsonc`). `npm run dev:worker` sobe site e API na porta 8787; para o Vite usar essa API, `CITYOU_API=http://127.0.0.1:8787 npm run dev`. `npm run perf:api -- <url>` mede a latência. O banco de produção ainda não está ligado em `wrangler.jsonc`.
+Código: `worker/` (entrada em `worker/index.js`, uma rota por arquivo em `worker/routes/`), esquema em `migrations/*.sql`. `npm run test:worker` roda os testes contra um D1 local (`wrangler.test.jsonc`). `npm run dev:worker` sobe site e API na porta 8787; para o Vite usar essa API, `CITYOU_API=http://127.0.0.1:8787 npm run dev`. `npm run perf:api -- <url>` mede a latência. Em produção já existe uma **demonstração com persistência**, sem login: cada visitante recebe um cookie (`cityou_demo`) e seus registros ficam num Durable Object com SQLite (`worker/demo.js`, binding `DEMO_SESSIONS`), com validação da cidade em `worker/city.js` e catálogo em `shared/game/city-catalog.json`. Os dados expiram em 30 dias. Ela atende as rotas de hoje (`/api/personal`, `/api/city`, `/api/world/*`); o login e o banco em São Paulo descritos nos documentos são o passo seguinte.
+
+Painel de progresso (créditos, nível, bônus): `docs/DASHBOARD.md`; o contrato `resumo` está em `shared/game/summary.js`. Comprovação das atividades: `shared/game/proof.js` e a seção "Comprovação" de `docs/GAME-DESIGN.md`. Viagens de produção ficam fechadas por `TRAVEL_OPEN=false` em `wrangler.jsonc`. A prévia tem acesso aos oito destinos e carteira de teste isolada.
+
+Prédios de atividade: `shared/game/buildings.js` (área→tipo `dom-*`, etapas por dias e semanas); a ação `build` aceita `activity_id` sem x/y e o servidor escolhe o lote (`findSite` em `worker/city.js`). Todo o terreno é construível (`buildRadius`). A Ilha Inicial é só cenário (`isScenicCity`); sem `?local`, a cidade é o Rio (`DEFAULT_CITY` em `worker/demo.js`), já aberto.
 
 Regras do jogo: `shared/game/rules.js` (puro, sem banco; `npm test`). O estudo de referência de city builders está em `docs/research/estudo-city-builders.md`; o que foi adotado e o que ficou de fora está em `docs/GAME-DESIGN.md`. Onde os dados ficam é decisão em aberto (`docs/DATA-MODEL.md`).
 
@@ -61,6 +65,7 @@ Procedência e revisão em `.claude/skills/SOURCES.md`. Use por assunto:
 
 - Animação: `gsap-core`, `gsap-timeline`, `gsap-performance`, `gsap-frameworks`, `animation-performance`, `emil-design-eng`.
 - 3D: `threejs-performance`, `threejs-shaders`, `threejs-loaders`, `threejs-asset-pipeline`, `threejs-interaction`, `threejs-geometry`, `threejs-game-ui-designer`, `threejs-debug-profiler`, `threejs-qa-release`.
+- Mecânicas de jogo em Three.js: `threejs-gameplay-systems`. Usabilidade e formulários: `ux-heuristics`, `form-design`.
 - Vue: `vue-best-practices`.
 - Web: `performance`, `core-web-vitals`, `accessibility`, `web-quality-audit`, `web-perf`.
 - Backend: `fastapi`, `async-python-patterns`, `api-design-principles`.
