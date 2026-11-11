@@ -20,6 +20,10 @@ Kit montado em 10/11/2026 para o trabalho no BuildU (mapa-mundo, UI, backend e d
 | ux-heuristics | [wondelai/skills](https://github.com/wondelai/skills) | `d8d5d75` (02/11/2026) | MIT |
 | form-design | [owl-listener/designer-skills](https://github.com/owl-listener/designer-skills) | `9a6930c` (05/09/2026) | MIT |
 | find-skills | [vercel-labs/skills](https://github.com/vercel-labs/skills) | `e781cb4` (10/11/2026) | MIT |
+| ui-ux-pro-max, design-system, ui-styling, design | [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | `6ae86f6` (10/11/2026) | MIT |
+| impeccable | [pbakaus/impeccable](https://github.com/pbakaus/impeccable) | `c1e0e54` (10/11/2026) | Apache-2.0 |
+| gsap-plugins, gsap-utils, gsap-scrolltrigger | [greensock/gsap-skills](https://github.com/greensock/gsap-skills) (oficial) | `aed9cfd` (21/04/2026) | MIT |
+| frontend-design | `SKILL.md` da pesquisa de skills feita no Gemini (11/11/2026), baseada na skill frontend-design da Anthropic | sem commit | conforme o `LICENSE.txt` citado no frontmatter |
 | fastapi | pacote `fastapi==0.141.1` do PyPI (`fastapi/.agents/skills/fastapi`) | wheel 0.141.1 | MIT |
 
 Os textos de licença estão em `LICENSES/`.
@@ -34,6 +38,8 @@ Só arquivos `.md` (o `SKILL.md` e as referências de cada skill). Ficaram de fo
 - Configurações de plugin, hooks e servidores MCP dos repositórios de origem. Do Cloudflare vieram só as skills, sem o servidor MCP remoto.
 
 ## Revisão feita
+
+- 11/11/2026: entraram 9 skills (88 arquivos `.md`). Varredura automática igual à anterior, sem achados relevantes. Só os `.md` foram copiados; os scripts Python, CSVs, fontes e o CLI da `impeccable` ficaram de fora. As menções a `GEMINI_API_KEY` e similares na `design` são exemplos de configuração, nada foi configurado.
 
 - Varredura automática em todos os 85 arquivos antes da cópia, procurando: instruções para ignorar regras, esconder algo do usuário, burlar permissões, comandos de shell perigosos, leitura de segredos, ativação forçada e caracteres invisíveis. Nenhum achado relevante. Os hosts citados são de documentação (`developers.cloudflare.com`, `web.dev`, `gsap.com`, `api.tripo3d.ai` e similares).
 - Conferido o frontmatter (`name` e `description`) das 28 skills.

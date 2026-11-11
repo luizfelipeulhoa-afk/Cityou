@@ -63,7 +63,8 @@ Regras fixas: o navegador nunca envia XP, créditos, nível ou desbloqueio; nenh
 
 Procedência e revisão em `.claude/skills/SOURCES.md`. Use por assunto:
 
-- Animação: `gsap-core`, `gsap-timeline`, `gsap-performance`, `gsap-frameworks`, `animation-performance`, `emil-design-eng`.
+- Animação: `gsap-core`, `gsap-timeline`, `gsap-performance`, `gsap-frameworks`, `gsap-plugins`, `gsap-utils`, `gsap-scrolltrigger`, `animation-performance`, `emil-design-eng`.
+- Visual e UI: `frontend-design` (direção estética), `impeccable` (crítica e polimento), `ui-ux-pro-max` (regras de UX e checklist), `design-system` (tokens e componentes), `ui-styling` (Tailwind/shadcn, só como referência: o app usa Vue), `design` (logo, ícones e identidade).
 - 3D: `threejs-performance`, `threejs-shaders`, `threejs-loaders`, `threejs-asset-pipeline`, `threejs-interaction`, `threejs-geometry`, `threejs-game-ui-designer`, `threejs-debug-profiler`, `threejs-qa-release`.
 - Mecânicas de jogo em Three.js: `threejs-gameplay-systems`. Usabilidade e formulários: `ux-heuristics`, `form-design`.
 - Vue: `vue-best-practices`.
@@ -72,5 +73,7 @@ Procedência e revisão em `.claude/skills/SOURCES.md`. Use por assunto:
 - Deploy (Cloudflare Workers, `wrangler.jsonc`): `workers-best-practices`, `wrangler`. E-mail (recuperação de senha): `cloudflare-email-service`. Alternativa ao D1 para latência: `durable-objects`.
 - Prompts para outras ferramentas de IA (Tripo, por exemplo): `prompt-master`.
 - Procurar skills novas: `find-skills` (usa `npx skills find`, que precisa de acesso a `skills.sh`).
+
+As skills de design da nextlevelbuilder vieram só com os `.md`: os scripts de busca e os CSVs citados nelas não estão no repositório, então use-as como referência. A `design` cita chaves de API externas: não configure nenhuma sem pedido.
 
 As skills de Three.js miram a r186. Aqui o three é 0.172: confira a API em `node_modules/three` antes de aplicar e não atualize o three sem pedido.
