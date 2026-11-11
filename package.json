@@ -13,6 +13,7 @@
     "test:map": "node tools/verify-map-plan.mjs",
     "test:ui": "node tools/personal-playtest.mjs && node tools/browser-playtest.mjs",
     "test:world": "node tools/world-playtest.mjs",
+    "test:nav": "node tools/city-nav-playtest.mjs",
     "perf:world": "node tools/world-perf.mjs",
     "test:worker": "node --test tests/worker.test.mjs",
     "dev:worker": "wrangler dev --port 8787",

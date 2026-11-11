@@ -242,6 +242,8 @@ Uma cidade por local liberado. Sem `local`, abre a cidade do local atual. As reg
 | Missões: concluir tarefa | Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | +10 XP e +10 créditos, mais o bônus |
 | Atualizar tarefas e recompensas | `POST /api/rewards/sync` | `GET /api/cities/{local}` | leitura | Só recarrega: a recompensa já foi gravada na ação |
 | Voltar ao globo | Não existe | navegação | | Abre `world.html` |
+| ← Voltar (cidade) | Não existe | navegação | | Desfaz uma camada por vez (confirmação, espaço, interior, ferramenta, seleção, ajuda); sem nada aberto, vai ao globo. `npm run test:nav` |
+| Trocar de mapa (Ilha Inicial / Rio de Janeiro) | Não existe | navegação | | Abre `city.html?local=<id>`. "Minha cidade" fora do Rio leva ao Rio |
 | Catálogo, filtros, luz do dia, entardecer, girar câmera, vista inicial, ajuda | Local | | | Igual |
 | Indicador de escritórios ativos; prédios de IA | Atividade do Fifones | | | **Saem** |
 

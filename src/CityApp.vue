@@ -428,10 +428,27 @@ function openWorkspace(label, destination) {
 function closeWorkspace() { const wasOpen = Boolean(workspace.value); workspace.value = null; engine?.setInUse?.(null); clearTimeout(iframeTimer); returnFocus?.focus?.(); if (wasOpen) refreshAll() }
 function reloadPage() { window.location.reload() }
 function iframeLoaded() { iframeLoading.value = false; clearTimeout(iframeTimer) }
+const RIO_ID = 'cristo-redentor'
+const places = [{ id: 'ilha-inicial', nome: 'Ilha Inicial' }, { id: RIO_ID, nome: 'Rio de Janeiro' }]
+const placeHref = id => `./city.html?local=${encodeURIComponent(id)}`
+const globeHref = computed(() => region.value ? `./world.html?de=${encodeURIComponent(region.value.id)}` : './world.html')
+// Voltar desfaz uma camada por vez: confirmação, espaço aberto, interior, ferramenta e seleção; sem nada aberto, volta ao globo.
+function goBack() {
+  if (confirmation.value) { confirmation.value = null; return }
+  if (workspace.value) { closeWorkspace(); return }
+  if (activeInterior.value || interiorPending.value) { closeInterior(); return }
+  if (mode.value !== 'select' || selectedId.value || helpOpen.value || historyOpen.value) {
+    cancelTool(); selectedId.value = null; helpOpen.value = false; historyOpen.value = false
+    return
+  }
+  window.location.assign(globeHref.value)
+}
+const canStepBack = computed(() => Boolean(confirmation.value || workspace.value || activeInterior.value || interiorPending.value || mode.value !== 'select' || selectedId.value || helpOpen.value || historyOpen.value))
 function useNav(item) {
   historyOpen.value = false
   if (activeInterior.value) closeInterior()
-  if (item.id === 'city') { closeWorkspace(); cancelTool(); selectedId.value = null; engine?.home() }
+  if (item.id === 'city' && region.value && region.value.id !== RIO_ID) window.location.assign(placeHref(RIO_ID))
+  else if (item.id === 'city') { closeWorkspace(); cancelTool(); selectedId.value = null; engine?.home() }
   else openWorkspace(item.label, item.path)
 }
 function setLighting(value) { lighting.value = value; engine?.setLighting(value) }
@@ -540,8 +557,8 @@ onUnmounted(() => {
         <span class="brand-mark" aria-hidden="true">c<span>.</span></span>
         <span class="brand-copy"><strong>Cityou</strong><small>{{ region?.nome ?? 'Sua vida, em construção.' }}</small></span>
       </button>
-      <div class="city-location"><span class="location-dot" /><span>{{ region?.nome ?? 'Rio de Janeiro' }}</span><span class="location-line" /><span class="city-day">Dia {{ day }}</span></div>
-      <div class="topbar-right"><small v-if="state?.test_mode" class="pilot-test-mode" title="Oito regiões abertas e créditos de teste">Prévia de teste</small><a class="city-world-link" :href="region ? `./world.html?de=${encodeURIComponent(region.id)}` : './world.html'">Voltar ao globo</a><span v-if="activeOfficeCount > 0" class="office-activity-count" title="Execuções detectadas/observadas em seus escritórios" :aria-label="`${activeOfficeCount} escritórios com execuções detectadas ou observadas`"><span />{{ activeOfficeCount }}<span class="office-activity-caption">em atividade</span></span>
+      <div class="city-location place-switch" role="navigation" aria-label="Trocar de mapa"><span class="location-dot" /><a v-for="place in places" :key="place.id" :href="placeHref(place.id)" :aria-current="(region?.id ?? RIO_ID) === place.id ? 'page' : undefined">{{ place.nome }}</a><span class="location-line" /><span class="city-day">Dia {{ day }}</span></div>
+      <div class="topbar-right"><small v-if="state?.test_mode" class="pilot-test-mode" title="Oito regiões abertas e créditos de teste">Prévia de teste</small><button class="city-back-button" type="button" :title="canStepBack ? 'Desfazer o último passo' : 'Voltar ao globo'" @click="goBack">← Voltar</button><a class="city-world-link" :href="globeHref">Voltar ao globo</a><span v-if="activeOfficeCount > 0" class="office-activity-count" title="Execuções detectadas/observadas em seus escritórios" :aria-label="`${activeOfficeCount} escritórios com execuções detectadas ou observadas`"><span />{{ activeOfficeCount }}<span class="office-activity-caption">em atividade</span></span>
         <div class="save-status" role="status"><span :class="{ busy: saving || refreshing }" />{{ saving ? 'Salvando…' : refreshing ? 'Sincronizando…' : state ? 'Salvo no servidor' : 'Conectando…' }}</div>
         <button class="balance" :aria-label="`Saldo: ${coins(state?.credits)} moedas. Ver histórico`" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen"><span class="coin-glyph"><Icon name="coin" :size="18" /></span><strong>{{ coins(state?.credits) }}</strong><span class="balance-label">moedas</span></button>
         <div class="level-badge" :title="`${progress.remaining} ações recompensadas para o próximo nível`"><span>NÍVEL</span><strong>{{ state?.level || 1 }}</strong><span class="level-track" role="progressbar" aria-label="Progresso para o próximo nível" :aria-valuenow="progress.withinLevel" :aria-valuemin="0" :aria-valuemax="10"><i :style="{ transform: `scaleX(${progress.withinLevel / 10})` }" /></span></div>
