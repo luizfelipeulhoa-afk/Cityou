@@ -1,4 +1,4 @@
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three'
+import { BoxGeometry, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, Shape, SphereGeometry } from 'three'
 
 const interiors = {
   'rio-fair': { label: 'Organizar bancas', destination: '/#/tarefas', floor: 0xd8b38d, wall: 0xf0dbb6, accent: 0xb65a42 },
@@ -52,11 +52,27 @@ export function buildInterior(kind, { width, depth }) {
   } else {
     box(width * 0.22, 0.29, depth * 0.38, -side, 0, 0.02, 0x8c6746)
     box(width * 0.25, 0.06, depth * 0.40, -side, 0.29, 0.02, 0xe9c98a)
-    const hull = new Mesh(new SphereGeometry(0.5, 12, 6), new MeshStandardMaterial({ color: 0x805437, roughness: 0.91 }))
-    hull.position.set(side * 0.36, 0.19, 0.04)
-    hull.scale.set(width * 0.20, 0.26, depth * 0.66)
+    const halfBeam = width * 0.11
+    const halfLength = depth * 0.34
+    const outline = new Shape()
+    outline.moveTo(0, halfLength)
+    outline.quadraticCurveTo(halfBeam, halfLength * 0.26, halfBeam, -halfLength * 0.48)
+    outline.lineTo(halfBeam * 0.56, -halfLength)
+    outline.lineTo(-halfBeam * 0.56, -halfLength)
+    outline.lineTo(-halfBeam, -halfLength * 0.48)
+    outline.quadraticCurveTo(-halfBeam, halfLength * 0.26, 0, halfLength)
+    const hull = new Mesh(
+      new ExtrudeGeometry(outline, { depth: 0.09, bevelEnabled: false, curveSegments: 5 }),
+      new MeshStandardMaterial({ color: 0x805437, roughness: 0.91 }),
+    )
+    hull.rotation.x = -Math.PI / 2
+    hull.position.set(side * 0.36, 0.14, 0.04)
     group.add(hull)
-    box(width * 0.19, 0.045, 0.085, hull.position.x, 0.31, 0.03, 0xdcb67b)
+    for (const z of [-0.22, 0, 0.23]) {
+      box(halfBeam * 1.63, 0.035, 0.055, hull.position.x, 0.23, z, 0xdcb67b)
+    }
+    box(0.055, 0.22, 0.075, hull.position.x, 0.16, 0.07 - halfLength, 0xaa7547)
+    box(halfBeam * 1.25, 0.07, 0.08, hull.position.x, 0.05, halfLength * 0.52, 0x4f5b50)
   }
 
   box(width * 0.25, 0.33, 0.12, side, 0.17, rear, design.accent)

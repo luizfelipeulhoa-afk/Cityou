@@ -336,7 +336,10 @@ function closeInterior() {
   interiorPending.value = false
   engine?.closeInterior()
   activeInterior.value = null
-  nextTick(() => interiorReturnFocus?.isConnected && interiorReturnFocus.focus())
+  nextTick(() => {
+    const target = interiorReturnFocus?.isConnected ? interiorReturnFocus : document.querySelector('.building-panel .open-building')
+    target?.focus()
+  })
 }
 
 async function onTile({ x, y }) {
@@ -525,7 +528,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="city-app" :class="{ 'is-dusk': lighting === 'dusk', 'catalog-hidden': !catalogOpen }">
+  <main class="city-app" :class="{ 'is-dusk': lighting === 'dusk', 'catalog-hidden': !catalogOpen, 'is-cutaway': !!activeInterior }">
     <canvas ref="canvas" class="city-canvas" :aria-label="`Cidade 3D em ${region?.nome ?? 'Rio de Janeiro'}. Arraste para explorar e use a roda do mouse para aproximar.`" />
     <div class="scene-vignette" aria-hidden="true" />
 

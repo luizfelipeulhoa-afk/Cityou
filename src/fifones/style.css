@@ -87,3 +87,9 @@
   .pilot-test-mode { display: none; }
   .tile-coordinates { top: 77px; }
 }
+
+.is-cutaway .next-build,
+.is-cutaway .missions,
+.is-cutaway .catalog,
+.is-cutaway .view-controls,
+.is-cutaway .nav-rail { display: none; }
