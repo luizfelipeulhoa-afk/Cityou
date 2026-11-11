@@ -158,6 +158,23 @@ Os prédios de IA do catálogo atual (ChatGPT, Claude, Gemini, Grok, StuntSync) 
 
 Os prompts para o Tripo entram em `TRIPO-PROMPTS.md` na fase B6. Até a arte existir, cada etapa usa um modelo provisório em código, como `src/world/monuments.js` faz para os monumentos.
 
+## O que já está implementado (demonstração em produção)
+
+O PR #8 (`codex/regional-cities`) colocou no ar uma versão simples, sem login, que já segue a ideia de uma cidade por local. Os documentos abaixo descrevem o alvo; esta seção diz onde o código de hoje está diferente.
+
+| Tema | Hoje, em produção | Alvo deste documento |
+|---|---|---|
+| Cidade por local | Uma cidade por local, com terreno, construções e histórico próprios (`city.html?local=<id>`); créditos e recompensas são da pessoa, compartilhados entre as cidades | Igual |
+| Escolha do destino | Qualquer local ainda bloqueado pode ser escolhido na hora de viajar | Igual |
+| Condição para viajar | Construir um prédio (que não seja rua, árvore ou praça/sede) numa cidade ainda não concluída libera **uma** viagem (`viagens_disponiveis`) | Nível mínimo + prédios na etapa certa + passagem em créditos |
+| XP e nível | Não existe XP. O "nível" da cidade é `1 + recompensas ÷ 10` e define o tamanho do terreno | XP separado de créditos, nível pela curva de `shared/game/rules.js` |
+| Presença | Não existe | Bônus pelo ritmo dos últimos 7 dias |
+| Recompensas | Tarefa, hábito e meta concluída pagam créditos de `RULES.rewards`; teto diário por `RULES.paidHabitsPerDay` e `RULES.paidTasksPerDay` | Igual, mais XP e bônus de presença |
+| Prédios de domínio | Não existem; o catálogo é o antigo (Tarefas, Agenda, Memória, Projetos, IA) | Cinco etapas por uso real e melhorias escolhidas |
+| Onde ficam os dados | Durable Object com SQLite por visitante (cookie `cityou_demo`, 30 dias) | Conta com login e banco em São Paulo |
+
+A regra de viagem de hoje é mais simples e mais fácil de entender (construa e escolha para onde ir). Proponho mantê-la como primeira fase e acrescentar nível e passagem depois, quando existirem XP e prédios de domínio. É decisão sua.
+
 ## O que veio do estudo de city builders
 
 O estudo de Megapolis, City Island 6 e SimCity BuildIt está em `research/estudo-city-builders.md`. Ele confirmou parte do que já estava decidido e trouxe correções. O Cityou não é um jogo de moeda paga: o que vale aqui é a parte de arquitetura e de respeito ao jogador, não a de monetização.

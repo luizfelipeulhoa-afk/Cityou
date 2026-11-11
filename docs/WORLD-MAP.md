@@ -64,7 +64,7 @@ As animações saem da diferença entre o progresso anterior e o novo, venha a m
 
 ## Monumentos em código e modelos do Tripo
 
-Cada espaço tem um monumento feito em código (`src/world/monuments.js`). Ele aparece sempre que não há GLB. Hoje só o Machu Picchu o usa; os outros sete espaços têm modelo do Tripo (ver abaixo). A razão: o Tripo, com 6 mil faces, entrega malha mole e textura borrada (testado com o Cristo), enquanto formas geométricas em código saem facetadas e nítidas, no estilo do globo, sem gastar crédito. A Ilha Inicial usa o modelo do Tripo (`ilha-inicial.glb`), que ficou bom por ser uma forma orgânica.
+Cada espaço tem um monumento feito em código (`src/world/monuments.js`). Ele aparece sempre que não há GLB. Hoje só o Petra o usa; os outros sete espaços têm modelo do Tripo (ver abaixo). A razão: o Tripo, com 6 mil faces, entrega malha mole e textura borrada (testado com o Cristo), enquanto formas geométricas em código saem facetadas e nítidas, no estilo do globo, sem gastar crédito. A Ilha Inicial usa o modelo do Tripo (`ilha-inicial.glb`), que ficou bom por ser uma forma orgânica.
 
 Se um GLB com o id do espaço existir em `public-fifones/models/world/`, ele tem prioridade sobre o monumento em código. Para voltar ao monumento em código, apague o GLB e rode `node tools/world-models-manifest.mjs`.
 
@@ -74,13 +74,15 @@ Se um GLB com o id do espaço existir em `public-fifones/models/world/`, ele tem
 |---|---|---|---|
 | Ilha Inicial | 5.589 | 5.589 | 89 KB |
 | Cristo Redentor | 9.597 | 9.597 | 106 KB |
+| Machu Picchu | 238 mil | 23.835 | 272 KB |
 | Chichén Itzá | 121 mil | 13.929 | 211 KB |
 | Coliseu | 232 mil | 23.226 | 316 KB |
 | Grande Muralha | 239 mil | 23.904 | 286 KB |
 | Taj Mahal | 225 mil | 22.525 | 274 KB |
-| Petra | 239 mil | 27.296 | 286 KB |
 
-Os modelos grandes foram reduzidos com `node tools/optimize-world-models.mjs <arquivo> <id> --ratio 0.1 --error 0.05` (`--ratio` mira a fração dos triângulos que fica). Com `--error 0.05`, a ferramenta chegou perto do alvo em todos, menos no Petra, que para em cerca de 27 mil triângulos qualquer que seja o `--ratio`: a fachada, com colunas e detalhes finos, foi suavizada. Para o Petra ficar mais nítido, gere de novo no Tripo já com o limite de faces. Texturas em WebP de 1024 px; nenhum modelo precisou de rotação.
+Os modelos grandes foram reduzidos com `node tools/optimize-world-models.mjs <arquivo> <id> --ratio 0.1 --error 0.05` (`--ratio` mira a fração dos triângulos que fica). Texturas em WebP de 1024 px; nenhum modelo precisou de rotação.
+
+**Petra:** o primeiro export (239 mil triângulos) não passou da redução. A ferramenta para em cerca de 27 mil triângulos, qualquer que seja o `--ratio`, e a fachada, com colunas finas e ornamentos, ficou borrada. O modelo foi tirado e o Petra voltou ao monumento em código. Para ter um GLB, gere de novo no Tripo já com limite de faces e uma fachada simplificada (ver `TRIPO-PROMPTS.md`).
 
 ## Modelos para gerar no Tripo (opcional)
 
@@ -93,7 +95,7 @@ Salve em `public-fifones/models/world/` (servido em `/models/world/`). Nome do a
 | 3 | `machu-picchu.glb` | Terraços em degraus, ruínas de pedra e o pico Huayna Picchu ao fundo | 25.000 |
 | 4 | `chichen-itza.glb` | Pirâmide El Castillo (degraus, escadarias, templo no topo) num gramado | 15.000 |
 | 5 | `coliseu.glb` | Anfiteatro oval com parte do anel superior quebrada | 25.000 |
-| 6 | `petra.glb` | Fachada do Tesouro (Al-Khazneh) esculpida num penhasco rosado | 28.000 |
+| 6 | `petra.glb` | Fachada do Tesouro (Al-Khazneh) esculpida num penhasco rosado | 20.000 |
 | 7 | `taj-mahal.glb` | Mausoléu branco com cúpula, 4 minaretes, plataforma e espelho d'água | 25.000 |
 | 8 | `grande-muralha.glb` | Trecho da muralha subindo morros, com 2–3 torres de vigia | 25.000 |
 
