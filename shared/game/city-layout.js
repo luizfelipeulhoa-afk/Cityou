@@ -1,4 +1,9 @@
-import baseCatalog from './city-catalog.json' with { type: 'json' }
+import catalogFile from './city-catalog.json' with { type: 'json' }
+
+// No city-catalog.json, os itens `island-*` são prédios da Ilha Inicial: saem do catálogo comum
+// às outras cidades e entram só no catálogo regional da ilha (mais abaixo).
+const islandOnly = item => item.id.startsWith('island-')
+const baseCatalog = catalogFile.filter(item => !islandOnly(item))
 
 const center = 8
 const baseRoadSeeds = [6, 7, 8, 9, 10].map(x => [x, 9])
@@ -91,6 +96,7 @@ const regionalCatalog = {
     building('island-dhoni', 'Oficina de dhoni', 3, 2, 2.1, '#985b43', 40, '/#/projetos'),
     building('island-market', 'Mercado de pescado', 3, 2, 2.5, '#e5ac55', 50, '/#/tarefas'),
     building('island-fiber', 'Ateliê de fibra vegetal', 3, 3, 2.4, '#bc784a', 60),
+    ...catalogFile.filter(islandOnly),
   ],
   'cristo-redentor': [
     building('rio-sobrado', 'Sobrado com comércio', 2, 2, 4.2, '#ddaf77', 20),

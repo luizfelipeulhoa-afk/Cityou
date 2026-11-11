@@ -178,3 +178,23 @@ test('terreno: todo o mapa é construível desde o começo, até perto das borda
     type: 'build', kind: 'tasks', x: 16, y: 8, request_id: crypto.randomUUID(), expected_revision: legacy.revision,
   }), 'petra'), { status: 422 })
 })
+
+import { getBuilding, getCityCatalog } from '../shared/game/city-layout.js'
+
+test('catálogo: os prédios island-* do JSON são da Ilha Inicial e não aparecem nas outras cidades', () => {
+  const sizes = { 'island-lighthouse': [3, 3], 'island-cabin': [2, 2], 'island-pier': [3, 3] }
+  for (const [id, [width, depth]] of Object.entries(sizes)) {
+    const item = getBuilding(id)
+    assert.deepEqual([item.width, item.depth, item.model, item.destination], [width, depth, null, null])
+    assert.ok(item.cost > 0 && item.height > 0 && /^#[0-9a-f]{6}$/.test(item.color))
+  }
+  assert.equal(getBuilding('island-lighthouse').label, 'Farol da Percepção')
+  assert.equal(getBuilding('island-cabin').label, 'Cabana do Primeiro Passo')
+  assert.equal(getBuilding('island-pier').label, 'Píer da Jornada')
+  // Rio (cidade piloto) e Petra (cidade comum) seguem sem nenhum prédio da ilha no catálogo.
+  for (const location of ['cristo-redentor', 'petra']) {
+    assert.equal(getCityCatalog(location).some(item => item.id.startsWith('island-')), false)
+  }
+  // A ilha continua só de cenário: os prédios estão definidos, mas ela não oferece catálogo.
+  assert.deepEqual(getCityCatalog('ilha-inicial'), [])
+})
