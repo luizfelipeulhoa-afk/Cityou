@@ -1,0 +1,11 @@
+{
+  // Como wrangler.test.jsonc, mas com as viagens fechadas, como em produção.
+  "name": "cityou-test-closed",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-11-09",
+  "vars": { "TRAVEL_OPEN": "false" },
+  "durable_objects": {
+    "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
+  },
+  "migrations": [{ "tag": "demo-v1", "new_sqlite_classes": ["DemoSession"] }]
+}

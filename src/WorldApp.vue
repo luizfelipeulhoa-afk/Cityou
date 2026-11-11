@@ -10,6 +10,7 @@ const progress = ref(loadProgress())
 const mode = ref('loading')
 const syncStatus = ref('local')
 const availableTrips = ref(0)
+const travelOpen = ref(true)
 const visitError = ref('')
 const visiting = ref(false)
 const arrival = ref(null)
@@ -25,6 +26,7 @@ function acceptRegionalProgress(value) {
   mode.value = 'regional'
   progress.value = value
   availableTrips.value = value.viagens_disponiveis
+  travelOpen.value = value.viagens_abertas !== false
   syncStatus.value = 'sincronizado'
 }
 
@@ -225,7 +227,7 @@ function stateLabel(space) {
         </button>
         <div v-if="mode === 'regional'" class="world-app__goal">
           <small>{{ spaces.filter(space => space.desbloqueado).length }} de {{ spaces.length }} cidades abertas</small>
-          <strong>{{ availableTrips ? 'Escolha um novo destino' : 'Visite uma cidade' }}</strong>
+          <strong>{{ !travelOpen ? 'Desenvolva sua cidade' : availableTrips ? 'Escolha um novo destino' : 'Visite uma cidade' }}</strong>
         </div>
         <div v-else-if="finished" class="world-app__goal">
           <small>Jornada completa</small>
@@ -246,7 +248,7 @@ function stateLabel(space) {
         <h1>{{ selected.nome }}</h1>
         <p class="world-app__place">{{ selected.local }}</p>
         <p v-if="mode === 'legacy'">{{ selected.descricao }}</p>
-        <p v-else-if="!selected.desbloqueado">{{ availableTrips ? 'Use uma viagem disponível para abrir sua cidade aqui.' : 'Construa seu primeiro prédio em uma cidade aberta para ganhar uma viagem.' }}</p>
+        <p v-else-if="!selected.desbloqueado">{{ !travelOpen ? 'As viagens ainda não estão abertas. Por enquanto, desenvolva a cidade onde você está.' : availableTrips ? 'Use uma viagem disponível para abrir sua cidade aqui.' : 'Construa seu primeiro prédio em uma cidade aberta para ganhar uma viagem.' }}</p>
         <p v-if="visitError" role="alert">{{ visitError }}</p>
         <div class="world-app__actions">
           <button v-if="mode === 'regional' && selected.desbloqueado" type="button" class="is-primary" @click="enterCity(selected.id)">Entrar na cidade</button>

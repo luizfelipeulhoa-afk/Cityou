@@ -14,6 +14,15 @@ O Worker atende hoje, sem login, as rotas antigas do painel e da cidade. Cada vi
 | `GET /api/world/progress` | Locais liberados, concluídos e `viagens_disponiveis` |
 | `POST /api/world/travel` | Corpo `{ local, request_id }`; libera o destino se houver viagem disponível, senão 409 |
 | `PUT /api/world/progress` | Ainda aceito por clientes antigos, mas ignorado: o acesso vem das ações no servidor |
+| `GET /api/personal/proofs/{atividade}/{dia}/photo` | A foto de uma comprovação, só para a sessão que a enviou; 404 se não houver |
+
+**Atividades.** Hábitos, metas e tarefas aceitam `domain` (`saude`, `alimentacao`, `financas`, `estudos`, `mente`, `organizacao`; padrão `organizacao`) e `place` (até 80 caracteres), que dão tipo e nome ao prédio da atividade.
+
+**Comprovação.** `PUT /api/personal/entries/{id}/checkin` aceita `{ done: true, proof: { note?, photo? } }`. A nota tem de 20 a 500 caracteres; a foto é um `data:` JPEG ou WebP de até 250 KB. A resposta inclui `proof_result: { bonus, reason }` (`reason`: `null`, `daily_cap` ou `already_proved`) e `proofs` (sem as fotos). Erros 422 com mensagem para a pessoa: nota curta, foto repetida, formato inválido, limite de 100 comprovações.
+
+**Resumo.** `GET /api/personal` e a resposta das marcações trazem `resumo` (ver `DASHBOARD.md`).
+
+**Viagens fechadas.** Com `TRAVEL_OPEN=false`, `POST /api/world/travel` para um destino novo responde 409 e `GET /api/world/progress` traz `viagens_abertas: false` e `viagens_disponiveis: 0`. O Worker repassa o estado à sessão por um cabeçalho interno que sempre reescreve; o navegador não consegue reabrir as viagens.
 
 As rotas de projetos e atividade respondem "desconectado". O contrato de `POST /api/world/travel` de hoje difere do alvo desta página (sem nível nem passagem em créditos): ver `GAME-DESIGN.md`, seção "O que já está implementado". Para o alvo, esta demonstração vira a fonte de importação: os registros de um visitante podem ser trazidos para a conta dele quando o login existir.
 
