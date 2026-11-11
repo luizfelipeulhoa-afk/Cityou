@@ -496,7 +496,7 @@ if (diffuseColor.a < 0.02) discard;`)
   bindEvents() {
     const canvas = this.canvas
     canvas.style.touchAction = 'none'
-    const taps = createTapGesture()
+    const taps = this.taps = createTapGesture()
     const targetOf = event => this.pick(event.clientX, event.clientY)?.id
     this.onPointerDown = (event) => {
       if (event.button !== 0) return
@@ -858,7 +858,7 @@ if (diffuseColor.a < 0.02) discard;`)
 
   /** Nada acontecendo além de nuvens e ondas: dá para desenhar metade dos quadros. */
   isIdle() {
-    return this.isReady && !this.flying && !this.cinematic && !this.hoveredId && !this.activePointers.size
+    return this.isReady && !this.flying && !this.cinematic && !this.hoveredId && !this.taps.active
       && performance.now() - this.lastInteraction > 4000
   }
 

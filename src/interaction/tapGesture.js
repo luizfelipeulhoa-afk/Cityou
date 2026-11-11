@@ -6,6 +6,7 @@ export function createTapGesture(now = () => performance.now()) {
   let start
 
   return {
+    get active() { return pointers.size > 0 },
     down(event, target) {
       pointers.add(event.pointerId)
       if (pointers.size !== 1) {
