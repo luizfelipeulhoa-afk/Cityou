@@ -62,7 +62,9 @@ Cada ganho de XP também soma no domínio da ação. O domínio usa o XP base, s
 | `mente` | reflexões, hábitos e metas de autoconhecimento | Jardim |
 | `organizacao` | tarefas, projetos, compromissos, notas | Escritório |
 
-Tarefas, hábitos e metas têm o campo `domain`. Se a pessoa não escolher, vale `organizacao`. Os nomes dos prédios são provisórios.
+Tarefas, hábitos e metas têm o campo `domain`. Se a pessoa não escolher, vale `organizacao`.
+
+Os nomes da coluna "Prédio" são só marcadores para este documento. O app não fixa nomes: os prédios vêm da vida de cada pessoa (a academia onde ela treina, o curso que ela faz), e ela é quem nomeia. Como isso funciona na tela fica para definir. Para o banco, a consequência é que `placements` precisa de um nome dado pela pessoa (`custom_name`), além do tipo.
 
 ## Presença: ritmo da semana
 
@@ -159,6 +161,7 @@ Os prompts para o Tripo entram em `TRIPO-PROMPTS.md` na fase B6. Até a arte exi
 ## Depende de você
 
 1. Os números deste documento: nível da primeira viagem, custos, degraus do bônus, limites de etapa.
-2. Uma oitava maravilha (hoje são 7 monumentos e a Ilha).
-3. Os nomes e a lista de prédios por domínio.
-4. O transporte: barco, avião ou outro.
+2. Como a pessoa cria e nomeia os próprios prédios (decidido que os nomes não são nossos; falta o desenho).
+3. O transporte: barco, avião ou outro.
+
+Já decidido: o mapa fica com a Ilha e 7 monumentos.

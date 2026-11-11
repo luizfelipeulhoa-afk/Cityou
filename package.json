@@ -13,19 +13,23 @@
     "test:map": "node tools/verify-map-plan.mjs",
     "test:ui": "node tools/personal-playtest.mjs && node tools/browser-playtest.mjs",
     "test:world": "node tools/world-playtest.mjs",
-    "perf:world": "node tools/world-perf.mjs"
+    "perf:world": "node tools/world-perf.mjs",
+    "test:worker": "node --test tests/worker.test.mjs",
+    "dev:worker": "wrangler dev --port 8787",
+    "perf:api": "node tools/api-perf.mjs"
   },
   "dependencies": {
-    "vue": "^3.5.22",
-    "pinia": "^3.0.3",
     "gsap": "^3.12.5",
     "mitt": "^3.0.1",
-    "three": "0.172.0"
+    "pinia": "^3.0.3",
+    "three": "0.172.0",
+    "vue": "^3.5.22"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.4",
+    "playwright": "1.62.1",
     "vite": "^5.4.0",
-    "playwright": "1.62.1"
+    "wrangler": "^4.160.0"
   },
   "description": "Organizacao pessoal gamificada e cidade 3D inspirada no Rio de Janeiro"
 }

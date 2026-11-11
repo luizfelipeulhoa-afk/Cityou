@@ -97,7 +97,7 @@ As regras e os números estão em `GAME-DESIGN.md`. Aqui ficam só as tabelas.
 | `domain_days` | `user_id`, `domain`, `day` | (`user_id`, `domain`, `day`) | Sistema: primeira ação do dia no domínio | Nada. Serve para contar semanas ativas |
 | `presence_days` | `user_id`, `day` | (`user_id`, `day`) | Sistema: primeira ação real do dia | Calendário de presença e o degrau do bônus |
 | `cities` | `id`, `user_id`, `location_id`, `revision`, `started_at` | único (`user_id`, `location_id`) | Sistema: no cadastro (Ilha) e a cada viagem | A cidade daquele local |
-| `placements` | `id`, `user_id`, `city_id`, `kind`, `x`, `y`, `rotation` 0 a 3, `stage` 0 a 4 | `id`; índice (`city_id`) | Cidade → construir, mover, girar, remover; o sistema avança `stage` | A construção no mapa 3D, na etapa atual |
+| `placements` | `id`, `user_id`, `city_id`, `kind`, `custom_name` NULL, `x`, `y`, `rotation` 0 a 3, `stage` 0 a 4 | `id`; índice (`city_id`) | Cidade → construir, mover, girar, remover; o sistema avança `stage` | A construção no mapa 3D, na etapa atual |
 | `travels` | `id`, `user_id`, `from_location`, `to_location`, `cost`, `created_at` | `id`; índice (`user_id`) | Globo → "Viajar" | Local liberado; rota desenhada no globo |
 | `upgrade_points` | `user_id`, `domain`, `available`, `earned_total` | (`user_id`, `domain`) | Sistema: meta curta concluída ou marco de XP do domínio | "1 melhoria disponível" no prédio |
 | `building_upgrades` | `id`, `user_id`, `placement_id`, `slot`, `upgrade_id`, `source_key`, `created_at` | `id`; único (`placement_id`, `slot`) | Prédio → "Escolher melhoria" | Sala ou equipamento novo no interior, com a data e a conquista |
@@ -155,13 +155,15 @@ Fechadas:
 | Presença | Dias ativos registrados; bônus de XP e créditos por ritmo da semana, sem zerar |
 | Prédios | Um por domínio, construído pelo uso real e depois melhorado por conquistas menores |
 | Recuperar senha | Link enviado ao e-mail |
+| Locais do mapa | A Ilha e 7 monumentos; não haverá um oitavo |
+| Nomes dos prédios | Não são fixados pelo app: vêm da vida de cada pessoa. Definição futura |
 
 Abertas (propostas em `GAME-DESIGN.md`):
 
 1. Os números: nível da primeira viagem, custos, degraus do bônus, limites de cada etapa.
-2. Oitava maravilha: hoje são a Ilha e 7 monumentos.
-3. Nomes e lista dos prédios por domínio; qual é o transporte.
-4. Domínio próprio para enviar o e-mail de recuperação de senha.
+2. Qual é o transporte da viagem.
+3. Domínio próprio para enviar o e-mail de recuperação de senha.
+4. Como a pessoa nomeia e escolhe os próprios prédios (ver `GAME-DESIGN.md`).
 
 ## A conferir na fase B1
 
