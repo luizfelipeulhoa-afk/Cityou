@@ -2,7 +2,7 @@
 
 Como o uso real do app vira nível, cidade e prédios. As tabelas estão em `DATA-MODEL.md`, as telas em `INTERACTIONS.md` e as rotas em `API.md`. Nada disto está implementado: é especificação.
 
-Todos os números deste documento são **propostas**. No código eles ficam num único arquivo (`worker/game/rules.js`) e só serão fechados depois de um teste de simulação na fase B3 (quanto tempo uma pessoa com uso leve, médio e intenso leva para cada marco).
+Todos os números deste documento são **propostas**. No código eles ficam num único arquivo (`shared/game/rules.js`, já escrito e testado em `tests/game-rules.test.mjs`) e só serão fechados depois de um teste de simulação na fase B3 (quanto tempo uma pessoa com uso leve, médio e intenso leva para cada marco).
 
 ## Princípios
 
@@ -25,14 +25,14 @@ O público inclui pessoas com TDAH e depressão. Antes de fechar os números, as
 | Ação | XP | Créditos | Regra |
 |---|---|---|---|
 | Criar a conta | 0 | +50 | uma vez |
-| Tarefa concluída | +10 | +10 | uma vez por tarefa, para sempre |
+| Tarefa concluída | +10 | +10 | uma vez por tarefa, para sempre; só as 10 primeiras do dia pagam |
 | Hábito feito | +5 | +5 | uma vez por hábito por dia; só os 8 primeiros do dia pagam |
 | Passo de meta | +5 | 0 | um por meta por dia |
 | Meta concluída | +50 | +25 | uma vez por meta |
 | Registro do dia (lançamento, refeição, peso, reflexão) | +2 | 0 | só o primeiro de cada tipo no dia |
 | Volta depois de 7 dias ou mais sem ação | 0 | +20 | uma vez por retorno |
 
-Do nono hábito em diante, no mesmo dia, a marcação conta no anel e no histórico, sem XP nem créditos. Marcar um dia passado é permitido até 7 dias para trás, também sem XP nem créditos.
+Do nono hábito em diante, no mesmo dia, a marcação conta no anel e no histórico, sem XP nem créditos. O teto de 10 tarefas pagas por dia é proposta minha: sem ele, criar e concluir tarefas vazias renderia XP sem limite. Marcar um dia passado é permitido até 7 dias para trás, também sem XP nem créditos.
 
 ### Nível
 
@@ -157,6 +157,39 @@ Os prédios de IA do catálogo atual (ChatGPT, Claude, Gemini, Grok, StuntSync) 
 | Transporte | 1 modelo (barco ou avião) para a animação de viagem | B5 |
 
 Os prompts para o Tripo entram em `TRIPO-PROMPTS.md` na fase B6. Até a arte existir, cada etapa usa um modelo provisório em código, como `src/world/monuments.js` faz para os monumentos.
+
+## O que veio do estudo de city builders
+
+O estudo de Megapolis, City Island 6 e SimCity BuildIt está em `research/estudo-city-builders.md`. Ele confirmou parte do que já estava decidido e trouxe correções. O Cityou não é um jogo de moeda paga: o que vale aqui é a parte de arquitetura e de respeito ao jogador, não a de monetização.
+
+**Já estava assim e o estudo confirma:**
+
+- O servidor é a autoridade em XP, créditos, nível e desbloqueios. Mudar isso depois é reescrever, não remendar.
+- Extrato imutável com chave única por recompensa; dinheiro em número inteiro.
+- Ausência não é punida. Foi a lição central do SimCity BuildIt: a ideia de "cidade em ruínas" para quem some foi descartada.
+- A espera pura não é a trava do jogo. Aqui a trava é a prática real, não um cronômetro.
+- Não existem personagens gravados. Quem anda pela cidade é cenário.
+
+**Adotado a partir do estudo:**
+
+| Tema | O que muda |
+|---|---|
+| Subida de nível | Uma recompensa grande pode valer vários níveis: a regra sobe todos de uma vez e guarda a sobra de XP |
+| Nível é porta | Cada nível tem uma lista do que libera (viagem, tamanho do terreno, itens do catálogo). Nível não dá poder nem multiplica ganho |
+| Relógio | O servidor é o relógio. O dia vem do fuso da pessoa gravado na conta, nunca do aparelho. Mudar o fuso só vale a partir do dia seguinte e no máximo uma vez a cada 30 dias, para ninguém repetir o dia |
+| Tempo parado | Nada roda com o app fechado. Etapas de prédio, semanas ativas e bônus são calculados na próxima ação ou abertura |
+| Ganhar e receber | Ganhar um ponto de melhoria e escolher a melhoria são dois momentos separados. O ponto não some se a pessoa fechar o app |
+| Extrato | Cada linha guarda o motivo (`task`, `habit`, `build`, `travel`…), a referência e o saldo depois. É o que permite ver de onde os créditos vêm e para onde vão |
+| Casa "minha" | Cada construção sorteia a variação visual uma vez e nunca mais muda |
+| Colocar um prédio | Onde não pode construir, a tela diz o motivo e oferece a ação ("Precisa de rua", "Terreno ainda não liberado: nível 6"). Vermelho sem explicação é o erro mais comum do gênero |
+| Mesma regra nos dois lados | A validação de onde construir é escrita uma vez e roda na tela (pré-visualização) e no servidor (decisão). Idem para as regras de XP |
+| Terreno | Cada local tem um mapa fixo de células: água, montanha, área reservada. A Ilha tem mar em volta; cada monumento tem a sua área própria onde não se constrói |
+| Repetição pela rede | Toda ação leva um identificador gerado no aparelho. Reenviar a mesma ação devolve a mesma resposta, sem pagar nem cobrar de novo |
+| Abuso | Teto diário de tarefas pagas; remover e reconstruir não rende nada (devolve metade); concluir de novo uma tarefa reaberta não paga |
+
+**Visto e deixado de fora, de propósito:** moeda paga, baús, passe de temporada, aceleração de obra por pagamento, ranking e eventos com economia própria. São mecânicas de receita e de retenção por pressão, que não combinam com um app de organização para um público vulnerável. Missões diárias também ficam de fora por enquanto: as tarefas, hábitos e metas da própria pessoa já são as missões.
+
+O estudo cita um protótipo (`demo-city-builder.html`) que não veio junto com o arquivo.
 
 ## Depende de você
 

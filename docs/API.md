@@ -58,6 +58,7 @@ Senha: PBKDF2 pela Web Crypto, sal por usuário, comparação em tempo constante
 ```json
 {
   "today": "2026-11-10",
+  "server_now": "2026-11-10T14:03:22Z",
   "user": { "display_name": "…", "timezone": "America/Sao_Paulo" },
   "player": { "xp": 120, "level": 2, "credits": 60, "current_location": "ilha-inicial" },
   "presence": { "active_last_7": 4, "xp_bonus": 25, "credit_bonus": 0 },
@@ -130,6 +131,21 @@ Regras e números em `GAME-DESIGN.md`. O navegador nunca envia XP, créditos, n�
 
 As respostas das rotas de ação (`complete`, `checkins`, `steps`, registros) passam a trazer `{ reward: { xp, credits, multiplier }, player: { xp, level, credits }, events: [] }`. `events` lista o que mudou por causa da ação: subida de nível, etapa de prédio concluída, ponto de melhoria ganho, local que ficou disponível. A tela usa essa lista para animar sem fazer outra chamada.
 
+Quando uma construção é recusada, a resposta 422 traz `code`, além da mensagem, para a tela mostrar o motivo e a ação certa:
+
+| `code` | Mensagem | Ação oferecida |
+|---|---|---|
+| `out_of_bounds` | Fora do terreno | |
+| `locked` | Terreno ainda não liberado | Mostra o nível que libera |
+| `terrain` | Aqui não dá para construir (água, montanha ou área reservada) | |
+| `occupied` | Já tem algo aqui | |
+| `no_road` | Precisa de rua ao lado | Construir rua |
+| `level` | Disponível a partir do nível N | |
+| `credits` | Créditos insuficientes | Mostra quanto falta |
+| `unknown_kind` | Construção fora do catálogo | |
+
+A mesma função de validação roda na tela, a cada movimento, para pintar as células de verde ou vermelho, e no servidor, que decide. O preço nunca vem do navegador: ele envia só o tipo e a posição.
+
 `POST /api/cities/{local}/actions` mantém o formato de `POST /api/city/actions` (`backend/README.md`), menos o tipo `upgrade`, para `src/CityApp.vue` mudar pouco.
 
 ## Saúde
@@ -183,7 +199,9 @@ Cada fase entra com testes do Worker contra um D1 local e com dois testes fixos:
 
 Regras para manter o servidor rápido: a sessão é lida uma vez por pedido; cada ação é um único `env.DB.batch()`; toda listagem tem índice; nenhuma rota faz chamada externa no caminho da resposta (o envio de e-mail vai em `ctx.waitUntil`).
 
-**Limite conhecido do D1.** O D1 não roda na América do Sul. As regiões são América do Norte (leste e oeste), Europa (oeste e leste), Ásia-Pacífico e Oceania, e as réplicas de leitura ficam nessas mesmas regiões. Para quem está no Brasil, o Worker roda perto, mas cada ida ao banco atravessa até a América do Norte. Por isso a meta de 60 ms no servidor pode não ser atingida em produção com o D1; o número real só sai da medição no site publicado (`npm run perf:api -- https://<site>`). O que continua garantido é a resposta na tela, que não espera o servidor. Se a medição ficar longe da meta, a alternativa a avaliar é guardar os dados de cada pessoa num Durable Object com SQLite, que pode ficar mais perto dela (não conferido ainda).
+**Aparelho primeiro.** Para a tela nunca esperar o servidor, cada ação é aplicada na hora no aparelho e entra numa fila local com o seu identificador. A fila é enviada em segundo plano e reenviada se a rede falhar; como cada ação tem identificador, o reenvio não duplica nada. O servidor recalcula XP e créditos e a resposta dele substitui a previsão do aparelho. Se os dois divergirem, vale o servidor. A previsão usa as mesmas regras (`shared/game/rules.js`), então a divergência é rara. Isso torna a experiência independente de onde o banco fica.
+
+**Limite conhecido do D1.** O D1 não roda na América do Sul. As regiões são América do Norte (leste e oeste), Europa (oeste e leste), Ásia-Pacífico e Oceania, e as réplicas de leitura ficam nessas mesmas regiões. Para quem está no Brasil, o Worker roda perto, mas cada ida ao banco atravessa até a América do Norte. Por isso a meta de 60 ms no servidor pode não ser atingida em produção com o D1; o número real só sai da medição no site publicado (`npm run perf:api -- https://<site>`). O que continua garantido é a resposta na tela, que não espera o servidor. Os Durable Objects não resolvem: a documentação diz que eles também não são criados na América do Sul (um pedido para lá cai no leste da América do Norte). A alternativa real para aproximar o banco é um provedor externo com região em São Paulo, ainda não pesquisado. A decisão de onde os dados ficam está em aberto (`DATA-MODEL.md`).
 
 A medição local (`wrangler dev`) dá perto de 0 ms e não diz nada sobre produção: não há rede entre o Worker e o banco, e o relógio do Worker só avança em operações de entrada e saída.
 
@@ -200,6 +218,7 @@ O tempo de ida e volta pela rede não entra na meta: depende da conexão da pess
 - O D1 aceita uma região preferida só na criação do banco (`wnam`, `enam`, `weur`, `eeur`, `apac`, `oc`) e não roda na América do Sul. Para o Brasil, a mais próxima é `enam`.
 - Réplicas de leitura existem nas mesmas seis regiões e exigem a API de sessões (`env.DB.withSession()`).
 - O Wrangler consegue criar o banco sozinho no deploy quando a configuração não traz `database_id`, mas sem escolher a região. Por isso o banco será criado à mão, com `enam`.
+- Durable Objects aceitam a dica `sam` (América do Sul), mas não são criados lá: caem numa região próxima, hoje o leste da América do Norte.
 - No D1 local, e-mail único e chave estrangeira são aplicados (teste em `tests/worker.test.mjs`).
 
 Ainda não conferido: limite de iterações do PBKDF2, limites e preços do D1, restauração de backup, e o serviço de envio de e-mail para a recuperação de senha (exige um domínio próprio).
