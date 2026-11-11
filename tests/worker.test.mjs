@@ -7,7 +7,10 @@ import { join } from 'node:path'
 import { createTestHarness } from 'wrangler'
 import worker from '../worker/index.js'
 import { DemoSession, sessionCookie } from '../worker/demo.js'
-import { newCity, normalizeAction } from '../worker/city.js'
+import { applyCityAction, newCity, normalizeAction, snapshot } from '../worker/city.js'
+import referencePlans from '../shared/game/city-reference-plans.json' with { type: 'json' }
+import { connectedRoads, getBuilding, getCityLayout, hasRoadFrontage, tileKey } from '../shared/game/city-layout.js'
+import { SPACE_ORDER } from '../src/world/worldSpaces.js'
 
 const ORIGIN = 'https://cityou.test'
 const harness = createTestHarness({ workers: [{ configPath: 'wrangler.test.jsonc' }] })
@@ -91,7 +94,7 @@ const ISLAND = 'ilha-inicial'
 const PETRA = 'petra'
 const GREAT_WALL = 'grande-muralha'
 
-function newDemoSession() {
+function newDemoSession(fetch = call) {
   const cookie = sessionCookie(new URL(ORIGIN)).split(';')[0]
   return async (path, { method = 'GET', body, status = 200 } = {}) => {
     const headers = { Cookie: cookie }
@@ -100,7 +103,7 @@ function newDemoSession() {
       headers['X-Fifones-City'] = '1'
       headers['Content-Type'] = 'application/json'
     }
-    const response = await call(path, { method, headers, body: JSON.stringify(body) })
+    const response = await fetch(path, { method, headers, body: JSON.stringify(body) })
     const result = await response.json()
     assert.equal(response.status, status, `${method} ${path}: ${JSON.stringify(result)}`)
     return result
@@ -109,7 +112,7 @@ function newDemoSession() {
 
 const city = (session, local) => session(`/api/city?local=${local}`)
 const world = session => session('/api/world/progress')
-const build = (session, local, request_id, expected_revision, { kind = 'home', x = 7, y = 7, status } = {}) =>
+const build = (session, local, request_id, expected_revision, { kind = 'home', x = 7, y = 8, status } = {}) =>
   session(`/api/city/actions?local=${local}`, {
     method: 'POST', body: { type: 'build', kind, x, y, expected_revision, request_id }, status,
   })
@@ -129,7 +132,7 @@ test('cidades regionais: construir abre uma escolha de viagem e só o servidor l
   const withRoad = await build(session, ISLAND, 'estrada', start.revision, { kind: 'road' })
   assert.equal((await world(session)).viagens_disponiveis, 0)
   const withHouse = await build(session, ISLAND, 'casa-um', withRoad.revision, { x: 6 })
-  await build(session, ISLAND, 'casa-dois', withHouse.revision, { x: 5 })
+  await build(session, ISLAND, 'casa-dois', withHouse.revision, { x: 5, y: 9 })
   const earned = await world(session)
   assert.deepEqual(earned.desbloqueados, [ISLAND])
   assert.deepEqual(earned.concluidos, [ISLAND])
@@ -230,4 +233,101 @@ test('metas premiam a carteira uma vez, ao atingir a quantidade de dias', async 
   const player = await city(session, ISLAND)
   assert.equal(player.credits, 75)
   assert.equal(player.reward_count, 1)
+})
+
+test('plantas-piloto comportam o total previsto com ruas, reservas e cinco tipos', () => {
+  const expected = { [ISLAND]: 32, 'cristo-redentor': 40 }
+  for (const [location, capacity] of Object.entries(expected)) {
+    const plan = referencePlans[location]
+    assert.equal(plan.capacity, capacity)
+    const town = newCity(location, true)
+    const action = input => applyCityAction(town, normalizeAction({
+      ...input, expected_revision: town.revision, request_id: 'planta-' + town.revision,
+    }), location, true)
+    const layout = getCityLayout(location)
+    const protectedTiles = new Set(layout.protectedTiles.map(([x, y]) => tileKey(x, y)))
+    assert.ok(layout.protectedTiles.length > 0)
+    assert.equal(layout.max - layout.min + 1, 33)
+    assert.equal(layout.roadSeeds.some(([x, y]) => protectedTiles.has(tileKey(x, y))), false)
+    for (const [x, y, end_x, end_y] of plan.roads) action({ type: 'road_path', x, y, end_x, end_y })
+    for (const [kind, x, y, rotation] of plan.buildings) action({ type: 'build', kind, x, y, rotation })
+    assert.equal(town.credits, 5000 - plan.cost)
+    assert.equal(new Set(plan.buildings.map(([kind]) => kind)).size, 5)
+    assert.ok(plan.buildings.filter(([kind]) => getBuilding(kind).width === 3).length >= capacity * 0.25)
+    const roads = connectedRoads(town.placements)
+    const built = town.placements.filter(placement => plan.buildings.some(([kind]) => kind === placement.kind))
+    assert.equal(built.length, capacity)
+    assert.ok(built.every(placement => hasRoadFrontage(placement, roads)))
+    assert.equal(snapshot(town, location, true).unlock_radius, 16)
+  }
+})
+
+test('prévia abre os oito locais e mantém o saldo de teste ao alternar cidades', async () => {
+  const preview = createTestHarness({
+    workers: [{ configPath: 'wrangler.test.jsonc', vars: { CITYOU_TEST_OPEN_REGIONS: '1' } }],
+  })
+  await preview.listen()
+  try {
+    const session = newDemoSession((path, init) => preview.fetch(ORIGIN + path, init))
+    const worldState = await world(session)
+    assert.equal(worldState.test_mode, true)
+    assert.deepEqual(worldState.desbloqueados, SPACE_ORDER)
+    const initial = await city(session, ISLAND)
+    assert.equal(initial.credits, 5000)
+    assert.equal(initial.test_mode, true)
+    assert.deepEqual([initial.grid_min, initial.grid_max, initial.unlock_radius], [-8, 24, 16])
+    assert.equal((await city(session, PETRA)).credits, 5000)
+    const rio = await city(session, 'cristo-redentor')
+    assert.ok(rio.catalog.some(item => item.id === 'rio-fair'))
+    assert.equal(rio.catalog.some(item => item.id === 'island-market'), false)
+    assert.notDeepEqual(rio.protected_tiles, initial.protected_tiles)
+    await build(session, ISLAND, 'lote-agua', initial.revision, {
+      kind: 'tree', x: -8, y: -8, status: 422,
+    })
+    await build(session, 'cristo-redentor', 'lote-encosta', rio.revision, {
+      kind: 'tree', x: 5, y: -7, status: 422,
+    })
+    await build(session, 'cristo-redentor', 'catalogo-invalido', rio.revision, {
+      kind: 'island-house', x: 11, y: 10, status: 422,
+    })
+    const built = await build(session, ISLAND, 'casa-costeira', initial.revision, { kind: 'island-house', x: 9, y: 10 })
+    assert.equal(built.credits, 4980)
+    assert.equal((await city(session, 'cristo-redentor')).credits, 4980)
+    assert.equal((await city(session, PETRA)).credits, 4980)
+    assert.equal((await city(session, ISLAND)).credits, 4980)
+
+    const regular = newDemoSession()
+    assert.equal((await world(regular)).test_mode, false)
+    assert.equal((await city(regular, ISLAND)).credits, 50)
+    await regular('/api/city?local=cristo-redentor', { status: 403 })
+  } finally {
+    await preview.close()
+  }
+})
+
+test('trecho viário é validado e cobrado em conjunto, com reenvio idempotente', async () => {
+  const session = newDemoSession()
+  const start = await city(session, ISLAND)
+  const path = (request_id, expected_revision, x, y, end_x, end_y, status) => session('/api/city/actions?local=' + ISLAND, {
+    method: 'POST', body: { type: 'road_path', request_id, expected_revision, x, y, end_x, end_y }, status,
+  })
+
+  await path('isolado', start.revision, 5, 5, 7, 5, 422)
+  await path('colisao', start.revision, 6, 8, 9, 8, 409)
+  assert.equal((await city(session, ISLAND)).credits, start.credits)
+
+  const built = await path('trecho', start.revision, 6, 9, 6, 11)
+  assert.equal(built.credits, start.credits - 4)
+  assert.equal(built.revision, start.revision + 1)
+  const retried = await path('trecho', start.revision, 6, 9, 6, 11)
+  assert.deepEqual(retried.placements, built.placements)
+  assert.equal(retried.credits, built.credits)
+
+  const cut = built.placements.find(item => item.kind === 'road' && item.x === 6 && item.y === 10)
+  await session('/api/city/actions?local=' + ISLAND, {
+    method: 'POST',
+    body: { type: 'remove', request_id: 'cortar', expected_revision: built.revision, placement_id: cut.id },
+    status: 422,
+  })
+  assert.deepEqual((await city(session, ISLAND)).placements, built.placements)
 })

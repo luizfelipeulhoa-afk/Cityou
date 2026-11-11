@@ -2,6 +2,10 @@
 
 O globo low poly é a entrada das cidades. Há oito destinos, a Ilha Inicial e sete maravilhas. Ao clicar ou tocar num monumento liberado, o jogador entra na cidade correspondente. A lista de destinos oferece o mesmo acesso por teclado.
 
+## Cidades regionais e referências
+
+O [índice de dossiês](research/regioes/README.md) reúne a pesquisa dos oito destinos. As fichas de Rio e Ilha documentam as plantas, a chegada, os prédios e os cortes interativos dos pilotos.
+
 ## Cidades no Worker
 
 - A Ilha é a primeira cidade. A primeira construção de um prédio em cada cidade libera uma escolha de viagem. Ruas e árvores não contam para esse marco. A pessoa pode usar a viagem em qualquer destino ainda bloqueado e voltar a uma cidade aberta sem custo.

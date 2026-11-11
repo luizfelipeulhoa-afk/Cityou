@@ -18,6 +18,7 @@
     "enabled": true
   },
   "previews": {
+    "vars": { "CITYOU_TEST_OPEN_REGIONS": "1" },
     "durable_objects": {
       "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
     }

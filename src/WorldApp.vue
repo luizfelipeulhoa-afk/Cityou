@@ -12,6 +12,9 @@ const syncStatus = ref('local')
 const availableTrips = ref(0)
 const visitError = ref('')
 const visiting = ref(false)
+const arrival = ref(null)
+const returnedFrom = new URLSearchParams(window.location.search).get('de')
+let departureTimer
 const listOpen = ref(false)
 const selectedId = ref(null)
 const map = ref(null)
@@ -61,7 +64,7 @@ watch(progress, p => {
 }, { deep: true })
 const onPageHide = () => sync?.flushOnExit()
 onMounted(() => { void loadMap(); window.addEventListener('pagehide', onPageHide) })
-onBeforeUnmount(() => { window.removeEventListener('pagehide', onPageHide); sync?.stop() })
+onBeforeUnmount(() => { window.removeEventListener('pagehide', onPageHide); sync?.stop(); clearTimeout(departureTimer) })
 
 const spaces = computed(() => applyProgress(WORLD_SPACES, progress.value))
 const done = computed(() => spaces.value.filter(s => s.concluido).length)
@@ -94,10 +97,23 @@ function dismissHint() {
 }
 
 function enterCity(id) {
+  const destination = spaces.value.find(space => space.id === id)
+  if (!destination || arrival.value) return
   visiting.value = true
   const url = new URL('./city.html', window.location.href)
   url.searchParams.set('local', id)
-  window.location.assign(url)
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    window.location.assign(url)
+    return
+  }
+  arrival.value = destination
+  departureTimer = setTimeout(() => window.location.assign(url), 200)
+}
+
+function restoreDestination() {
+  if (!WORLD_SPACES.some(space => space.id === returnedFrom)) return
+  map.value?.focusSpace(returnedFrom, { instant: true })
+  nextTick(() => document.querySelector('.world-app__menu')?.focus({ preventScroll: true }))
 }
 
 function onOpen(id) {
@@ -160,8 +176,11 @@ function stateLabel(space) {
 
 <template>
   <main class="world-app">
-    <WorldMap ref="map" :progress="progress" :regional="mode === 'regional'" class="world-app__map" @open-world="onOpen" @locked="onLocked" @update:progress="mode === 'legacy' && (progress = $event)" @interact="dismissHint" @select="dismissHint" />
+    <WorldMap ref="map" :progress="progress" :regional="mode === 'regional'" class="world-app__map" @open-world="onOpen" @locked="onLocked" @ready="restoreDestination" @update:progress="mode === 'legacy' && (progress = $event)" @interact="dismissHint" @select="dismissHint" />
 
+    <div v-if="arrival" class="world-app__departure" :style="{ '--destination-color': arrival.cor }" role="status">
+      <strong>{{ arrival.nome }}</strong>
+    </div>
     <header class="world-app__hud">
       <div class="world-app__brand">
         <span class="world-app__logo" aria-hidden="true">B</span>
@@ -261,6 +280,18 @@ body {
   color: #f4f7ff;
 }
 .world-app__map { position: absolute; inset: 0; }
+.world-app__departure {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  background: #0b1430;
+  color: var(--destination-color);
+  font-size: clamp(24px, 5vw, 48px);
+  animation: departure 200ms ease-out both;
+}
+@keyframes departure { from { opacity: 0; } to { opacity: 1; } }
 .world-app button { font: inherit; color: inherit; cursor: pointer; }
 .world-app button:focus-visible { outline: 2px solid #ffd166; outline-offset: 2px; }
 

@@ -7,6 +7,7 @@ import { HttpError, json, errorResponse } from './http.js'
 const START = SPACE_ORDER[0]
 const COOKIE = 'cityou_demo'
 const SESSION_SECONDS = 30 * 24 * 60 * 60
+const previewEnabled = env => env?.CITYOU_TEST_OPEN_REGIONS === '1'
 const kinds = ['habit', 'goal', 'note', 'transaction', 'meal']
 const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' })
 const sources = Object.fromEntries(['fitness', 'documents', 'memories', 'events']
@@ -48,7 +49,9 @@ export async function demoApi(request, env, url) {
   if (!Object.hasOwn(route[1], request.method)) throw new HttpError(405, 'Método não permitido.')
   const token = sessionToken(request)
   if (!token) throw new HttpError(401, 'Abra o Cityou novamente com os cookies habilitados.')
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))
+  // Local runs may switch the flag while reusing a namespace and cookies.
+  const session = previewEnabled(env) ? `test:${token}` : token
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(session))
   const key = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
   const response = await env.DEMO_SESSIONS.getByName(key).fetch(request)
   return new Response(response.body, response)
@@ -87,14 +90,18 @@ function titleOf(value) {
   return value.trim()
 }
 
-function worldSnapshot(progress) {
+function worldSnapshot(progress, testMode = false) {
+  if (testMode) {
+    return { ...progress, desbloqueados: SPACE_ORDER, viagens_disponiveis: 0, test_mode: true }
+  }
   const slots = progress.concluidos.length - (progress.desbloqueados.length - 1)
   const locked = SPACE_ORDER.length - progress.desbloqueados.length
-  return { ...progress, viagens_disponiveis: Math.max(0, Math.min(slots, locked)) }
+  return { ...progress, viagens_disponiveis: Math.max(0, Math.min(slots, locked)), test_mode: false }
 }
 
 export class DemoSession {
-  constructor(ctx) {
+  constructor(ctx, env) {
+    this.testMode = previewEnabled(env)
     this.storage = ctx.storage
     this.sql = ctx.storage.sql
     this.sql.exec('CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT, value TEXT NOT NULL, PRIMARY KEY (kind, id))')
@@ -214,14 +221,14 @@ export class DemoSession {
       this.write('task', id, task)
       this.reward('task', dateFormatter.format(completedAt), id, `Tarefa concluída: ${task.title}`)
     }
-    return json({ task, city: snapshot(this.cityState()) })
+    return json({ task, city: this.citySnapshot(START) })
   }
 
-  cityState() { return this.read('city', 'state') ?? newCity() }
+  cityState() { return this.read('city', 'state') ?? newCity(START, this.testMode) }
 
   requireLocation(location) {
     if (!SPACE_ORDER.includes(location)) throw new HttpError(404, 'Local desconhecido.')
-    if (location === START) return
+    if (location === START || this.testMode) return
     const progress = this.progressState()
     if (!progress.desbloqueados.includes(location)) throw new HttpError(403, 'Este local ainda está bloqueado.')
   }
@@ -229,11 +236,11 @@ export class DemoSession {
   regionalCity(location, home) {
     if (location === START) return home
     const { credits, earned, reward_count, history } = home
-    const region = this.read('regional-city', location) ?? newTown()
+    const region = this.read('regional-city', location) ?? newTown(location)
     return { ...region, credits, earned, reward_count, history }
   }
 
-  citySnapshot(location) { return { ...snapshot(this.regionalCity(location, this.cityState())), location_id: location } }
+  citySnapshot(location) { return snapshot(this.regionalCity(location, this.cityState()), location, this.testMode) }
 
   city(_, location) { return json(this.citySnapshot(location)) }
 
@@ -278,10 +285,10 @@ export class DemoSession {
     const recorded = this.read('city-request', action.request_id)
     if (recorded !== null) {
       if (recorded !== fingerprint) throw new HttpError(409, 'Esse request_id já foi usado para outra ação.')
-      return json({ ...snapshot(city), location_id: location })
+      return json(snapshot(city, location, this.testMode))
     }
     const progress = this.progressState()
-    applyCityAction(city, action)
+    applyCityAction(city, action, location, this.testMode)
     if (location === START) {
       this.write('city', 'state', city)
     } else {
@@ -290,12 +297,15 @@ export class DemoSession {
       this.write('regional-city', location, { placements, revision, started_at })
     }
     const firstBuilding = action.type === 'build' && countsForTravel(action) && !progress.concluidos.includes(location)
-    if (firstBuilding) progress.concluidos.push(location)
+    if (firstBuilding) {
+      if (this.testMode && !progress.desbloqueados.includes(location)) progress.desbloqueados.push(location)
+      progress.concluidos.push(location)
+    }
     if (firstBuilding || !this.read('world', 'regional-progress')) {
       this.write('world', 'regional-progress', normalizeProgress(progress))
     }
     this.saveRequest('city-request', action.request_id, fingerprint)
-    return json({ ...snapshot(city), location_id: location })
+    return json(snapshot(city, location, this.testMode))
   }
 
   progressState() {
@@ -312,7 +322,7 @@ export class DemoSession {
     return normalizeProgress(legacy)
   }
 
-  world() { return json(worldSnapshot(this.progressState())) }
+  world() { return json(worldSnapshot(this.progressState(), this.testMode)) }
 
   saveWorld(progress) {
     const { epoca = 0, desbloqueados = [], concluidos = [] } = progress
@@ -336,16 +346,16 @@ export class DemoSession {
     }
 
     const progress = this.progressState()
-    if (progress.desbloqueados.includes(local)) {
+    if (this.testMode || progress.desbloqueados.includes(local)) {
       if (recorded === null) this.saveRequest('travel-request', request_id, local)
-      return json(worldSnapshot(progress))
+      return json(worldSnapshot(progress, this.testMode))
     }
     if (worldSnapshot(progress).viagens_disponiveis === 0) {
       throw new HttpError(409, 'Construa um prédio em uma cidade ainda não concluída para liberar uma viagem.')
     }
     const next = unlockSpace(progress, local)
     this.write('world', 'regional-progress', next)
-    if (!this.read('regional-city', local)) this.write('regional-city', local, newTown())
+    if (!this.read('regional-city', local)) this.write('regional-city', local, newTown(local))
     this.saveRequest('travel-request', request_id, local)
     return json(worldSnapshot(next))
   }

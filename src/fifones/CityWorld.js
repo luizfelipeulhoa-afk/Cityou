@@ -7,9 +7,10 @@ import SimObject from '@/js/components/tiles/sim-object.js'
 import { getIntersectedTile } from '@/js/tools/interactor/utils.js'
 import { fitModel } from '../world/SpaceMarker.js'
 import { WORLD_MODELS_MANIFEST } from '../world/worldSpaces.js'
+import { getCityLayout, isPilotCity, placementProblem, tileKey } from '../../shared/game/city-layout.js'
+import { createTapGesture } from '../interaction/tapGesture.js'
 import { createCoreBuilding, createEnvironment, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT, material } from './sceneEnvironment.js'
 
-const SIZE = 17
 const CENTER = 8
 const NOOP = () => {}
 const ACTIVITY_MAX_AGE = 45_000
@@ -65,6 +66,12 @@ function footprint(placement, definition) {
 export default class CityWorld {
   constructor(canvas, callbacks = {}) {
     this.canvas = canvas
+    this.region = callbacks.region
+    this.layout = getCityLayout(this.region?.id)
+    this.pilot = isPilotCity(this.region?.id)
+    this.gridSize = this.layout.max - this.layout.min + 1
+    this.protected = new Set(this.layout.protectedTiles.map(([x, y]) => tileKey(x, y)))
+    this.tap = createTapGesture()
     this.callbacks = { onSelect: NOOP, onTile: NOOP, onError: NOOP, onReady: NOOP, onModelStatus: NOOP, ...callbacks }
     this.state = { placements: [], catalog: [], unlock_radius: 3, credits: 0 }
     this.definitions = new Map()
@@ -100,9 +107,10 @@ export default class CityWorld {
       queueMicrotask(() => this.callbacks.onError(`Não foi possível iniciar o 3D: ${error.message}`))
       return
     }
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.pilot ? 1.25 : 1.5))
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    if (this.pilot) this.renderer.shadowMap.autoUpdate = false
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 0.95
@@ -112,7 +120,7 @@ export default class CityWorld {
     this.controls.enableDamping = !this.reducedMotion
     this.controls.dampingFactor = 0.075
     this.controls.minDistance = 9
-    this.controls.maxDistance = 58
+    this.controls.maxDistance = this.pilot ? 73 : 58
     this.controls.minPolarAngle = 0.25
     this.controls.maxPolarAngle = Math.PI / 2.5
     this.controls.screenSpacePanning = false
@@ -126,22 +134,29 @@ export default class CityWorld {
     this.sun = new THREE.DirectionalLight(0xffd2a4, 2.0)
     this.sun.position.set(-12, 22, 12)
     this.sun.castShadow = true
-    this.sun.shadow.mapSize.set(2048, 2048)
-    Object.assign(this.sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 1, far: 65 })
+    const shadowSize = this.pilot ? 1024 : 2048
+    this.sun.shadow.mapSize.set(shadowSize, shadowSize)
+    const shadowSide = this.pilot ? 21 : 16
+    Object.assign(this.sun.shadow.camera, { left: -shadowSide, right: shadowSide, top: shadowSide, bottom: -shadowSide, near: 1, far: 65 })
     this.sun.shadow.normalBias = 0.035
     this.sun.shadow.bias = -0.00015
     this.scene.add(this.ambient, this.sun)
     this.environment = createEnvironment(this.scene, callbacks.region)
-    if (this.environment.landmark) void this.loadLandmark(callbacks.region)
+    if (this.environment.landmark && !this.pilot) void this.loadLandmark(this.region)
     this.buildings = new THREE.Group()
     this.buildings.name = 'Fifones · CubeCity SimObjects'
     this.picking = new THREE.Group()
     this.picking.name = 'Footprint-aware selection proxies'
     this.scene.add(this.buildings, this.picking)
+    // Selection proxies only take part in raycasts.
+    this.picking.visible = false
     this.makeGround()
+    if (this.pilot) this.makeRoads()
     this.makeIndicators()
     this.installEvents()
     this.resize()
+    this.home()
+    this.refreshShadows()
     this.frame = this.frame.bind(this)
     this.raf = requestAnimationFrame(this.frame)
     queueMicrotask(() => { if (!this.destroyed) this.callbacks.onReady() })
@@ -149,15 +164,10 @@ export default class CityWorld {
 
   makeGround() {
     const geo = new THREE.BoxGeometry(0.98, 0.035, 0.98)
-    this.tiles = new THREE.InstancedMesh(geo, material(0xffffff), SIZE * SIZE)
+    this.tiles = new THREE.InstancedMesh(geo, material(0xffffff), this.gridSize ** 2)
     this.tiles.receiveShadow = true
-    this.tiles.name = '17 × 17 buildable lots'
-    const dummy = new THREE.Object3D()
-    for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
-      dummy.position.set(x - CENTER, 0.045, y - CENTER)
-      dummy.updateMatrix()
-      this.tiles.setMatrixAt(y * SIZE + x, dummy.matrix)
-    }
+    this.tiles.name = `${this.gridSize} × ${this.gridSize} buildable lots`
+    this.tiles.visible = !this.pilot
     this.scene.add(this.tiles)
     this.unlockBoundary = new THREE.Group()
     this.unlockBoundary.name = 'Perímetro da área desbloqueada'
@@ -167,8 +177,9 @@ export default class CityWorld {
       edge.receiveShadow = true
       this.unlockBoundary.add(edge)
     }
+    const postMaterial = material(0xe5a35c)
     for (let i = 0; i < 4; i++) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.19, 0.09), material(0xe5a35c))
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.19, 0.09), postMaterial)
       post.castShadow = true
       this.unlockBoundary.add(post)
     }
@@ -179,28 +190,76 @@ export default class CityWorld {
   refreshGround() {
     if (!this.tiles) return
     const radius = this.state.unlock_radius ?? 3
-    const open = new THREE.Color(this.environment.tileColor)
+    if (this.displayedRadius === radius) return
+    this.displayedRadius = radius
+    const baseColor = new THREE.Color(this.environment.tileColor)
+    const color = new THREE.Color()
     const dummy = new THREE.Object3D()
-    for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
-      const unlocked = Math.max(Math.abs(x - CENTER), Math.abs(y - CENTER)) <= radius
-      const color = open.clone().multiplyScalar(1 + (((x * 13 + y * 7) % 7) - 3) * 0.007)
-      this.tiles.setColorAt(y * SIZE + x, color)
-      dummy.position.set(x - CENTER, unlocked ? 0.045 : -1, y - CENTER)
-      dummy.scale.setScalar(unlocked ? 1 : 0.0001)
+    const { min, max } = this.layout
+    let index = 0
+    for (let y = min; y <= max; y++) for (let x = min; x <= max; x++) {
+      if (Math.max(Math.abs(x - CENTER), Math.abs(y - CENTER)) > radius || this.protected.has(tileKey(x, y))) continue
+      color.copy(baseColor).multiplyScalar(1 + ((Math.abs(x * 13 + y * 7) % 7) - 3) * 0.007)
+      this.tiles.setColorAt(index, color)
+      dummy.position.set(x - CENTER, 0.045, y - CENTER)
       dummy.updateMatrix()
-      this.tiles.setMatrixAt(y * SIZE + x, dummy.matrix)
+      this.tiles.setMatrixAt(index++, dummy.matrix)
     }
+    this.tiles.count = index
     this.tiles.instanceColor.needsUpdate = true
     this.tiles.instanceMatrix.needsUpdate = true
-    if (this.unlockBoundary) {
-      const edge = Math.min(radius, 8) + 0.5, side = edge * 2
-      const [north, south, west, east, ...posts] = this.unlockBoundary.children
-      north.scale.set(side, 1, 0.045); north.position.set(0, 0.075, -edge)
-      south.scale.set(side, 1, 0.045); south.position.set(0, 0.075, edge)
-      west.scale.set(0.045, 1, side); west.position.set(-edge, 0.075, 0)
-      east.scale.set(0.045, 1, side); east.position.set(edge, 0.075, 0)
-      posts.forEach((post, i) => post.position.set(i % 2 ? edge : -edge, 0.14, i < 2 ? -edge : edge))
+    this.tiles.computeBoundingSphere()
+    const edge = Math.min(radius, max - CENTER) + 0.5, side = edge * 2
+    const [north, south, west, east, ...posts] = this.unlockBoundary.children
+    this.unlockBoundary.visible = !this.pilot || radius < 8
+    north.scale.set(side, 1, 0.045)
+    north.position.set(0, 0.075, -edge)
+    south.scale.set(side, 1, 0.045)
+    south.position.set(0, 0.075, edge)
+    west.scale.set(0.045, 1, side)
+    west.position.set(-edge, 0.075, 0)
+    east.scale.set(0.045, 1, side)
+    east.position.set(edge, 0.075, 0)
+    posts.forEach((post, i) => post.position.set(i % 2 ? edge : -edge, 0.14, i < 2 ? -edge : edge))
+  }
+
+  makeRoads() {
+    const island = this.region.id === 'ilha-inicial'
+    this.roadDeck = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), material(island ? 0xd8bf93 : 0x687c78), this.gridSize ** 2 * 3)
+    this.roadMarks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), material(island ? 0xedd9b1 : 0xf5deb0), this.gridSize ** 2 * 2)
+    for (const mesh of [this.roadDeck, this.roadMarks]) {
+      mesh.count = 0
+      mesh.frustumCulled = false
+      mesh.receiveShadow = true
+      this.scene.add(mesh)
     }
+  }
+
+  refreshRoads() {
+    if (!this.roadDeck) return
+    const roads = this.state.placements.filter(item => item.kind === 'road')
+    const positions = new Set(roads.map(({ x, y }) => tileKey(x, y)))
+    const dummy = new THREE.Object3D()
+    let deckCount = 0, marksCount = 0
+    const draw = (mesh, index, x, y, z, width, height, depth) => {
+      dummy.position.set(x, y, z)
+      dummy.scale.set(width, height, depth)
+      dummy.updateMatrix()
+      mesh.setMatrixAt(index, dummy.matrix)
+    }
+    for (const { x, y } of roads) {
+      const cx = x - CENTER, cz = y - CENTER
+      draw(this.roadDeck, deckCount++, cx, 0.072, cz, 0.74, 0.026, 0.74)
+      for (const [dx, dy] of [[1, 0], [0, 1]]) {
+        if (!positions.has(tileKey(x + dx, y + dy))) continue
+        draw(this.roadDeck, deckCount++, cx + dx * 0.5, 0.072, cz + dy * 0.5, dx ? 0.29 : 0.74, 0.026, dy ? 0.29 : 0.74)
+        draw(this.roadMarks, marksCount++, cx + dx * 0.5, 0.089, cz + dy * 0.5, dx ? 0.22 : 0.035, 0.01, dy ? 0.22 : 0.035)
+      }
+    }
+    this.roadDeck.count = deckCount
+    this.roadMarks.count = marksCount
+    this.roadDeck.instanceMatrix.needsUpdate = true
+    this.roadMarks.instanceMatrix.needsUpdate = true
   }
 
   makeIndicators() {
@@ -222,6 +281,31 @@ export default class CityWorld {
     this.preview.add(this.previewFloor, this.previewGhost)
     this.preview.visible = false
     this.scene.add(this.preview)
+    this.roadPreview = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.88, 0.06, 0.88),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false }),
+      this.gridSize * 2 - 1,
+    )
+    this.roadPreview.frustumCulled = false
+    this.roadPreview.count = 0
+    this.scene.add(this.roadPreview)
+  }
+
+  setRoadPreview(cells = []) {
+    if (!this.roadPreview || this.destroyed) return
+    const count = Math.min(cells.length, this.gridSize * 2 - 1)
+    const dummy = new THREE.Object3D()
+    const color = new THREE.Color()
+    for (let i = 0; i < count; i++) {
+      const { x, y, valid } = cells[i]
+      dummy.position.set(x - CENTER, 0.115, y - CENTER)
+      dummy.updateMatrix()
+      this.roadPreview.setMatrixAt(i, dummy.matrix)
+      this.roadPreview.setColorAt(i, color.setHex(valid === false ? 0xd7614f : 0x4eafa0))
+    }
+    this.roadPreview.count = count
+    this.roadPreview.instanceMatrix.needsUpdate = true
+    if (this.roadPreview.instanceColor) this.roadPreview.instanceColor.needsUpdate = true
   }
 
   installEvents() {
@@ -231,27 +315,29 @@ export default class CityWorld {
     }
     listen(this.canvas, 'contextmenu', event => event.preventDefault())
     listen(this.canvas, 'pointerdown', (event) => {
-      if (event.button !== 0 || !event.isPrimary) return
-      this.down = { x: event.clientX, y: event.clientY, id: event.pointerId, dragged: false }
+      if (event.button !== 0) return
+      this.stopArrival()
+      this.updatePointer(event)
+      this.tap.down(event, this.tapTarget())
     })
-    listen(window, 'pointermove', (event) => {
-      if (this.down && event.pointerId === this.down.id && Math.hypot(event.clientX - this.down.x, event.clientY - this.down.y) > 5) this.down.dragged = true
-    })
+    listen(window, 'pointermove', event => this.tap.move(event), true)
     listen(this.canvas, 'pointermove', (event) => {
       this.updatePointer(event)
-      if (!this.down?.dragged) this.updateHover()
+      this.updateHover()
     })
-    listen(this.canvas, 'pointerleave', () => { this.hover = null; this.preview.visible = false; this.canvas.style.cursor = 'grab' })
-    listen(this.canvas, 'pointercancel', () => { this.down = null })
+    listen(this.canvas, 'pointerleave', () => {
+      this.hover = null
+      this.preview.visible = false
+      this.canvas.style.cursor = 'grab'
+    })
+    listen(window, 'pointercancel', event => this.tap.cancel(event), true)
+    listen(this.canvas, 'lostpointercapture', event => this.tap.cancel(event))
     listen(window, 'pointerup', (event) => {
-      const down = this.down
-      this.down = null
-      if (!down || event.pointerId !== down.id || down.dragged || event.button !== 0) return
-      const rect = this.canvas.getBoundingClientRect()
-      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return
       this.updatePointer(event)
-      this.click()
-    })
+      const rect = this.canvas.getBoundingClientRect()
+      const inside = event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom
+      if (this.tap.up(event, inside ? this.tapTarget() : null)) this.click()
+    }, true)
     listen(window, 'resize', () => this.resize())
     if (typeof ResizeObserver !== 'undefined') {
       this.observer = new ResizeObserver(() => this.resize())
@@ -273,7 +359,8 @@ export default class CityWorld {
     if (!this.raycaster.ray.intersectPlane(this.floor, this.floorHit)) return null
     const x = Math.floor(this.floorHit.x + CENTER + 0.5)
     const y = Math.floor(this.floorHit.z + CENTER + 0.5)
-    return x >= 0 && x < SIZE && y >= 0 && y < SIZE ? { x, y } : null
+    const { min, max } = this.layout
+    return x >= min && x <= max && y >= min && y <= max ? { x, y } : null
   }
 
   getBuilding() {
@@ -282,16 +369,49 @@ export default class CityWorld {
     return tile?.placement || null
   }
 
+  usesTiles() {
+    return ['build', 'move', 'road'].includes(this.tool.mode)
+  }
+
+  interiorAction() {
+    if (!this.interior?.onActivate) return null
+    this.raycaster.setFromCamera(this.pointer, this.camera)
+    for (const { object } of this.raycaster.intersectObject(this.interior.group, true)) {
+      for (let node = object; node && node !== this.interior.group; node = node.parent) {
+        if (node.userData.action) return node.userData.action
+      }
+    }
+    return null
+  }
+
+  tapTarget() {
+    if (this.interior) return this.interiorAction()
+    if (this.usesTiles()) {
+      const tile = this.getTile()
+      return tile ? tileKey(tile.x, tile.y) : null
+    }
+    return this.getBuilding()?.id || 'empty'
+  }
+
   updateHover() {
     if (this.destroyed) return
+    if (this.interior) {
+      this.canvas.style.cursor = this.interiorAction() ? 'pointer' : 'grab'
+      return
+    }
     this.hover = this.getTile()
-    const building = this.getBuilding()
-    this.canvas.style.cursor = this.tool.mode === 'build' || this.tool.mode === 'move' ? 'crosshair' : building ? 'pointer' : 'grab'
+    const building = this.usesTiles() ? null : this.getBuilding()
+    this.canvas.style.cursor = this.usesTiles() ? 'crosshair' : building ? 'pointer' : 'grab'
     this.refreshPreview()
   }
 
   click() {
-    if (this.tool.mode === 'build' || this.tool.mode === 'move') {
+    if (this.interior) {
+      const action = this.interiorAction()
+      if (action) this.interior.onActivate?.(action)
+      return
+    }
+    if (this.usesTiles()) {
       const tile = this.getTile()
       if (tile) this.callbacks.onTile(tile)
       return
@@ -309,7 +429,11 @@ export default class CityWorld {
     const placements = this.state.placements || []
     const next = new Set(placements.map(item => item.id))
     for (const [id, record] of this.records) {
-      if (!next.has(id)) { this.removeRecord(record); this.records.delete(id) }
+      if (!next.has(id)) {
+        if (this.interior?.placementId === id) this.closeInterior()
+        this.removeRecord(record)
+        this.records.delete(id)
+      }
     }
     for (const placement of placements) {
       const definition = this.definitions.get(placement.kind) || {}
@@ -323,7 +447,7 @@ export default class CityWorld {
       if (!record) {
         record = this.createRecord(placement, definition, key)
         this.records.set(placement.id, record)
-        record.constructionPending = animateNew
+        record.constructionPending = animateNew && !(this.pilot && placement.kind === 'road')
         if (definition.model && !coreKinds.has(placement.kind)) this.loadModel(record, definition)
       }
       record.placement = { ...placement }
@@ -332,19 +456,23 @@ export default class CityWorld {
       this.positionRecord(record, definition)
       if (record.constructionPending && !definition.model) this.animateConstruction(record)
     }
+    if (!this.hydrated && this.pilot) this.startArrival()
     this.hydrated = true
     if (!next.has(this.selectedId)) this.selectedId = null
     if (!next.has(this.inUseId)) this.inUseId = null
     this.refreshGround()
+    this.refreshRoads()
     this.refreshSelection()
     this.refreshPreview()
+    this.refreshShadows()
   }
 
   createRecord(placement, definition, key) {
     // These are the original CubeCity SimObjects, with Rio geometry and model resources.
     const sim = new SimObject()
     sim.name = `${definition.label || placement.kind} · ${placement.id}`
-    const mesh = createCoreBuilding(placement.kind, definition)
+    const mesh = this.pilot && placement.kind === 'road' ? new THREE.Group() : createCoreBuilding(placement.kind, definition)
+    if (placement.kind === 'road') mesh.userData.height = 0.065
     sim.setMesh(mesh)
     this.buildings.add(sim)
     const proxy = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, transparent: true, opacity: 0 }))
@@ -484,6 +612,7 @@ export default class CityWorld {
       anchor.remove(fallback)
       disposeOwned(fallback)
       anchor.add(model)
+      this.refreshShadows()
     } catch {
       // A cidade mantém o monumento procedural quando o GLB está indisponível.
     }
@@ -545,6 +674,7 @@ export default class CityWorld {
       if (record.light) record.light.position.y = record.height * 0.7
       this.refreshSelection()
       if (record.constructionPending) this.animateConstruction(record)
+      this.refreshShadows()
       this.callbacks.onModelStatus({ kind: record.placement.kind, status: 'ready' })
     }
     catch (error) {
@@ -563,6 +693,7 @@ export default class CityWorld {
     if (this.reducedMotion) return
     gsap.fromTo(record.sim.scale, { x: 0.72, y: 0.08, z: 0.72 }, {
       x: 1, y: 1, z: 1, duration: 0.65, ease: 'back.out(1.25)', overwrite: true,
+      onComplete: () => this.refreshShadows(),
     })
   }
 
@@ -578,11 +709,17 @@ export default class CityWorld {
 
   setTool(tool = {}) {
     this.tool = { mode: 'select', kind: null, rotation: 0, placementId: null, ...tool }
+    if (this.pilot) this.tiles.visible = !this.interior && this.usesTiles()
     this.refreshPreview()
   }
 
   isValid(tile, definition, rotation) {
     if (!tile) return false
+    if (this.pilot && this.state.location_id === this.region.id) {
+      return !placementProblem(this.state, {
+        ...tile, kind: definition.id, rotation, id: this.tool.mode === 'move' ? this.tool.placementId : null,
+      })
+    }
     const cells = footprint({ ...tile, rotation }, definition)
     const radius = this.state.unlock_radius ?? 3
     const occupied = new Set()
@@ -590,7 +727,9 @@ export default class CityWorld {
       if (this.tool.mode === 'move' && placement.id === this.tool.placementId) continue
       for (const cell of footprint(placement, this.definitions.get(placement.kind) || {})) occupied.add(`${cell.x},${cell.y}`)
     }
-    return cells.every(cell => cell.x >= 0 && cell.y >= 0 && cell.x < SIZE && cell.y < SIZE && Math.max(Math.abs(cell.x - CENTER), Math.abs(cell.y - CENTER)) <= radius && !occupied.has(`${cell.x},${cell.y}`))
+    const { min, max } = this.layout
+    return cells.every(cell => cell.x >= min && cell.y >= min && cell.x <= max && cell.y <= max &&
+      Math.max(Math.abs(cell.x - CENTER), Math.abs(cell.y - CENTER)) <= radius && !occupied.has(tileKey(cell.x, cell.y)))
   }
 
   refreshPreview() {
@@ -600,7 +739,8 @@ export default class CityWorld {
     const kind = moving ? placement?.kind : this.tool.kind
     const definition = this.definitions.get(kind)
     const active = this.tool.mode === 'build' || moving
-    this.preview.visible = Boolean(active && this.hover && definition)
+    this.preview.visible = Boolean(!this.interior && active && this.hover && definition &&
+      !(this.pilot && kind === 'road' && this.roadPreview.count))
     if (!this.preview.visible) return
     const rotation = this.tool.rotation || 0
     const { width, depth } = dimensions(definition, rotation)
@@ -633,7 +773,7 @@ export default class CityWorld {
       this.applyRecordFeedback(record)
     }
     const record = this.records.get(this.selectedId)
-    this.selection.visible = Boolean(record)
+    this.selection.visible = Boolean(record && !this.interior)
     if (!record) return
     const { width, depth } = dimensions(this.definitions.get(record.placement.kind), record.placement.rotation)
     this.selection.position.set(record.sim.position.x, 0.105, record.sim.position.z)
@@ -744,6 +884,7 @@ export default class CityWorld {
     this.ambient.intensity = dusk ? 0.85 : 1.25
     this.renderer.toneMappingExposure = dusk ? 0.95 : 0.95
     this.environment.setDusk(dusk)
+    this.refreshShadows()
   }
 
   focus(id) {
@@ -764,11 +905,108 @@ export default class CityWorld {
     this.controls.update()
   }
 
+  refreshShadows() {
+    if (this.pilot && this.renderer) this.renderer.shadowMap.needsUpdate = true
+  }
+
+  stopArrival() {
+    this.arrivalTween?.kill()
+    this.arrivalTween = null
+  }
+
+  startArrival() {
+    const loadLandmark = () => { if (!this.destroyed) void this.loadLandmark(this.region) }
+    const idle = typeof window.requestIdleCallback === 'function'
+    const timer = idle ? window.requestIdleCallback(loadLandmark, { timeout: 1500 }) : setTimeout(loadLandmark, 300)
+    this.disposers.push(() => idle ? window.cancelIdleCallback(timer) : clearTimeout(timer))
+
+    const key = `cityou:arrival:${this.region.id}`
+    if (this.reducedMotion) return
+    try {
+      if (sessionStorage.getItem(key)) return
+      sessionStorage.setItem(key, '1')
+    } catch { /* The arrival remains available in private browsing. */ }
+    const [entryX, entryY] = this.layout.arrivalPath[0]
+    const [insideX, insideY] = this.layout.arrivalPath[1]
+    const direction = new THREE.Vector3(entryX - insideX, 0, entryY - insideY).normalize()
+    const finalPosition = this.camera.position.clone()
+    const finalTarget = this.controls.target.clone()
+    this.camera.position.addScaledVector(direction, 5)
+    this.controls.target.addScaledVector(direction, 3.5)
+    this.arrivalTween = gsap.timeline()
+      .to(this.camera.position, { ...finalPosition, duration: 0.58, ease: 'power2.out' }, 0)
+      .to(this.controls.target, { ...finalTarget, duration: 0.58, ease: 'power2.out' }, 0)
+  }
+
   home() {
-    if (!this.controls) return
-    this.controls.target.set(0, 0.8, 0)
-    this.camera.position.set(17.5, 17.5, 23)
+    if (!this.controls || this.interior) return
+    this.stopArrival()
+    if (this.pilot) {
+      const island = this.region.id === 'ilha-inicial'
+      this.controls.target.set(island ? 0 : -1, 0.8, island ? 4 : -4)
+      this.camera.position.set(island ? 18 : 23, island ? 31 : 29, island ? 42 : 41)
+    } else {
+      this.controls.target.set(0, 0.8, 0)
+      this.camera.position.set(17.5, 17.5, 23)
+    }
     this.controls.update()
+  }
+
+  openInterior(placementId, group, onActivate) {
+    if (!group?.isGroup) return false
+    const record = this.records.get(placementId)
+    if (!record || this.destroyed || !this.renderer) {
+      disposeOwned(group, true, true)
+      return false
+    }
+    this.closeInterior()
+    this.stopArrival()
+    this.interior = {
+      placementId, group, onActivate, position: this.camera.position.clone(),
+      target: this.controls.target.clone(), minDistance: this.controls.minDistance,
+    }
+    record.sim.visible = false
+    group.position.copy(record.sim.position)
+    group.rotation.y = record.sim.rotation.y
+    this.scene.add(group)
+    this.controls.minDistance = 3
+    const offset = new THREE.Vector3(2.8, 4.3, 4.0).applyAxisAngle(new THREE.Vector3(0, 1, 0), group.rotation.y)
+    const target = group.position.clone().add(new THREE.Vector3(0, 0.35, 0))
+    const position = target.clone().add(offset)
+    if (this.reducedMotion) {
+      this.camera.position.copy(position)
+      this.controls.target.copy(target)
+      this.controls.update()
+    } else {
+      this.interior.tween = gsap.timeline()
+        .to(this.camera.position, { ...position, duration: 0.24, ease: 'power2.out' }, 0)
+        .to(this.controls.target, { ...target, duration: 0.24, ease: 'power2.out' }, 0)
+    }
+    this.refreshSelection()
+    this.refreshPreview()
+    this.setRoadPreview()
+    if (this.pilot) this.tiles.visible = false
+    this.refreshShadows()
+    return true
+  }
+
+  closeInterior() {
+    const interior = this.interior
+    if (!interior) return
+    this.interior = null
+    interior.tween?.kill()
+    const record = this.records.get(interior.placementId)
+    if (record) record.sim.visible = true
+    this.scene.remove(interior.group)
+    disposeOwned(interior.group, true, true)
+    this.controls.minDistance = interior.minDistance
+    this.controls.target.copy(interior.target)
+    this.camera.position.copy(interior.position)
+    this.controls.update()
+    this.refreshSelection()
+    this.refreshPreview()
+    if (this.pilot) this.tiles.visible = this.usesTiles()
+    this.refreshShadows()
   }
 
   resize() {
@@ -807,8 +1045,9 @@ export default class CityWorld {
     if (this.destroyed) return
     this.raf = requestAnimationFrame(this.frame)
     const time = this.clock.getElapsedTime()
-    this.controls.target.x = THREE.MathUtils.clamp(this.controls.target.x, -12, 12)
-    this.controls.target.z = THREE.MathUtils.clamp(this.controls.target.z, -12, 12)
+    const limit = this.pilot ? 20 : 12
+    this.controls.target.x = THREE.MathUtils.clamp(this.controls.target.x, -limit, limit)
+    this.controls.target.z = THREE.MathUtils.clamp(this.controls.target.z, -limit, limit)
     this.controls.target.y = THREE.MathUtils.clamp(this.controls.target.y, 0, 4)
     this.controls.update()
     if (this.camera.position.y < 1.5) this.camera.position.y = 1.5
@@ -819,6 +1058,8 @@ export default class CityWorld {
 
   destroy() {
     if (this.destroyed) return
+    this.closeInterior()
+    this.stopArrival()
     this.destroyed = true
     cancelAnimationFrame(this.raf)
     this.observer?.disconnect()
