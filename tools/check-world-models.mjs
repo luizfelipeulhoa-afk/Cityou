@@ -9,7 +9,7 @@ const MAX_FILE_KB = 2048
 const MAX_TEXTURE = 1024
 const MAX_TRIANGLES = {
   'ilha-inicial': 6000, 'cristo-redentor': 20000, 'machu-picchu': 25000, 'chichen-itza': 15000,
-  'coliseu': 25000, 'petra': 28000, 'taj-mahal': 25000, 'grande-muralha': 25000,
+  'coliseu': 25000, 'petra': 20000, 'taj-mahal': 25000, 'grande-muralha': 25000,
 }
 
 function readGlb(file) {

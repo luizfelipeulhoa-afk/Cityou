@@ -169,23 +169,28 @@ Abertas (propostas em `GAME-DESIGN.md`):
 3. Domínio próprio para enviar o e-mail de recuperação de senha.
 4. Como a pessoa nomeia e escolhe os próprios prédios (ver `GAME-DESIGN.md`).
 
-## Onde os dados ficam (decisão em aberto)
+## Onde os dados ficam
 
-Decidido: o banco não será criado agora no leste da América do Norte. A escolha fica para depois.
+**Decidido:** o banco fica em **São Paulo**. O D1 e os Durable Objects do Cloudflare não rodam na América do Sul (um objeto pedido para lá é criado no leste da América do Norte, segundo a documentação), então o banco será um provedor externo ligado ao Worker pelo **Hyperdrive**. O provedor ainda não foi escolhido.
 
-O que a documentação do Cloudflare diz: nem o D1 nem os Durable Objects rodam na América do Sul. Um Durable Object pedido para a América do Sul é criado no leste da América do Norte. Ou seja, dentro do Cloudflare não há opção mais próxima do Brasil.
-
-| Caminho | Latência do Brasil | Custo de adotar | Situação |
+| Opção | São Paulo | Ligação ao Worker | Observações |
 |---|---|---|---|
-| D1 em `enam` | Cada gravação atravessa até os EUA | Baixo: é o que o código já testa | Adiado |
-| Banco externo com região em São Paulo | Baixa, se o provedor tiver a região | Médio: outro fornecedor, outra conta, credenciais | A pesquisar; nenhum provedor foi conferido |
-| Aparelho primeiro (recomendado para a experiência) | A tela não espera o servidor em nenhuma ação | Médio: fila de ações no aparelho e reconciliação | Independe do banco; combina com qualquer um dos dois acima |
+| **Neon** (Postgres) | `aws-sa-east-1`, disponível desde fev/2025 | Hyperdrive | Plano grátis (1 GB por projeto, segundo o FAQ do Neon). Desliga após 5 minutos parado; a partida a frio (estimada em 0,5 a 2 s por um blog) não foi conferida |
+| **PlanetScale** (Postgres ou MySQL) | `aws-sa-east-1` na lista de regiões | Hyperdrive; cobrança pode vir pela conta do Cloudflare | Não confirmei Postgres em São Paulo especificamente nem plano grátis |
+| **Supabase** (Postgres) | Listado na página de regiões | Hyperdrive | Não confirmei se o plano grátis cria projeto em São Paulo |
+| **Turso** (SQLite) | `gru` | Cliente HTTP | Mantém o dialeto SQLite das migrações atuais; a região principal não muda depois de criada |
 
-Como o trabalho segue sem a decisão:
+**Recomendação: Neon em `aws-sa-east-1` com Hyperdrive.** Região confirmada, plano grátis para começar, e Postgres serve bem ao extrato e a vários usuários. A alternativa que menos reescreve é o Turso.
 
-- O esquema é SQLite puro (`migrations/*.sql`). Serve para D1 e para qualquer banco compatível com SQLite; trocar por Postgres pede ajustes pequenos.
-- As regras do jogo ficam em `shared/game/`, sem banco. O Worker fala com o banco por uma camada fina (`worker/store/`), que é a única parte a trocar.
-- Tudo é desenvolvido e testado contra o D1 local. Em produção, as rotas que precisam de banco só ligam quando ele existir; até lá, `GET /api/health` mostra `db: not_configured`.
+O que o Cloudflare diz do Hyperdrive (conferido): faz a conexão perto do Worker, mantém o grupo de conexões perto do banco, pode guardar leituras em cache (sem invalidar ao gravar) e está nos planos grátis (100 mil consultas por dia) e pago. A opção `placement.region` (por exemplo `aws:sa-east-1`) põe o Worker perto do banco e baixa cada consulta de 20 a 30 ms para 1 a 3 ms quando há várias por pedido; com uma só, não ajuda.
+
+**Medir antes de migrar:** criar um projeto Neon grátis em São Paulo, ligar ao `wrangler dev` e rodar `npm run perf:api` contra uma consulta real, com e sem `placement`. A meta de 60 ms no servidor só se confirma assim.
+
+Como o trabalho segue até a escolha:
+
+- As regras do jogo ficam em `shared/game/`, sem banco. O Worker fala com o banco por uma camada fina (`worker/store/`), a única parte a trocar.
+- O esquema atual (`migrations/*.sql`) é SQLite e precisa de ajustes pequenos para Postgres (tipos de data, `INTEGER`). Os testes do Worker hoje usam um D1 local; com Postgres precisam de um banco local (por exemplo PGlite) ou de um projeto de teste.
+- Em produção, as rotas que precisam de banco só ligam quando ele existir; até lá, `GET /api/health` mostra `db: not_configured`.
 
 ## A conferir na fase B1
 
