@@ -86,7 +86,7 @@ O globo se ajusta a cada modelo, seja GLB ou monumento em código:
 - **Luz do modelo.** A base escurece junto ao chão, as faces viradas para fora do globo recebem luz de céu, e o contorno acende na cor do espaço (dourado depois de concluído).
 - **Bloqueado.** O modelo vira uma estátua de pedra clara, opaca, com névoa e cadeado. O desbloqueio devolve a cor.
 
-Os GLB do Tripo chegam como material PBR com rugosidade 0,9 e sem metal, ou seja, quase só difuso. O mapa os desenha com `MeshLambertMaterial`, que dá o mesmo difuso com menos contas por pixel e dispensa o mapa de ambiente. Mapas de metal e rugosidade de um GLB novo não têm efeito aqui.
+Os GLB do Tripo chegam como material PBR com rugosidade 0,9 e sem metal, ou seja, quase só difuso. O mapa os desenha com `MeshLambertMaterial`, que dá o mesmo difuso com menos contas por pixel e dispensa o mapa de ambiente. Mapas de metal e rugosidade de um GLB novo não têm efeito aqui. Antes da conversão, todo GLB passa por `applyGlbStyle()` (`src/tres/glbMaterial.js`), que liga o `flatShading`: os modelos do Tripo saem com faces planas, como os monumentos em código. A regra completa e os pontos onde ela vale estão em `docs/3D-DECLARATIVO.md`.
 
 ## Monumentos em código e modelos do Tripo
 
