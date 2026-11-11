@@ -1,6 +1,6 @@
 # Contrato da API do Cityou
 
-Rotas do backend em Cloudflare Workers + D1. Tabelas em `DATA-MODEL.md`; quem chama cada rota em `INTERACTIONS.md`. Nada disto está implementado ainda: é a especificação da fase B0.
+Rotas do backend em Cloudflare Workers + D1. Tabelas em `DATA-MODEL.md`; quem chama cada rota em `INTERACTIONS.md`. Implementado até agora (fase B1): `GET /api/health`, a proteção das escritas, o formato de erro, o `Server-Timing` e a primeira migração (tabelas de conta). O resto é especificação.
 
 ## Arquitetura
 
@@ -183,6 +183,10 @@ Cada fase entra com testes do Worker contra um D1 local e com dois testes fixos:
 
 Regras para manter o servidor rápido: a sessão é lida uma vez por pedido; cada ação é um único `env.DB.batch()`; toda listagem tem índice; nenhuma rota faz chamada externa no caminho da resposta (o envio de e-mail vai em `ctx.waitUntil`).
 
+**Limite conhecido do D1.** O D1 não roda na América do Sul. As regiões são América do Norte (leste e oeste), Europa (oeste e leste), Ásia-Pacífico e Oceania, e as réplicas de leitura ficam nessas mesmas regiões. Para quem está no Brasil, o Worker roda perto, mas cada ida ao banco atravessa até a América do Norte. Por isso a meta de 60 ms no servidor pode não ser atingida em produção com o D1; o número real só sai da medição no site publicado (`npm run perf:api -- https://<site>`). O que continua garantido é a resposta na tela, que não espera o servidor. Se a medição ficar longe da meta, a alternativa a avaliar é guardar os dados de cada pessoa num Durable Object com SQLite, que pode ficar mais perto dela (não conferido ainda).
+
+A medição local (`wrangler dev`) dá perto de 0 ms e não diz nada sobre produção: não há rede entre o Worker e o banco, e o relógio do Worker só avança em operações de entrada e saída.
+
 O tempo de ida e volta pela rede não entra na meta: depende da conexão da pessoa e da distância até o banco. Ele é medido e anotado, mas não prometido.
 
 ## Conferido na documentação do Cloudflare
@@ -193,4 +197,9 @@ O tempo de ida e volta pela rede não entra na meta: depende da conexão da pess
 - A Web Crypto dos Workers oferece PBKDF2 em `deriveBits` e a função `timingSafeEqual`.
 - O limite de chamadas (`ratelimits`) é aproximado e vale por localidade do Cloudflare, com janela de 10 ou 60 segundos. Por isso o bloqueio de senha errada também é contado no banco (`login_attempts`).
 
-Ainda não conferido: limite de iterações do PBKDF2, limites e preços do D1, restauração de backup, comportamento padrão das chaves estrangeiras, escolha da região do banco e leitura por réplicas (as duas afetam a latência), e o serviço de envio de e-mail para a recuperação de senha (exige um domínio próprio).
+- O D1 aceita uma região preferida só na criação do banco (`wnam`, `enam`, `weur`, `eeur`, `apac`, `oc`) e não roda na América do Sul. Para o Brasil, a mais próxima é `enam`.
+- Réplicas de leitura existem nas mesmas seis regiões e exigem a API de sessões (`env.DB.withSession()`).
+- O Wrangler consegue criar o banco sozinho no deploy quando a configuração não traz `database_id`, mas sem escolher a região. Por isso o banco será criado à mão, com `enam`.
+- No D1 local, e-mail único e chave estrangeira são aplicados (teste em `tests/worker.test.mjs`).
+
+Ainda não conferido: limite de iterações do PBKDF2, limites e preços do D1, restauração de backup, e o serviço de envio de e-mail para a recuperação de senha (exige um domínio próprio).

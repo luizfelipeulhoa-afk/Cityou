@@ -1,11 +1,21 @@
 {
   "name": "cityou",
+  "main": "worker/index.js",
   "compatibility_date": "2026-11-09",
   "build": {
     "command": "npm run build"
   },
   "assets": {
-    "directory": "./dist"
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Só a API passa pelo Worker; o site continua saindo direto dos arquivos estáticos.
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": {
+    "enabled": true
   },
   "previews": {}
+  // O banco D1 ainda não está ligado em produção: falta criar o banco e pôr aqui
+  // "d1_databases": [{ "binding": "DB", "database_name": "cityou", "database_id": "<id>", "migrations_dir": "migrations" }]
+  // Até lá, GET /api/health responde db: "not_configured". Os testes usam wrangler.test.jsonc.
 }

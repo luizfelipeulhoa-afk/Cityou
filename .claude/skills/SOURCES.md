@@ -15,6 +15,8 @@ Kit montado em 10/11/2026 para o trabalho no BuildU (mapa-mundo, UI, backend e d
 | emil-design-eng, animation-performance | [emilkowalski/skills](https://github.com/emilkowalski/skills) | `715c180` (09/11/2026) | MIT |
 | workers-best-practices, wrangler, web-perf | [cloudflare/skills](https://github.com/cloudflare/skills) | `6eb6c78` (06/11/2026) | Apache-2.0 |
 | async-python-patterns, api-design-principles | [wshobson/agents](https://github.com/wshobson/agents) | `9c61ab2` (08/11/2026) | MIT |
+| durable-objects, cloudflare-email-service | [cloudflare/skills](https://github.com/cloudflare/skills) | `cbf893b` (10/11/2026) | Apache-2.0 |
+| find-skills | [vercel-labs/skills](https://github.com/vercel-labs/skills) | `e781cb4` (10/11/2026) | MIT |
 | fastapi | pacote `fastapi==0.141.1` do PyPI (`fastapi/.agents/skills/fastapi`) | wheel 0.141.1 | MIT |
 
 Os textos de licença estão em `LICENSES/`.

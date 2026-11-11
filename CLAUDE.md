@@ -47,6 +47,8 @@ O FastAPI acima é local e sem usuário. O destino é um Worker do Cloudflare co
 - `docs/INTERACTIONS.md`: cada tela, botão e atalho, com a rota e a tabela que toca.
 - `docs/API.md`: contrato das rotas, o destino de cada rota atual e as metas de velocidade.
 
+Código: `worker/` (entrada em `worker/index.js`, uma rota por arquivo em `worker/routes/`), esquema em `migrations/*.sql`. `npm run test:worker` roda os testes contra um D1 local (`wrangler.test.jsonc`). `npm run dev:worker` sobe site e API na porta 8787; para o Vite usar essa API, `CITYOU_API=http://127.0.0.1:8787 npm run dev`. `npm run perf:api -- <url>` mede a latência. O banco de produção ainda não está ligado em `wrangler.jsonc`.
+
 Regras fixas: o navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência.
 
 ## Skills do projeto (`.claude/skills/`)
@@ -58,7 +60,8 @@ Procedência e revisão em `.claude/skills/SOURCES.md`. Use por assunto:
 - Vue: `vue-best-practices`.
 - Web: `performance`, `core-web-vitals`, `accessibility`, `web-quality-audit`, `web-perf`.
 - Backend: `fastapi`, `async-python-patterns`, `api-design-principles`.
-- Deploy (Cloudflare Workers, `wrangler.jsonc`): `workers-best-practices`, `wrangler`.
+- Deploy (Cloudflare Workers, `wrangler.jsonc`): `workers-best-practices`, `wrangler`. E-mail (recuperação de senha): `cloudflare-email-service`. Alternativa ao D1 para latência: `durable-objects`.
 - Prompts para outras ferramentas de IA (Tripo, por exemplo): `prompt-master`.
+- Procurar skills novas: `find-skills` (usa `npx skills find`, que precisa de acesso a `skills.sh`).
 
 As skills de Three.js miram a r186. Aqui o three é 0.172: confira a API em `node_modules/three` antes de aplicar e não atualize o three sem pedido.
