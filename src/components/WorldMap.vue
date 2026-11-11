@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import WorldGlobe from '@/world/WorldGlobe.js'
 import { WORLD_SPACES } from '@/world/worldSpaces.js'
 import { applyProgress, completeSpace, currentSpaceId, initialProgress, normalizeProgress, resetProgress, unlockSpace } from '@/world/progress.js'
@@ -9,6 +9,8 @@ const props = defineProps({
   progress: { type: Object, default: () => initialProgress() },
   spaces: { type: Array, default: () => WORLD_SPACES },
   regional: Boolean,
+  /** Espaço que a interface destaca (etiqueta ou seta de borda). Padrão: o mais avançado já desbloqueado. */
+  goalId: { type: String, default: null },
   /** Abre o painel de debug (também abre com a tecla D ou ?debug=1). */
   debug: { type: Boolean, default: false },
 })
@@ -36,6 +38,17 @@ watch(() => props.progress, p => { localProgress.value = normalizeProgress(p, or
 const spacesState = computed(() => applyProgress(props.spaces, localProgress.value))
 const currentId = computed(() => currentSpaceId(localProgress.value, order.value))
 const completedCount = computed(() => localProgress.value.concluidos.length)
+
+// Ajudas de navegação (WorldMapHud): destino em destaque, volta à visão geral e carga dos modelos.
+// O componente chega num pacote à parte, pedido só depois que o globo está pronto: nem o código nem o
+// CSS dele entram no caminho do primeiro quadro.
+const WorldMapHud = defineAsyncComponent(() => import('@/components/WorldMapHud.vue'))
+const hud = useTemplateRef('hud')
+const hudReady = shallowRef(false) // só depois de terreno e marcadores: nada disto entra antes do primeiro quadro
+const away = shallowRef(false)
+const modelLoad = shallowRef(null)
+const goal = computed(() => spacesState.value.find(space => space.id === (props.goalId || currentId.value)) || null)
+watch([globe, () => goal.value?.id], ([g, id]) => g?.setGoal(id || null))
 
 watch(spacesState, list => globe.value?.setSpaces(list, { animate: true }))
 // Em modo debug, o globo fica acessível no console: window.__buildUWorld
@@ -112,16 +125,27 @@ const callbacks = {
   onUnlocked(space) { showBanner('✦', `${space.nome} desbloqueado!`) },
   onCompleted(space) { showBanner('★', `${space.nome} concluído!`) },
   onModel({ id, source }) { modelSources[id] = source },
-  onReady() { emit('ready') },
+  onGoal(info) { hud.value?.track?.(info) },
+  onAway(value) { away.value = value },
+  onLoad({ loaded, total }) { modelLoad.value = loaded < total ? { loaded, total } : null },
+  onReady() { hudReady.value = true; emit('ready') },
   onStats(s) { if (debugOpen.value) stats.value = s },
 }
 
+// Atalhos: D abre o debug; + e − aproximam e afastam; 0 volta à visão geral.
+const KEYS = {
+  d: () => { debugOpen.value = !debugOpen.value },
+  '+': () => zoom(0.78),
+  '=': () => zoom(0.78),
+  '-': () => zoom(1.28),
+  0: () => overview(),
+}
 function onKeydown(e) {
-  if (e.key !== 'd' && e.key !== 'D') return
-  if (e.ctrlKey || e.metaKey || e.altKey) return
+  const action = KEYS[e.key?.toLowerCase()]
+  if (!action || e.ctrlKey || e.metaKey || e.altKey) return
   const el = e.target
   if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return
-  debugOpen.value = !debugOpen.value
+  action()
 }
 
 onMounted(() => {
@@ -158,6 +182,7 @@ const debugCompleteCurrent = () => debugComplete(currentId.value)
 const debugReplay = id => globe.value?.replayUnlock(id)
 const focus = (id, options) => globe.value?.focusSpace(id, options)
 const overview = () => globe.value?.resetView()
+const zoom = factor => globe.value?.zoomBy(factor)
 const activate = id => globe.value?.activate(id)
 
 function activateFromKeyboard(space) {
@@ -188,6 +213,20 @@ defineExpose({ focusSpace: focus, resetView: overview, activateSpace: activate }
         </div>
       </div>
     </div>
+
+    <WorldMapHud
+      v-if="hudReady"
+      ref="hud"
+      :goal="goal"
+      :away="away"
+      :loading="modelLoad"
+      :label-hidden="tooltip.visible && tooltip.id === goal?.id"
+      :quiet="cinematic"
+      :zoom-buttons="!coarsePointer"
+      @focus-goal="goal && focus(goal.id)"
+      @recenter="overview"
+      @zoom="zoom"
+    />
 
     <transition name="world-banner">
       <div v-if="banner" class="world-map__banner" role="status">

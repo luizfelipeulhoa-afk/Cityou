@@ -39,6 +39,56 @@ Limite desta medição: depois do primeiro quadro, as tarefas longas que restam 
 
 As marcas usadas (`world:first-frame`, `world:terrain`, `world:step:*`, `world:ready`, `world:model-probe`) ficam em `src/world/WorldGlobe.js` e aparecem no painel Performance do navegador.
 
+## Adaptação aos GLB do Tripo
+
+Mudança: o globo passou a se ajustar aos modelos (assento plano, sombra de contato, anel de chão), os modelos ficaram opacos e ganharam luz própria, e entraram as ajudas de navegação. Detalhes em `docs/WORLD-MAP.md`. "Antes" é o `main` em `f5bccaf`. As duas versões foram medidas alternando as execuções (antes, depois, antes, depois), para a carga da máquina pesar igual nos dois lados.
+
+### Custo por quadro
+
+`npm run build && npm run perf:world-frame`: cena montada, os 7 GLB carregados, 412x915, dpr 1, render por software. Mediana de 3 execuções de cada lado.
+
+| Cena | Quadros por segundo | CPU do tick | Draws | Triângulos |
+|---|---|---|---|---|
+| Visão geral | 5,0 → 7,0 | 2,0 → 1,3 ms | 59 → 44 | 163.320 → 154.388 |
+| Foco no Taj Mahal | 7,6 → 10,6 | 1,1 → 0,9 ms | 21 → 14 | 78.253 → 69.145 |
+| Foco no Cristo (mar ao fundo) | 15,0 → 16,0 | 0,9 → 0,8 ms | 11 → 10 | 45.711 → 36.539 |
+| Foco na Ilha (mar em volta) | 9,8 → 12,2 | 1,0 → 0,8 ms | 16 → 12 | 64.276 → 55.136 |
+
+De onde vem o ganho:
+
+- Os GLB do Tripo são quase só difusos (rugosidade 0,9, sem metal). Eles passaram de `MeshStandardMaterial` com mapa de ambiente para `MeshLambertMaterial`, com menos contas por pixel. O mapa de ambiente (PMREM) deixou de existir.
+- Os modelos são opacos em todos os estados. Antes eram todos transparentes, por causa do estado bloqueado translúcido.
+- Anel e onda de cada espaço viraram um plano só.
+- Os pontos do caminho têm 20 triângulos cada (eram 80) e a atmosfera, 1.920 (eram 5.120). As nuvens novas gastam mais (5 mil contra 2 mil), e o saldo ainda é negativo.
+- O que entrou no shader do globo custa um `smoothstep` por pixel (sombra de contato). O cintilar do mar é resolvido por face, no vertex shader.
+
+### Abertura
+
+`npm run perf:world`: CPU 4x mais lenta, Slow 4G. Mediana de 6 execuções de cada lado.
+
+| Medida | Antes | Depois |
+|---|---|---|
+| Primeiro quadro na tela | 2.334 ms | 2.332 ms |
+| Globo completo (terreno, nuvens, 8 marcadores) | 3.913 ms | 3.887 ms |
+| Bloqueio da thread principal na abertura | 757 ms | 727 ms |
+| Maior tarefa longa | 380 ms | 345 ms |
+| Montagem das nuvens | 67 ms | 30 ms |
+| Primeiro GLB baixado | 5.432 ms | 4.954 ms |
+| Último GLB baixado | 14.219 ms | 13.779 ms |
+| JavaScript da abertura (gzip) | 247 KB | 253 KB |
+| JavaScript pedido só quando há GLB | 21 KB | 19 KB |
+| Total transferido na abertura | 273 KB | 280 KB |
+| Requisições na abertura | 11 | 13 |
+
+- O primeiro quadro não mudou. Os modelos chegam cerca de 0,45 s antes, porque não há mais mapa de ambiente para baixar e montar antes do primeiro GLB.
+- As nuvens são escritas direto em dois arrays, sem uma geometria por tufo.
+- Custo: 7 KB a mais na abertura. São os shaders e a lógica nova do globo, mais o pacote das ajudas de navegação (`WorldMapHud`, JS e CSS), que é pedido depois que o globo está pronto e explica as 2 requisições a mais.
+- Visita repetida: os GLB com hash no nome saem do cache do navegador sem requisição (`docs/WORLD-MAP.md`, "Endereço e cache dos modelos"). Isso vale por configuração de cabeçalho, conferida nos testes do FastAPI e no Worker local, não por esta medição.
+
+`tools/world-perf.mjs` passou a esperar todos os GLB e a separar o peso deles do peso da abertura. Antes, o total dependia de quantos modelos cabiam numa janela fixa de 1 s.
+
+Limite: os quadros por segundo são de render por software, em que o custo por pixel pesa muito mais que numa GPU. Servem para comparar duas versões na mesma máquina. O fps num celular de verdade não foi medido.
+
 ## Orçamento por aparelho (do guia de 3D leve)
 
 O guia `docs/research/3d-qualidade-sem-pesar.md` (escrito para Unity) define metas por aparelho. Para celular fraco ("Tier C"): no máximo 150 chamadas de desenho, 250 mil triângulos por quadro e 250 MB de memória de vídeo, com 30 fps como teto e escala de render de 0,7.

@@ -4,8 +4,8 @@ import { buildGlobeData } from './terrainCore.js'
  * Pede os dados do globo a um Web Worker. Se o Worker não puder ser criado
  * ou falhar, gera na própria thread (mais lento na abertura, mesmo resultado).
  */
-export function loadGlobeData({ radius, detail, spaces }) {
-  const options = { radius, detail, spaces: spaces.map(({ id, lat, lon, terreno }) => ({ id, lat, lon, terreno })) }
+export function loadGlobeData({ radius, detail, spaces, markerSize }) {
+  const options = { radius, detail, markerSize, spaces: spaces.map(({ id, lat, lon, terreno, escala }) => ({ id, lat, lon, terreno, escala })) }
   return new Promise((resolve) => {
     const fallback = () => resolve(buildGlobeData(options))
     let worker

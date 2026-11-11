@@ -22,15 +22,17 @@ Organização pessoal gamificada. O repositório tem três páginas Vite e um ba
 
 - `WorldGlobe.js`: cena, câmera, controles, shader do globo, nuvens, atmosfera, caminho, raycast, fila de animações.
 - `terrain.js` + `continents.js`: geração do globo (terra/mar, relevo, biomas, cor por face).
-- `SpaceMarker.js`: GLB ou monumento em código, normalização de escala, estados e animações de cada espaço.
+- `SpaceMarker.js`: GLB ou monumento em código, normalização de escala, medida da base, anel de chão, estados e animações de cada espaço.
+- `models.js`: de onde vem cada GLB (`models.json` do build, com hash no nome e cache imutável, ou `manifest.json`).
 - `monuments.js`: os 8 monumentos low poly feitos em código, usados quando não há GLB. Ilha Inicial, Cristo Redentor, Machu Picchu, Chichén Itzá, Coliseu, Taj Mahal e Grande Muralha já têm GLB do Tripo (só o Petra usa o de código); o GLB, quando existe, tem prioridade.
 - `worldSpaces.js`: os 8 espaços. `progress.js`: progresso (funções puras + localStorage). `geo.js`: `latLonToVector3`.
 - `src/components/WorldMap.vue`: componente (`v-model:progress`, evento `open-world`, painel de debug com a tecla D ou `?debug=1`).
+- `src/components/WorldMapHud.vue`: etiqueta do destino, seta de borda, controles da câmera e aviso de carga.
 - Guia: `docs/WORLD-MAP.md`.
 
 Convenções: lon 0 aponta para +Z, leste para +X, norte para +Y. Modelos com frente em +Z e base em Y=0. Campos de dados em português (`desbloqueado`, `concluido`). GLB em `public-fifones/models/world/<id>.glb`.
 
-Limites de desempenho: uma luz direcional + hemisfério, sem sombras, globo em um draw call, alvo de 60 fps em celular médio. Meça antes e depois (`tools/`), não estime.
+Limites de desempenho: uma luz direcional + hemisfério, sem sombras e sem mapa de ambiente, modelos opacos, globo em um draw call, alvo de 60 fps em celular médio. Meça antes e depois, não estime: `npm run perf:world` (abertura) e `npm run perf:world-frame` (custo por quadro), alternando as duas versões.
 
 ## Backend
 

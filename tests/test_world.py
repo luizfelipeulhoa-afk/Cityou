@@ -83,5 +83,57 @@ class WorldProgressTests(unittest.TestCase):
         self.assertEqual(self.client.get(URL).json()['concluidos'], [])
 
 
+class WorldModelsCacheTests(unittest.TestCase):
+    """Os modelos publicados pelo build (hash no nome) saem com cache imutável; as listas, sempre em dia."""
+
+    def setUp(self):
+        self.temp = TemporaryDirectory()
+        self.dist = Path(self.temp.name) / 'dist'
+        versioned = self.dist / 'models' / 'world' / 'v'
+        versioned.mkdir(parents=True)
+        (self.dist / 'index.html').write_text('<!doctype html>', encoding='utf-8')
+        (versioned / 'coliseu.0123456789.glb').write_bytes(b'glTF-teste')
+        (self.dist / 'models' / 'world' / 'models.json').write_text(
+            '{"coliseu": {"arquivo": "v/coliseu.0123456789.glb", "kb": 1, "triangulos": 12}}', encoding='utf-8')
+        self.contexts = []
+
+    def open(self, static_dir):
+        app = create_app(data_dir=Path(self.temp.name) / 'data', static_dir=static_dir,
+                         transport=httpx.MockTransport(lambda request: httpx.Response(404, json={})),
+                         clock=lambda: datetime(2026, 11, 10, 12, 0, tzinfo=timezone.utc))
+        context = TestClient(app, base_url='http://127.0.0.1:8766')
+        self.contexts.append(context)
+        return context.__enter__()
+
+    def tearDown(self):
+        for context in self.contexts:
+            context.__exit__(None, None, None)
+        self.temp.cleanup()
+
+    def test_versioned_models_are_immutable_and_lists_stay_fresh(self):
+        client = self.open(self.dist)
+        model = client.get('/models/world/v/coliseu.0123456789.glb')
+        self.assertEqual(model.status_code, 200)
+        self.assertEqual(model.content, b'glTF-teste')
+        self.assertEqual(model.headers['cache-control'], 'public, max-age=31536000, immutable')
+        index = client.get('/models/world/models.json')
+        self.assertEqual(index.json()['coliseu']['arquivo'], 'v/coliseu.0123456789.glb')
+        self.assertEqual(index.headers['cache-control'], 'no-cache')
+        # Um endereço versionado que não existe não pode ficar guardado como se existisse.
+        missing = client.get('/models/world/v/coliseu.ffffffffff.glb')
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(missing.headers['cache-control'], 'no-cache')
+        # O caminho de sempre e a API mantêm a política que já tinham.
+        self.assertEqual(client.get('/models/world/manifest.json').headers['cache-control'], 'no-cache')
+        self.assertEqual(client.get(URL).headers['cache-control'], 'no-store')
+
+    def test_without_a_build_the_index_is_a_plain_404(self):
+        empty = Path(self.temp.name) / 'vazio'
+        empty.mkdir()
+        client = self.open(empty)
+        self.assertEqual(client.get('/models/world/models.json').status_code, 404)
+        self.assertEqual(client.get('/models/world/v/coliseu.0123456789.glb').status_code, 404)
+
+
 if __name__ == '__main__':
     unittest.main()

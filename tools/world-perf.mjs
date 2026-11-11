@@ -52,11 +52,30 @@ try {
     await page.goto(`${base}/world.html`, { waitUntil: 'commit' })
     await page.waitForFunction(() => performance.getEntriesByName('world:first-frame').length > 0, null, { timeout: 180000 })
     await page.waitForFunction(() => performance.getEntriesByName('world:model-probe').length > 0, null, { timeout: 180000 })
+    // Espera os GLB terminarem de baixar (a lista diz quantos são), para a conta de KB não depender de
+    // quantos modelos couberam numa janela fixa. Os modelos chegam depois do primeiro quadro.
+    const expected = await page.evaluate(async () => {
+      for (const name of ['models.json', 'manifest.json']) {
+        try {
+          const response = await fetch(`/models/world/${name}`)
+          if (!response.ok) continue
+          const list = await response.json()
+          return Array.isArray(list) ? list.length : Object.keys(list).length
+        }
+        catch { /* tenta a próxima lista */ }
+      }
+      return 0
+    })
+    const glbs = () => performance.getEntriesByType('resource').filter(r => /\.glb(\?|$)/.test(r.name))
+    await page.waitForFunction(`(${glbs})().length >= ${expected}`, null, { timeout: 180000 })
     await page.waitForTimeout(1000)
     runs.push(await page.evaluate(() => {
       const one = name => performance.getEntriesByName(name)[0]
       const firstFrame = one('world:first-frame').startTime
-      const resources = performance.getEntriesByType('resource')
+      const all = performance.getEntriesByType('resource')
+      const models = all.filter(r => /\.glb(\?|$)/.test(r.name))
+      // A abertura é tudo menos os modelos e a conferência da lista feita por esta ferramenta.
+      const resources = all.filter(r => !models.includes(r) && r.startTime <= one('world:model-probe').startTime + one('world:model-probe').duration)
       const tasks = window.__longTasks.filter(t => t.start < firstFrame + 500)
       const probes = resources.filter(r => r.name.includes('/models/world/'))
       const scripts = resources.filter(r => r.name.endsWith('.js'))
@@ -72,6 +91,12 @@ try {
         readyMs: Math.round(one('world:ready')?.startTime ?? -1),
         modelProbeMs: Math.round(one('world:model-probe').duration),
         modelRequests: probes.length,
+        // Modelos: quando o primeiro e o último GLB terminaram de chegar, e quanto pesam.
+        firstModelMs: Math.round(Math.min(...models.map(r => r.responseEnd))),
+        lastModelMs: Math.round(Math.max(...models.map(r => r.responseEnd))),
+        modelsKB: Math.round(models.reduce((sum, r) => sum + r.transferSize, 0) / 1024),
+        // JavaScript baixado só quando há GLB (carregador, decodificador), depois da abertura.
+        lateJsKB: Math.round(all.filter(r => r.name.endsWith('.js') && !resources.includes(r)).reduce((sum, r) => sum + r.transferSize, 0) / 1024),
         requests: resources.length + 1,
         jsKB: Math.round(scripts.reduce((sum, r) => sum + r.transferSize, 0) / 1024),
         totalKB: Math.round((resources.reduce((sum, r) => sum + r.transferSize, 0) + performance.getEntriesByType('navigation')[0].transferSize) / 1024),

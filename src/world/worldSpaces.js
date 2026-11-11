@@ -40,12 +40,12 @@ export const WORLD_SPACES = Object.freeze([
   space({
     id: 'chichen-itza', ordem: 4, nome: 'Chichén Itzá', local: 'Yucatán · México',
     descricao: 'A pirâmide de Kukulkán, calendário de pedra maia.',
-    lat: 20.68, lon: -88.57, cor: '#ffb347', placeholder: 'chichen',
+    lat: 20.68, lon: -88.57, cor: '#ffb347', placeholder: 'chichen', escala: 1.05,
   }),
   space({
     id: 'coliseu', ordem: 5, nome: 'Coliseu', local: 'Roma · Itália',
     descricao: 'O grande anfiteatro do Império Romano.',
-    lat: 41.89, lon: 12.49, cor: '#ff8a7a', placeholder: 'coliseu',
+    lat: 41.89, lon: 12.49, cor: '#ff8a7a', placeholder: 'coliseu', escala: 1.08,
   }),
   space({
     id: 'petra', ordem: 6, nome: 'Petra', local: 'Ma’an · Jordânia',
