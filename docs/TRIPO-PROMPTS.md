@@ -146,6 +146,24 @@ Low-poly stylized 3D model of Petra Treasury (Al-Khazneh): a tall classical faca
 🎯 Alvo: Tripo · 💡 A fachada tem de ocupar a frente toda: sem 'plain rock walls' a IA tende a fazer um paredão alto que esconde o prédio.
 
 
+### Petra, segunda tentativa (o primeiro modelo não passou na redução)
+
+O export de 239 mil triângulos tinha a fachada nítida, mas ao reduzir para 20 a 27 mil as colunas finas e os ornamentos derreteram. A correção é gerar já com poucas faces e uma fachada que sobreviva a isso. No painel do Tripo, ponha o limite de faces em 20.000 (e não em Ultra com malha densa); o resto das configurações é o mesmo dos outros modelos.
+
+**Prompt de imagem** (referência):
+
+```text
+A low-poly stylized 3D model of Petra Treasury (Al-Khazneh) in toy-like miniature proportions: a chunky rose-red sandstone cliff block with a simplified classical facade carved into its front. Only four thick, round columns on the lower level under one wide triangular pediment, a single upper level with a stout round tholos topped by a low cone, one dark rectangular doorway. No tiny ornaments, no thin details, every shape bold and simple. Flat planar faces, sharp edges, large regions of solid pastel rose color, matte, no painted detail, no baked shadows. The monument fills about 85 percent of the frame on a thin flat hexagonal base. Front three-quarter view from slightly above, centered, single object on a plain white background, soft even studio lighting, no text, no people.
+```
+
+**Prompt de texto** (se não usar a imagem):
+
+```text
+Low-poly stylized 3D model of Petra Treasury, toy-like chunky proportions: a rose-red sandstone cliff block with a simplified facade, four thick round columns under one wide triangular pediment, one stout round tholos with a low cone roof above, one dark doorway. Bold simple shapes only, no tiny ornaments, no thin parts, flat planar faces, sharp edges, solid pastel colors, matte. Single fused solid mesh, symmetrical, front facing the viewer, standing on a thin flat hexagonal base.
+```
+
+🎯 Alvo: Tripo · 💡 Quatro colunas grossas no lugar de seis finas e nenhum ornamento: a redução de faces preserva volumes grandes e apaga detalhes finos.
+
 ## 6. Taj Mahal — `taj-mahal.glb` (até 25.000 faces)
 
 **Prompt de imagem** (referência):

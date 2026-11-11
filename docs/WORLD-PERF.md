@@ -38,3 +38,26 @@ Limite desta medição: depois do primeiro quadro, as tarefas longas que restam 
 - **Sondagem dos GLB**: tempo para descobrir quais dos 8 modelos existem (`HEAD /models/world/<id>.glb`).
 
 As marcas usadas (`world:first-frame`, `world:terrain`, `world:step:*`, `world:ready`, `world:model-probe`) ficam em `src/world/WorldGlobe.js` e aparecem no painel Performance do navegador.
+
+## Orçamento por aparelho (do guia de 3D leve)
+
+O guia `docs/research/3d-qualidade-sem-pesar.md` (escrito para Unity) define metas por aparelho. Para celular fraco ("Tier C"): no máximo 150 chamadas de desenho, 250 mil triângulos por quadro e 250 MB de memória de vídeo, com 30 fps como teto e escala de render de 0,7.
+
+**Medido no globo** (Chromium com renderizador por software, tela de 412×915, os 8 espaços desbloqueados, contadores do `renderer.info` do Three.js):
+
+| Situação | Chamadas de desenho | Triângulos | Texturas |
+|---|---|---|---|
+| Visão geral | 44 | 174.217 | 9 |
+| Focado no Coliseu | 9 | 47.206 | 9 |
+
+Texturas: 8 de 1024² em WebP. Decodificadas na GPU ficam em torno de 5,3 MB cada (RGBA com mipmaps), cerca de 43 MB no total. Tudo dentro das metas. Não medi quadros por segundo nem temperatura em aparelho real: o renderizador por software não representa uma GPU de celular.
+
+**O que se aplica ao Three.js:** orçamento de triângulos e chamadas por tela; uma textura por modelo; detalhe na silhueta e no telhado em vez de polígonos; luz simples sem sombras (já é assim); LOD por tamanho na tela quando houver muitos objetos.
+
+**O que é só de Unity e não se aplica aqui:** Addressables, Play Asset Delivery, ASTC, GPU Resident Drawer, `Graphics.DrawMeshInstanced`, Adaptive Performance.
+
+**Evoluções possíveis, não feitas:**
+
+- Texturas KTX2 (Basis) no lugar de WebP: mantêm-se comprimidas na GPU e cortam a memória de vídeo em 4 a 8 vezes. Hoje a memória não é o gargalo.
+- Impostores (imagem pré-renderizada) para a cidade grande de `city.html`, se ela chegar a milhares de prédios. A cidade ainda não foi medida.
+- Teto de 30 fps e escala de render 0,7 em aparelhos fracos, detectados por medição de quadros.

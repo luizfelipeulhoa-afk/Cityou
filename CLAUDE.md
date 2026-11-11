@@ -23,7 +23,7 @@ Organização pessoal gamificada. O repositório tem três páginas Vite e um ba
 - `WorldGlobe.js`: cena, câmera, controles, shader do globo, nuvens, atmosfera, caminho, raycast, fila de animações.
 - `terrain.js` + `continents.js`: geração do globo (terra/mar, relevo, biomas, cor por face).
 - `SpaceMarker.js`: GLB ou monumento em código, normalização de escala, estados e animações de cada espaço.
-- `monuments.js`: os 8 monumentos low poly feitos em código, usados quando não há GLB. Ilha Inicial, Cristo Redentor, Chichén Itzá, Coliseu, Petra, Taj Mahal e Grande Muralha já têm GLB do Tripo (só o Machu Picchu ainda usa o de código); o GLB, quando existe, tem prioridade.
+- `monuments.js`: os 8 monumentos low poly feitos em código, usados quando não há GLB. Ilha Inicial, Cristo Redentor, Machu Picchu, Chichén Itzá, Coliseu, Taj Mahal e Grande Muralha já têm GLB do Tripo (só o Petra usa o de código); o GLB, quando existe, tem prioridade.
 - `worldSpaces.js`: os 8 espaços. `progress.js`: progresso (funções puras + localStorage). `geo.js`: `latLonToVector3`.
 - `src/components/WorldMap.vue`: componente (`v-model:progress`, evento `open-world`, painel de debug com a tecla D ou `?debug=1`).
 - Guia: `docs/WORLD-MAP.md`.
@@ -47,7 +47,7 @@ O FastAPI acima é local e sem usuário. O destino é um Worker do Cloudflare co
 - `docs/INTERACTIONS.md`: cada tela, botão e atalho, com a rota e a tabela que toca.
 - `docs/API.md`: contrato das rotas, o destino de cada rota atual e as metas de velocidade.
 
-Código: `worker/` (entrada em `worker/index.js`, uma rota por arquivo em `worker/routes/`), esquema em `migrations/*.sql`. `npm run test:worker` roda os testes contra um D1 local (`wrangler.test.jsonc`). `npm run dev:worker` sobe site e API na porta 8787; para o Vite usar essa API, `CITYOU_API=http://127.0.0.1:8787 npm run dev`. `npm run perf:api -- <url>` mede a latência. O banco de produção ainda não está ligado em `wrangler.jsonc`.
+Código: `worker/` (entrada em `worker/index.js`, uma rota por arquivo em `worker/routes/`), esquema em `migrations/*.sql`. `npm run test:worker` roda os testes contra um D1 local (`wrangler.test.jsonc`). `npm run dev:worker` sobe site e API na porta 8787; para o Vite usar essa API, `CITYOU_API=http://127.0.0.1:8787 npm run dev`. `npm run perf:api -- <url>` mede a latência. Em produção já existe uma **demonstração com persistência**, sem login: cada visitante recebe um cookie (`cityou_demo`) e seus registros ficam num Durable Object com SQLite (`worker/demo.js`, binding `DEMO_SESSIONS`), com validação da cidade em `worker/city.js` e catálogo em `shared/game/city-catalog.json`. Os dados expiram em 30 dias. Ela atende as rotas de hoje (`/api/personal`, `/api/city`, `/api/world/*`); o login e o banco em São Paulo descritos nos documentos são o passo seguinte.
 
 Regras do jogo: `shared/game/rules.js` (puro, sem banco; `npm test`). O estudo de referência de city builders está em `docs/research/estudo-city-builders.md`; o que foi adotado e o que ficou de fora está em `docs/GAME-DESIGN.md`. Onde os dados ficam é decisão em aberto (`docs/DATA-MODEL.md`).
 
