@@ -166,7 +166,7 @@ O PR #8 (`codex/regional-cities`) colocou no ar uma versão simples, sem login, 
 |---|---|---|
 | Cidade por local | Uma cidade por local, com terreno, construções e histórico próprios (`city.html?local=<id>`); créditos e recompensas são da pessoa, compartilhados entre as cidades | Igual |
 | Escolha do destino | Qualquer local ainda bloqueado pode ser escolhido na hora de viajar | Igual |
-| Condição para viajar | **Viagens fechadas por enquanto** (`TRAVEL_OPEN=false` em `wrangler.jsonc`). A regra de construir um prédio para liberar uma viagem continua escrita, mas não vale | Nível mínimo + prédios na etapa certa + passagem em créditos |
+| Condição para viajar | **Viagens fechadas por enquanto** (`TRAVEL_OPEN=false` em `wrangler.jsonc`). A regra de construir um prédio para liberar uma viagem fica suspensa. A prévia de teste abre os oito destinos em sessões isoladas | Nível mínimo + prédios na etapa certa + passagem em créditos |
 | XP e nível | Não existe XP. O "nível" da cidade é `1 + recompensas ÷ 10` e define o tamanho do terreno | XP separado de créditos, nível pela curva de `shared/game/rules.js` |
 | Presença | Não existe | Bônus pelo ritmo dos últimos 7 dias |
 | Recompensas | Tarefa, hábito e meta concluída pagam créditos de `RULES.rewards`; teto diário por `RULES.paidHabitsPerDay` e `RULES.paidTasksPerDay` | Igual, mais XP e bônus de presença |
