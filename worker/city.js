@@ -30,9 +30,10 @@ export function newCity(location, testMode = false) {
   }
 }
 
-function buildRadius(city, location, testMode) {
-  const maximum = getCityLayout(location).max - 8
-  return testMode && isPilotCity(location) ? maximum : Math.min(maximum, 3 + Math.floor(city.reward_count / 10))
+// Todo o terreno é construível desde o começo: a cidade vista de cima ocupa o terreno até perto das bordas.
+// (Antes a área crescia de 7x7 com as recompensas; isso deixava a maior parte do mapa sem uso.)
+function buildRadius(city, location) {
+  return getCityLayout(location).max - 8
 }
 
 export function snapshot(city, location, testMode = false) {

@@ -9,7 +9,7 @@ test('cidade: construção usa o catálogo e respeita ocupação, terreno e sald
     type: 'build', kind, x, y, request_id: crypto.randomUUID(), expected_revision: city.revision,
   }))
   assert.throws(() => build('home', 8, 8), { status: 409 })
-  assert.throws(() => build('tasks', 11, 11), { status: 422 })
+  assert.throws(() => build('tasks', 16, 16), { status: 422 }) // 2x2 passaria da borda do terreno
   build('home', 5, 5)
   assert.equal(city.credits, 30)
   assert.equal(city.revision, 1)
@@ -158,4 +158,23 @@ test('prédio da atividade: a área escolhe o tipo, e tipo inventado não vira �
   assert.equal(domainForKind('dom-financas'), 'financas')
   assert.equal(domainForKind('home'), null)
   assert.equal(domainForKind('dom-jogos'), null)
+})
+
+import { snapshot as citySnapshotOf } from '../worker/city.js'
+
+test('terreno: todo o mapa é construível desde o começo, até perto das bordas', () => {
+  const legacy = newCity('petra')
+  assert.equal(citySnapshotOf(legacy, 'petra').unlock_radius, 8)
+  const pilot = newCity('cristo-redentor')
+  assert.equal(citySnapshotOf(pilot, 'cristo-redentor').unlock_radius, 16)
+  // Uma construção 1x1 nos quatro cantos do terreno de 17x17 é aceita; uma 2x2 que passe da borda, não.
+  const corner = (x, y) => applyCityAction(legacy, normalizeAction({
+    type: 'build', kind: 'home', x, y, request_id: crypto.randomUUID(), expected_revision: legacy.revision,
+  }), 'petra')
+  legacy.credits = 500
+  for (const [x, y] of [[0, 0], [16, 0], [0, 16], [16, 16]]) corner(x, y)
+  assert.equal(legacy.placements.filter(item => item.kind === 'home').length, 4)
+  assert.throws(() => applyCityAction(legacy, normalizeAction({
+    type: 'build', kind: 'tasks', x: 16, y: 8, request_id: crypto.randomUUID(), expected_revision: legacy.revision,
+  }), 'petra'), { status: 422 })
 })
