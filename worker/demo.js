@@ -43,7 +43,21 @@ const routes = [
   [/^\/api\/rewards\/sync$/, { POST: 'syncRewards' }],
   [/^\/api\/world\/progress$/, { GET: 'world', PUT: 'saveWorld' }],
   [/^\/api\/world\/travel$/, { POST: 'travel' }],
+  [/^\/api\/admin\/credits$/, { POST: 'adminCredits' }],
 ]
+
+// Moedas de teste para os sócios: só com o segredo CITYOU_ADMIN_TOKEN (wrangler secret), uma vez por sessão.
+// Sem o segredo configurado a rota nem existe (404). O navegador continua sem poder mandar créditos por conta própria.
+const ADMIN_CREDITS = 50_000
+async function requireAdmin(request, env) {
+  const secret = env?.CITYOU_ADMIN_TOKEN
+  if (typeof secret !== 'string' || secret.length < 16) throw new HttpError(404, 'Rota não encontrada.')
+  const [given, expected] = await Promise.all([
+    sha256Hex(new TextEncoder().encode(request.headers.get('X-Cityou-Admin') ?? '')),
+    sha256Hex(new TextEncoder().encode(secret)),
+  ])
+  if (given !== expected) throw new HttpError(403, 'Token de administração inválido.')
+}
 
 export async function demoApi(request, env, url) {
   if (url.pathname === '/api/workspace/projects' && request.method === 'GET') {
@@ -55,6 +69,7 @@ export async function demoApi(request, env, url) {
   const route = routes.find(([pattern]) => pattern.test(url.pathname))
   if (!route) throw new HttpError(404, 'Rota não encontrada.')
   if (!Object.hasOwn(route[1], request.method)) throw new HttpError(405, 'Método não permitido.')
+  if (route[1].POST === 'adminCredits') await requireAdmin(request, env)
   const token = sessionToken(request)
   if (!token) throw new HttpError(401, 'Abra o Cityou novamente com os cookies habilitados.')
   // Local runs may switch the flag while reusing a namespace and cookies.
@@ -157,6 +172,7 @@ export class DemoSession {
           this.requireLocation(location)
           return this[handler](body, location)
         }
+        if (handler === 'adminCredits') return this.adminCredits(location)
         if (handler === 'proofPhoto') return this.proofPhoto(id, second)
         return this[handler](body, id, proof)
       })
@@ -382,6 +398,16 @@ export class DemoSession {
     if (total < entry.target) return
     this.grantReward(RULES.rewards.goalDone.credits, `Meta concluída: ${entry.title}`)
     this.write(key, entry.id, true)
+  }
+
+  // Moedas de teste dos sócios (rota protegida por segredo): uma vez por sessão, sem contar como recompensa nem como ganho.
+  adminCredits(location) {
+    if (this.read('admin-credit', 'granted')) throw new HttpError(409, 'Esta sessão já recebeu as moedas de teste.')
+    const city = this.cityState()
+    recordChange(city, 'Créditos de teste (sócios)', ADMIN_CREDITS)
+    this.write('city', 'state', city)
+    this.write('admin-credit', 'granted', true)
+    return this.city(undefined, location)
   }
 
   // Bônus de comprovação: só créditos. Não conta como recompensa para o nível da cidade.

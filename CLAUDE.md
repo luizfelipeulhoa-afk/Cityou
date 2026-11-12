@@ -106,6 +106,8 @@ No `shared/game/city-catalog.json`, os itens `island-*` são prédios da Ilha In
 
 Regras do jogo: `shared/game/rules.js` (puro, sem banco; `npm test`). O estudo de referência de city builders está em `docs/research/estudo-city-builders.md`; o que foi adotado e o que ficou de fora está em `docs/GAME-DESIGN.md`. Onde os dados ficam é decisão em aberto (`docs/DATA-MODEL.md`).
 
+Moedas de teste dos sócios: `POST /api/admin/credits` (`worker/demo.js`), só existe com o segredo `CITYOU_ADMIN_TOKEN`, 50.000 por sessão e uma vez; uso em `docs/API.md`. Não crie outro caminho para dar moedas sem proteção.
+
 Regras fixas: o navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência.
 
 ## Skills do projeto (`.claude/skills/`)
