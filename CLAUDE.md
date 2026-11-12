@@ -58,7 +58,7 @@ Limites de desempenho: uma luz direcional + hemisfério, sem sombras e sem mapa 
 
 ## Terreno de cenário (`src/terrain/`)
 
-Terreno com relevo real e estilizado, configurado por região (primeiro o Rio, em volta de Copacabana). Plano, decisões e etapas: `docs/TERRAIN.md`. A cidade de produção (`CityWorld.js`, `sceneEnvironment.js`, `worker/city.js`) ainda não usa este módulo.
+Terreno com relevo real e estilizado, configurado por região (primeiro o Rio, em volta de Copacabana). Guia: `docs/TERRAIN.md` (como usar, decisões, dados e atribuição, máscara, malha, câmera, medições, como criar outra região e o que falta). A cidade de produção (`CityWorld.js`, `sceneEnvironment.js`, `worker/city.js`) ainda não usa este módulo: ligar os dois muda a grade de lotes e a validação do servidor, e é decisão de jogo.
 
 - Dados: `npm run terrain:data -- rio` (`tools/terrain-data.mjs`) baixa os tiles públicos Terrarium uma vez (cache em `data/terrain-tiles/`, fora do git) e grava `src/terrain/regions/rio.height.png` (PNG de 16 bits, `valor = metros × 20`, 0 = água). `--mask` recria a máscara dos lotes; sem isso ela não é tocada. Em tempo de execução não há chamada a serviço externo. Atribuição dos dados em `ASSETS.md`.
 - Região: `src/terrain/regions/rio.js` (origem, rumo, escala, picos corrigidos, pontos de controle) e `rio.lots.json` (máscara editável, uma letra por lote: `.` livre, `#` bloqueado, `d` decorativo). O mapa é girado: −Z aponta para o noroeste; 1 unidade = 1 lote = 50 m.
