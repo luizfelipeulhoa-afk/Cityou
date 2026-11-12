@@ -7,3 +7,4 @@ A licença MIT na raiz preserva o aviso do código CubeCity e não é uma licen�
 - `public-fifones/mapa-cityou/conceito.png`: conceito visual ilustrativo gerado para o projeto; a planta SVG/JSON é a fonte das dimensões e da contagem de lotes.
 - Figtree e Newsreader: SIL OFL, textos completos nas pastas de licenças.
 - Pacotes legados de áudio, fontes 3D e modelos não usados do CubeCity foram omitidos desta cópia pública.
+- `src/terrain/regions/*.height.png`: relevo derivado dos Terrain Tiles (Mapzen/Tilezen, bucket público `elevation-tiles-prod`). SRTM data courtesy of the U.S. Geological Survey. Global ETOPO1 terrain data U.S. National Oceanic and Atmospheric Administration. Os dois conjuntos são de domínio público; o crédito é pedido pelas fontes. Detalhes em `docs/TERRAIN.md`.
