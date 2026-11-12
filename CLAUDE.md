@@ -28,6 +28,7 @@ A página de teste do terreno é construída à parte (`vite.terrain.config.js`)
 
 ## Mapa-mundo (`src/world/`)
 
+- O cabeçalho do mapa tem o link **Voltar ao Cityou**, que abre o painel pessoal tanto na página avulsa quanto no mapa embutido.
 - `WorldGlobe.js`: cena, câmera, controles, shader do globo, nuvens, atmosfera, caminho, raycast, fila de animações.
 - `terrain.js` + `continents.js`: geração do globo (terra/mar, relevo, biomas, cor por face).
 - `SpaceMarker.js`: GLB ou monumento em código, normalização de escala, medida da base, anel de chão, estados e animações de cada espaço.
