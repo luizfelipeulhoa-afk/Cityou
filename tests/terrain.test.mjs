@@ -244,3 +244,27 @@ test('rio: a API do terreno responde pela máscara', () => {
   const blocked = terrain.getBlockedAreas().reduce((sum, area) => sum + area.width * area.depth, 0)
   assert.equal(blocked, rio.lots.rows.join('').split('#').length - 1)
 })
+
+// ---------- Cenário da cidade ----------
+import cidade, { CITY_SHIFT } from '../src/terrain/regions/rio-cidade.js'
+import { getCityLayout, tileKey } from '../shared/game/city-layout.js'
+
+test('cidade: o terreno de cenário é plano sob toda a terra da grade e não passa do orçamento', () => {
+  const layout = getCityLayout('cristo-redentor')
+  const scenery = createTerrainData(cidade, heights.data)
+  assert.ok(scenery.triangles <= 60000, `${scenery.triangles} triângulos`)
+  const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
+  let land = 0
+  for (let ty = layout.min; ty <= layout.max; ty++) {
+    for (let tx = layout.min; tx <= layout.max; tx++) {
+      // Lote da cidade (tx − 8, ty − 8); no terreno, z anda CITY_SHIFT.
+      const x = tx - layout.center, z = ty - layout.center - CITY_SHIFT
+      if (water.has(tileKey(tx, ty))) { assert.equal(scenery.lots.kindAt({ x, z }), 'blocked'); continue }
+      land++
+      assert.equal(scenery.lots.kindAt({ x, z }), 'free', `tile (${tx}, ${ty})`)
+      for (const [dx, dz] of [[0, 0], [-0.5, -0.5], [0.5, 0.5]]) assert.equal(scenery.getHeightAt(x + dx, z + dz), 0)
+    }
+  }
+  assert.ok(land > 800)
+  assert.equal(scenery.lots.playable.length, land)
+})
