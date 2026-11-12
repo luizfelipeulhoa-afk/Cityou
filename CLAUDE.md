@@ -56,6 +56,11 @@ Limites de desempenho: uma luz direcional + hemisfério, sem sombras e sem mapa 
 
 Terreno com relevo real e estilizado, configurado por região (primeiro o Rio, em volta de Copacabana). Plano, decisões e etapas: `docs/TERRAIN.md`. A cidade de produção (`CityWorld.js`, `sceneEnvironment.js`, `worker/city.js`) ainda não usa este módulo.
 
+- Dados: `npm run terrain:data -- rio` (`tools/terrain-data.mjs`) baixa os tiles públicos Terrarium uma vez (cache em `data/terrain-tiles/`, fora do git) e grava `src/terrain/regions/rio.height.png` (PNG de 16 bits, `valor = metros × 20`, 0 = água). `--mask` recria a máscara dos lotes; sem isso ela não é tocada. Em tempo de execução não há chamada a serviço externo. Atribuição dos dados em `ASSETS.md`.
+- Região: `src/terrain/regions/rio.js` (origem, rumo, escala, picos corrigidos, pontos de controle) e `rio.lots.json` (máscara editável, uma letra por lote: `.` livre, `#` bloqueado, `d` decorativo). O mapa é girado: −Z aponta para o noroeste; 1 unidade = 1 lote = 50 m.
+- `src/terrain/png.js` lê PNG de 16 bits sem canvas (`DecompressionStream`); `src/terrain/frame.js` converte latitude/longitude em coordenadas do mundo.
+- Nos tiles, a terra tem valor inteiro e o mar tem valor fracionário (até +20 m junto à costa): não separe terra de água pela altura.
+
 ## Backend
 
 - `backend/app.py` (`create_app`) só aceita acesso local; toda escrita exige o cabeçalho `X-Fifones-City: 1`.

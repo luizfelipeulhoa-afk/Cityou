@@ -36,3 +36,23 @@ Etapas, um commit cada:
 | 5 | Este guia completo (decisões, atribuição, como regenerar, como criar outra região) e `CLAUDE.md` |
 
 Fica para depois, porque mexe no que já existe: trocar o cenário do Rio em `CityWorld.js` por este terreno e fazer `worker/city.js` validar pela máscara. Cidades já salvas podem ter prédios em lotes que a máscara real bloqueia.
+
+## Dados de elevação
+
+- **Fonte.** Terrain Tiles (Mapzen/Tilezen, projeto `joerd`), formato Terrarium, no bucket público `elevation-tiles-prod` da AWS: `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png`. Tiles de 256 px, sem credencial. Altura em metros: `R × 256 + G + B / 256 − 32768`.
+- **Conferência (12/11/2026).** Endereço, fórmula, fontes por zoom e atribuição vêm dos documentos do projeto (`tilezen/joerd`: `use-service.md`, `formats.md`, `data-sources.md`, `attribution.md`). A licença vem do registro de dados abertos da AWS (`awslabs/open-data-registry`, `datasets/terrain-tiles.yaml`): o campo de licença aponta para o `attribution.md`, e o registro não traz cobrança por requisição nem exigência de conta.
+- **Um aviso dos documentos.** O `use-service.md` diz que os endereços no S3 "are meant for efficient networking with EC2 resources only". O script baixa 25 tiles (1,1 MB) uma única vez e guarda em `data/terrain-tiles/`; o app nunca acessa esse endereço.
+- **O que cobre o Rio.** SRTM em terra (30 m nominais; os documentos dizem que acima do zoom 12 o dado só é reamostrado) e ETOPO1 no mar. Os dois são de domínio público.
+- **Atribuição** (texto dos documentos, também em `ASSETS.md`): "SRTM data courtesy of the U.S. Geological Survey" e "Global ETOPO1 terrain data U.S. National Oceanic and Atmospheric Administration". O ETOPO1 traz o aviso "Not to be used for navigation".
+
+O que `tools/terrain-data.mjs` faz com os tiles:
+
+1. Monta o mosaico e separa terra de água pelo tipo do valor (inteiro = SRTM = terra; fracionário = preenchimento do mar). Junto à costa de Copacabana esse preenchimento começa em +21 m e só cruza o zero a uns 400 m da praia.
+2. Amostra a grade girada da região (513 × 513, uma amostra a cada 50 m).
+3. Limpa o que é ruído: amostras de terra soltas no mar e furos de água de até 6 amostras.
+4. Corrige os picos. O SRTM achata picos estreitos: o Pão de Açúcar vem com 306 m e o Corcovado com 639 m. Um fator local (1,29 num raio de 450 m; 1,11 num raio de 700 m) leva cada um à altura real, 396 m e 710 m. Os picos e os raios estão em `regions/rio.js`.
+5. Alisa e rebaixa as planícies. O SRTM mede o topo dos prédios (Copacabana aparece com 20 a 30 m). Abaixo de 27 m a altura é alisada e reduzida a 40%, e a orla desce até o mar; acima de 45 m nada muda.
+6. Grava o PNG de 16 bits (`valor = metros × 20`; 0 = água): `src/terrain/regions/rio.height.png`, 168 KB.
+7. Confere os pontos de controle de `regions/rio.js` no arquivo gravado e falha se algum não bater.
+
+Como regenerar: `npm run terrain:data -- rio`. Com `--preview`, grava uma imagem de conferência em `.verification/terrain-rio.png`. Com `--mask`, recria a máscara dos lotes a partir do relevo (a planície ligada à origem; os lotes livres que encostam na água viram decorativos); com `--mask=x0,z0,colunas,linhas`, muda também o retângulo da grade. Sem `--mask`, a máscara não é tocada: ela é um arquivo editado à mão.
