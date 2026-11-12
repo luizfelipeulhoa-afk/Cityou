@@ -501,18 +501,22 @@ function pilotRio(group, layout, shore) {
     tree(group, x, z + 0.24, 0.74)
   }
   const edgeLand = material(0x929b77)
-  box(group, 22, 0.45, 22.5, -27.5, -0.226, -2.5, edgeLand)
-  box(group, 22, 0.45, 29, 27.5, -0.226, -2.5, edgeLand)
   // Silhouettes beyond the grid give the Corcovado and the bay a separate horizon.
-  mountain(group, -23, -19, 6.1, 6.5, 4.5)
-  mountain(group, -18, -24, 5.8, 7.3, 5.3, [0x5c756a, 0x849d81])
-  mountain(group, 10, -23, 8.1, 5.4, 5.2)
-  mountain(group, 23, -16, 5.9, 4.8, 5.7, [0x708d78, 0x8ca28a])
+  // São o pano de fundo à mão: o terreno do Rio (src/terrain) os substitui quando carrega.
+  const backdrop = [
+    box(group, 22, 0.45, 22.5, -27.5, -0.226, -2.5, edgeLand),
+    box(group, 22, 0.45, 29, 27.5, -0.226, -2.5, edgeLand),
+    mountain(group, -23, -19, 6.1, 6.5, 4.5),
+    mountain(group, -18, -24, 5.8, 7.3, 5.3, [0x5c756a, 0x849d81]),
+    mountain(group, 10, -23, 8.1, 5.4, 5.2),
+    mountain(group, 23, -16, 5.9, 4.8, 5.7, [0x708d78, 0x8ca28a]),
+  ]
   const [entryX, entryY] = layout.entry
   const x = entryX - layout.center, z = entryY - layout.center
   sceneryTiles(group, 'Entrada da avenida', [-0.34, 0.34].map(offset => ({
     position: [x + offset, 0.10, z + 0.39], scale: [0.06, 0.09, 0.43], tint: 0xf3ddaa,
   })))
+  return backdrop
 }
 
 function pilotWater(island) {
@@ -635,7 +639,8 @@ function createPilotEnvironment(group, region, layout) {
   const floorColor = island ? 0xc2c297 : 0xaaa986
   const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
   const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))
-  group.add(pilotWater(island))
+  const sea = pilotWater(island)
+  group.add(sea)
   const land = [], shore = []
   for (let y = layout.min; y <= layout.max; y++) for (let x = layout.min; x <= layout.max; x++) {
     const key = tileKey(x, y)
@@ -659,11 +664,12 @@ function createPilotEnvironment(group, region, layout) {
   pilotSlope(group, layout, slope, water)
   if (island) sceneryTiles(group, 'Faixa de areia protegida', shore)
   const animate = island ? pilotIsland(group, layout, shore, land) : () => {}
-  if (!island) pilotRio(group, layout, shore)
+  const backdrop = island ? [] : [sea, ...pilotRio(group, layout, shore)]
   const site = layout.landmarks[0]
   const landmarkY = island ? -0.42 : slopeHeight(site.x, site.y, layout.min)
   const landmark = addLandmark(group, region, site.x - layout.center, landmarkY, site.y - layout.center)
-  return { group, landmark, tileColor: island ? 0xdad0a7 : 0xc7c9ac, animate, lamps: [], setDusk(value) { animate.setDusk?.(value) } }
+  // `backdrop`: o mar e os morros feitos à mão, que o terreno do Rio substitui (CityWorld.loadTerrain).
+  return { group, landmark, backdrop, tileColor: island ? 0xdad0a7 : 0xc7c9ac, animate, lamps: [], setDusk(value) { animate.setDusk?.(value) } }
 }
 
 export function createEnvironment(scene, region) {

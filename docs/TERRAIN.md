@@ -2,7 +2,9 @@
 
 Módulo de terreno com relevo real e estilizado, configurado por região. Primeiro uso: Copacabana, com o Pão de Açúcar, o Morro da Urca e o Corcovado ao fundo. Só a área central é jogável; o resto é cenário.
 
-A cidade de produção ainda não usa este módulo. `CityWorld.js`, `sceneEnvironment.js`, `worker/city.js` e os dados salvos não mudaram.
+Na cidade do Rio (Cristo Redentor), o terreno é o **cenário**: só o que fica em volta da grade. `CityWorld.loadTerrain` troca o mar e os morros feitos à mão pelo terreno de `regions/rio-cidade.js`. Essa região usa o mesmo mapa de alturas do Rio, mas a zona plana é a terra da grade da cidade (33 × 33 lotes), com a praia real alinhada à orla da cidade (`CITY_SHIFT`). Grade, ruas, prédios, `worker/city.js` e os dados salvos não mudaram. O terreno é baixado depois da primeira imagem (módulo e PNG sob demanda, 20 kB e 170 kB); se falhar, a cidade fica com o cenário feito à mão. Na cidade a vegetação distante é cortada (árvores a 80 unidades, palmeiras a 50), porque a névoa fecha em 105.
+
+Custo na cidade, com renderização por software, alternando as versões: de 23.065 para 64.302 triângulos e de cerca de 11 para cerca de 10 quadros/s; CPU por quadro igual (1,0 a 1,2 ms). Os arquivos carregados na abertura de cada página não mudam. Não medido em aparelho real.
 
 ## Onde ver e como conferir
 
@@ -178,7 +180,7 @@ Não medido: nenhum aparelho com GPU de verdade.
 
 ## O que falta
 
-- **Ligar à cidade.** Trocar o cenário do Rio em `CityWorld.js` por este terreno e fazer `worker/city.js` validar pela máscara. A grade da cidade tem 33 × 33 lotes e a máscara do Rio tem 72 × 36, e cidades já salvas podem ter prédios em lotes que a máscara bloqueia: é uma decisão de jogo, não só de código.
+- **Zona jogável real na cidade.** O cenário já está ligado, mas a cidade segue com a grade própria. Usar a máscara do Rio e fazer `worker/city.js` validar por ela é o passo que falta. A grade da cidade tem 33 × 33 lotes e a máscara do Rio tem 72 × 36, e cidades já salvas podem ter prédios em lotes que a máscara bloqueia: é uma decisão de jogo, não só de código.
 - **Worker.** A montagem do terreno roda na thread principal (0,5 s num aparelho 4× mais lento). `terrainData.js` não depende do three e pode ir para um worker.
 - **Aparelho real.** A fluidez no celular não foi medida. A página de teste publicada serve para isso.
 - **Navegadores antigos.** O leitor de PNG usa `DecompressionStream` (Chrome 80, Firefox 113, Safari 16.4). Abaixo disso o terreno não carrega.

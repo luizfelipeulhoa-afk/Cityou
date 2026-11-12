@@ -621,6 +621,27 @@ export default class CityWorld {
     }
   }
 
+  // O terreno real do Rio (src/terrain) no lugar do mar e dos morros feitos à mão. Se não carregar, o cenário à mão fica.
+  async loadTerrain() {
+    try {
+      const { loadCityTerrain } = await import('../terrain/cityTerrain.js')
+      const terrain = await loadCityTerrain()
+      if (this.destroyed) {
+        terrain.dispose()
+        return
+      }
+      for (const object of this.environment.backdrop) {
+        object.removeFromParent()
+        disposeOwned(object)
+      }
+      this.environment.backdrop = []
+      this.environment.group.add(terrain.group)
+      this.refreshShadows()
+    } catch {
+      // A cidade mantém o cenário feito à mão quando o terreno está indisponível.
+    }
+  }
+
   async loadModel(record, definition) {
     const url = definition.model
     this.pendingModels++
@@ -921,7 +942,11 @@ export default class CityWorld {
   }
 
   startArrival() {
-    const loadLandmark = () => { if (!this.destroyed) void this.loadLandmark(this.region) }
+    const loadLandmark = () => {
+      if (this.destroyed) return
+      void this.loadLandmark(this.region)
+      if (this.environment.backdrop?.length) void this.loadTerrain()
+    }
     const idle = typeof window.requestIdleCallback === 'function'
     const timer = idle ? window.requestIdleCallback(loadLandmark, { timeout: 1500 }) : setTimeout(loadLandmark, 300)
     this.disposers.push(() => idle ? window.cancelIdleCallback(timer) : clearTimeout(timer))
