@@ -571,3 +571,108 @@ test('ilha: só cenário, sem catálogo, rua nem prédio; o Rio de Janeiro já n
   assert.ok(home.placements.some(item => item.kind === 'road'))
   assert.deepEqual((await world(session)).desbloqueados, [ISLAND, RIO])
 })
+
+// Contas: cadastro, entrada e saída, com os dados da demonstração adotados pela conta.
+function browser(cookies = {}) {
+  const jar = { ...cookies }
+  const send = async (path, { method = 'GET', body, redirect = 'manual' } = {}) => {
+    const headers = { Cookie: Object.entries(jar).map(([name, value]) => `${name}=${value}`).join('; ') }
+    if (method !== 'GET') Object.assign(headers, { Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' })
+    const response = await call(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), redirect })
+    for (const cookie of response.headers.getSetCookie()) {
+      const [, name, value] = cookie.match(/^([^=]+)=([^;]*)/)
+      if (/Max-Age=0/.test(cookie)) delete jar[name]
+      else jar[name] = value
+    }
+    return response
+  }
+  send.jar = jar
+  return send
+}
+const demoCookieValue = () => sessionCookie(new URL(ORIGIN)).split(';')[0].split('=')[1]
+const account = (n = crypto.randomUUID().slice(0, 8)) => ({ email: `socio-${n}@cityou.test`, password: 'senha-bem-comprida', display_name: 'Sócio Teste' })
+
+test('conta: cadastro abre sessão, valida os campos e não aceita e-mail repetido', async () => {
+  const visitor = browser()
+  assert.deepEqual(await (await visitor('/api/auth/status')).json(), { accounts: true, user: null })
+  assert.equal((await visitor('/api/me')).status, 401)
+  const bad = await visitor('/api/auth/signup', { method: 'POST', body: { email: 'sem-arroba', password: 'curta', display_name: '' } })
+  assert.equal(bad.status, 422)
+  assert.deepEqual(Object.keys((await bad.json()).fields).sort(), ['display_name', 'email', 'password'])
+  const data = account()
+  const created = await visitor('/api/auth/signup', { method: 'POST', body: { ...data, email: data.email.toUpperCase() } })
+  assert.equal(created.status, 201)
+  const { user } = await created.json()
+  assert.equal(user.email, data.email)
+  assert.match(created.headers.getSetCookie()[0], /^cityou_session=[a-f0-9]{64}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=2592000(; Secure)?$/)
+  assert.deepEqual((await (await visitor('/api/me')).json()).user, user)
+  assert.equal((await (await visitor('/api/auth/status')).json()).user.id, user.id)
+  assert.equal((await browser()('/api/auth/signup', { method: 'POST', body: data })).status, 409)
+  // A senha não fica no banco em texto, e o token da sessão também não.
+  const row = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first()
+  assert.equal(row.password_iterations, 100000)
+  assert.match(row.password_hash, /^[a-f0-9]{64}$/)
+  assert.equal(await env.DB.prepare('SELECT 1 FROM sessions WHERE token_hash = ?').bind(visitor.jar.cityou_session).first(), null)
+  // Escrita sem o cabeçalho ou de outra origem não passa.
+  assert.equal((await call('/api/auth/login', { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json' } })).status, 403)
+})
+
+test('conta: adota os dados da demonstração e os entrega em qualquer navegador; sair devolve a demonstração vazia', async () => {
+  const first = browser({ cityou_demo: demoCookieValue() })
+  const before = await (await first('/api/city')).json()
+  const built = await (await first('/api/city/actions', { method: 'POST', body: { type: 'build', kind: 'tree', x: 7, y: 8, expected_revision: before.revision, request_id: 'arvore-antes-da-conta' } })).json()
+  assert.equal(built.credits, before.credits - 3)
+  const data = account()
+  assert.equal((await first('/api/auth/signup', { method: 'POST', body: data })).status, 201)
+  assert.equal((await (await first('/api/city')).json()).credits, built.credits)
+
+  // Outro aparelho, com outra sessão de demonstração: ao entrar, vê a cidade da conta.
+  const second = browser({ cityou_demo: demoCookieValue() })
+  assert.equal((await (await second('/api/city')).json()).revision, 0)
+  const wrong = await second('/api/auth/login', { method: 'POST', body: { email: data.email, password: 'senha-errada-errada' } })
+  assert.equal(wrong.status, 401)
+  const unknown = await second('/api/auth/login', { method: 'POST', body: { email: 'ninguem@cityou.test', password: 'senha-errada-errada' } })
+  assert.deepEqual([unknown.status, (await unknown.json()).message], [401, (await wrong.json()).message])
+  assert.equal((await second('/api/auth/login', { method: 'POST', body: data })).status, 200)
+  const mine = await (await second('/api/city')).json()
+  assert.deepEqual([mine.credits, mine.revision], [built.credits, built.revision])
+  assert.ok(mine.placements.some(item => item.kind === 'tree'))
+
+  // Sair apaga a sessão e troca o cookie da demonstração: o navegador volta a uma demonstração nova.
+  const oldDemo = first.jar.cityou_demo
+  assert.equal((await first('/api/auth/logout', { method: 'POST', body: {} })).status, 200)
+  assert.equal(first.jar.cityou_session, undefined)
+  assert.notEqual(first.jar.cityou_demo, oldDemo)
+  assert.equal((await first('/api/me')).status, 401)
+  assert.equal((await (await first('/api/city')).json()).revision, 0)
+  // A sessão do segundo aparelho continua valendo.
+  assert.equal((await second('/api/me')).status, 200)
+})
+
+test('conta: senha errada repetida bloqueia por um tempo; páginas do app pedem login', async () => {
+  const data = account()
+  const user = browser()
+  assert.equal((await user('/api/auth/signup', { method: 'POST', body: data })).status, 201)
+  const stranger = browser()
+  for (let i = 0; i < 8; i++) assert.equal((await stranger('/api/auth/login', { method: 'POST', body: { ...data, password: 'chute-numero-' + i } })).status, 401)
+  assert.equal((await stranger('/api/auth/login', { method: 'POST', body: data })).status, 429)
+
+  const gate = await stranger('/city?local=cristo-redentor')
+  assert.deepEqual([gate.status, gate.headers.get('Location')], [302, '/?entrar=1&next=%2Fcity%3Flocal%3Dcristo-redentor'])
+  assert.equal((await stranger('/app')).status, 302)
+  assert.notEqual((await stranger('/')).status, 302)
+  assert.notEqual((await user('/app')).status, 302)
+  const home = await user('/')
+  assert.deepEqual([home.status, home.headers.get('Location')], [302, '/app'])
+  assert.notEqual((await user('/?inicio')).status, 302)
+})
+
+test('conta: sem banco, as rotas de conta avisam e o app segue como demonstração', async () => {
+  const response = await closedHarness.fetch(`${ORIGIN}/api/auth/status`)
+  assert.deepEqual(await response.json(), { accounts: false, user: null })
+  const signup = await closedHarness.fetch(`${ORIGIN}/api/auth/signup`, {
+    method: 'POST', body: JSON.stringify(account()), headers: { Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' },
+  })
+  assert.equal(signup.status, 503)
+  assert.notEqual((await closedHarness.fetch(`${ORIGIN}/city`, { redirect: 'manual' })).status, 302)
+})

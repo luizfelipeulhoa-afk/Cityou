@@ -5,7 +5,7 @@ try {
  const page=await browser.newPage({viewport:{width:1440,height:1050}})
  const errors=[],failures=[],requests=[]
  page.on('pageerror',e=>errors.push(e.message));page.on('response',r=>{if(r.status()>=400)failures.push({status:r.status(),url:r.url()})});page.on('request',r=>requests.push(r.url()))
- await page.goto('http://127.0.0.1:8766/',{waitUntil:'networkidle'})
+ await page.goto('http://127.0.0.1:8766/app.html',{waitUntil:'networkidle'})
  await page.getByText('O que vamos tirar da sua cabeça?',{exact:true}).waitFor()
  await page.waitForFunction(()=>!document.querySelector('.loading-state'))
  fs.mkdirSync('.verification',{recursive:true})

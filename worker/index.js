@@ -2,7 +2,8 @@
 // Contrato em docs/API.md.
 import { HttpError, createTiming, errorResponse } from './http.js'
 import { health } from './routes/health.js'
-import { demoApi, sessionCookie, sessionToken } from './demo.js'
+import { demoApi, demoKeyOf, sessionCookie, sessionToken } from './demo.js'
+import { accountsEnabled, authApi, sessionTokenOf, sessionUser } from './auth.js'
 export { DemoSession } from './demo.js'
 
 const routes = [
@@ -24,16 +25,42 @@ function guardWrite(request, url) {
 async function handleApi(request, env, ctx, url, timing) {
   guardWrite(request, url)
   const matches = routes.filter(([, path]) => path === url.pathname)
-  if (!matches.length) return demoApi(request, env, url)
+  if (!matches.length) {
+    const account = await authApi({ request, env, url, demoKey: await demoKeyOf(request, env), freshDemoCookie: sessionCookie(url) })
+    if (account) return account
+    return demoApi(request, env, url, await sessionUser(request, env))
+  }
   const route = matches.find(([method]) => method === request.method)
   if (!route) throw new HttpError(405, 'Método não permitido.')
   return route[2]({ request, env, ctx, url, timing })
+}
+
+const APP_PAGES = new Set(['/app', '/app.html', '/city', '/city.html', '/world', '/world.html'])
+const LANDING_PAGES = new Set(['/', '/index.html'])
+
+/** Com as contas ativas, as páginas do app pedem login, e quem já entrou pula a página de apresentação. */
+async function pageGate(request, env, url) {
+  if (request.method !== 'GET' || !accountsEnabled(env)) return null
+  const app = APP_PAGES.has(url.pathname), landing = LANDING_PAGES.has(url.pathname)
+  if (!app && !landing) return null
+  let user = null
+  try { user = sessionTokenOf(request) ? await sessionUser(request, env) : null } catch (error) {
+    // Banco fora do ar: o app segue aberto como demonstração em vez de travar todo mundo na entrada.
+    console.error(JSON.stringify({ message: 'pageGate: banco indisponível', error: String(error) }))
+    return null
+  }
+  const redirect = location => new Response(null, { status: 302, headers: { Location: location, 'Cache-Control': 'private, no-store' } })
+  if (app && !user) return redirect(`/?entrar=1&next=${encodeURIComponent(url.pathname + url.search)}`)
+  if (landing && user && !url.searchParams.has('inicio')) return redirect('/app')
+  return null
 }
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url)
     if (!url.pathname.startsWith('/api/')) {
+      const gate = await pageGate(request, env, url)
+      if (gate) return gate
       const asset = env.ASSETS ? await env.ASSETS.fetch(request) : new Response('Not found', { status: 404 })
       if (request.method !== 'GET' || !asset.ok || !asset.headers.get('Content-Type')?.startsWith('text/html') || sessionToken(request)) return asset
       const response = new Response(asset.body, asset)

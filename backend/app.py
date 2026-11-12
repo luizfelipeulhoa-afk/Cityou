@@ -566,7 +566,10 @@ def create_app(*, data_dir: str | Path | None = None, upstream_url: str | None =
     # Keep APIs above mounts. A missing build never falls back to the old app.
     @application.get('/')
     async def index():
-        page = dist / 'index.html'
+        # O backend local não tem contas: abre direto o painel (app.html), não a página de apresentação.
+        page = dist / 'app.html'
+        if not page.is_file():
+            page = dist / 'index.html'
         if page.is_file():
             return FileResponse(page)
         return JSONResponse({'message': 'Fifones City: execute npm run build para gerar a interface.'}, status_code=503)

@@ -1,6 +1,6 @@
 # Cityou / BuildU
 
-Organização pessoal gamificada. O repositório tem três páginas Vite e um backend FastAPI local.
+Organização pessoal gamificada. O repositório tem a página de apresentação, três páginas Vite do app e um backend FastAPI local.
 
 ## Regra de trabalho: mantenha este arquivo em dia
 
@@ -19,12 +19,13 @@ Vários Claude trabalham neste repositório em branches e sessões diferentes, e
 
 | Página | Entrada | Conteúdo |
 |---|---|---|
-| `index.html` | `src/main.js` → `src/App.vue` | painel pessoal |
+| `index.html` | `src/landing/landing.js` (sem Vue) | página de apresentação em `/`, com entrar e criar conta |
+| `app.html` | `src/main.js` → `src/App.vue` | painel pessoal, em `/app` |
 | `city.html` | `src/city-main.js` → `src/CityApp.vue` | cidade 3D (`src/fifones/CityWorld.js`) |
 | `world.html` | `src/world-main.js` → `src/WorldApp.vue` | mapa-mundo BuildU |
 | `terrain.html` | `src/terrain-main.js` → `src/terrain/TerrainLab.vue` | página de teste do terreno do Rio (sem link no app, `noindex`) |
 
-A página de teste do terreno é construída à parte (`vite.terrain.config.js`). Não a ponha nas entradas do `vite.config.js`: isso redistribui os pacotes compartilhados e cada página de produção passa a pedir de 1 a 3 arquivos a mais (medido).
+A página de apresentação e a de teste do terreno são construídas à parte (`vite.landing.config.js`, `vite.terrain.config.js`). Não as ponha nas entradas do `vite.config.js`: isso redistribui os pacotes compartilhados e cada página de produção passa a pedir de 1 a 3 arquivos a mais (medido).
 
 ## Mapa-mundo (`src/world/`)
 
@@ -80,6 +81,10 @@ Nove prédios de exemplo construíveis na cidade do Rio (barraca de feira, casa 
 - Os GLB do Tripo chegam com 175 a 190 mil triângulos: reduza com `node tools/optimize-city-models.mjs <entrada> <saida> --tris 6000` (redutor próprio, sem baixar nada, textura em WebP de 1024). Não use `npx --yes` para baixar ferramentas: o ambiente bloqueia.
 - Orçamento travado em `tests/city-models.test.mjs` (`npm test`): até 8 mil triângulos e 500 KB por arquivo, sem Draco nem meshopt (o carregador da cidade não decodifica), `height` do catálogo = altura do modelo a 90% da área.
 - A miniatura do menu vem de `item.preview`; gere com `node tools/catalog-previews.mjs <url-do-worker> rio-`.
+
+## Contas e página de apresentação
+
+Guia: `docs/CONTAS.md`. Resumo: `worker/auth.js` faz cadastro, entrada e saída (cookie `cityou_session`, PBKDF2, tabelas do D1 criadas pelo próprio Worker). A conta não copia dados: `users.data_key` é o nome do Durable Object `DemoSession` da pessoa, adotado da demonstração no cadastro; objeto de conta não vence. Com o D1 ligado, `/app`, `/city` e `/world` pedem login (`pageGate` em `worker/index.js`) e `/` leva quem já entrou ao app; sem o D1 (produção hoje, até pôr o `database_id` em `wrangler.jsonc`), tudo segue como demonstração e a página diz "Abrir a demonstração". Página nova do app entra em `APP_PAGES` e em `run_worker_first`. Links para o painel usam `/app#/...`; os `/#/...` do catálogo apontam para o Fifones (porta 8765), não para o painel. Falta: esqueci a senha (precisa de e-mail com domínio).
 
 ## Backend
 
