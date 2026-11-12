@@ -8,7 +8,7 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/", "/index.html", "/city", "/city.html", "/world", "/world.html"]
+    "run_worker_first": ["/api/*", "/", "/index.html", "/app", "/app.html", "/city", "/city.html", "/world", "/world.html"]
   },
   // Viagens fechadas em produção. A prévia de teste abre todos os destinos para validação.
   "vars": { "TRAVEL_OPEN": "false" },
