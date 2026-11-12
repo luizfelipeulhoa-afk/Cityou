@@ -73,6 +73,8 @@ No desenvolvimento, o Vite encaminha `/api` para o `wrangler dev`, no lugar do F
 | `GET /api/me/export` (B8) | | 200 arquivo JSON com todos os dados da conta | leitura |
 | `DELETE /api/me` (B8) | `password` | 200 `{}`; apaga a conta e todos os dados | todas |
 
+**Já implementado** (`worker/auth.js`, guia em `docs/CONTAS.md`): `signup`, `login`, `logout`, `GET /api/me` e `GET /api/auth/status` (`{ accounts, user }`, sem 401). No cadastro de hoje as tabelas `player`, `cities`, `placements` e `ledger` ainda não existem: a conta adota os dados da demonstração (`users.data_key`). `forgot`, `reset`, `PATCH /api/me`, exportar e apagar ficam para depois.
+
 Senha: PBKDF2 pela Web Crypto, sal por usuário, comparação em tempo constante (`crypto.subtle.timingSafeEqual`). O número de iterações fica gravado em `users.password_iterations`.
 
 ## Visão geral

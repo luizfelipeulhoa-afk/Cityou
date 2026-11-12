@@ -189,7 +189,7 @@ function stateLabel(space) {
         <div>
           <strong>BuildU</strong>
           <small>Mapa-mundo</small>
-          <a class="world-app__back" href="/#/inicio" target="_top">← Voltar ao Cityou</a>
+          <a class="world-app__back" href="/app#/inicio" target="_top">← Voltar ao Cityou</a>
         </div>
       </div>
       <div class="world-app__progress" role="img" :aria-label="`${done} de ${spaces.length} espaços concluídos. ${syncLabel}`">
