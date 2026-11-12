@@ -246,3 +246,19 @@ O tempo de ida e volta pela rede não entra na meta: depende da conexão da pess
 - No D1 local, e-mail único e chave estrangeira são aplicados (teste em `tests/worker.test.mjs`).
 
 Ainda não conferido: limite de iterações do PBKDF2, limites e preços do D1, restauração de backup, e o serviço de envio de e-mail para a recuperação de senha (exige um domínio próprio).
+
+## Moedas de teste dos sócios (`POST /api/admin/credits`)
+
+Rota de administração da demonstração, para os sócios que testam o app. Ela só existe se o Worker tiver o segredo
+`CITYOU_ADMIN_TOKEN` (16 caracteres ou mais; sem ele a rota responde 404). Credita 50.000 moedas **na sessão de quem
+chama**, uma vez por sessão (a segunda chamada responde 409), e registra "Créditos de teste (sócios)" no histórico.
+O token vai no cabeçalho `X-Cityou-Admin`; erros: 403 (token errado), 404 (sem segredo), 409 (já recebeu).
+
+Cada sócio roda uma vez no console do navegador, na página do app já aberta (para valer a sessão dele):
+
+```js
+fetch('/api/admin/credits', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1', 'X-Cityou-Admin': 'COLE_O_TOKEN' }, body: '{}' }).then(r => r.json()).then(c => console.log(c.credits))
+```
+
+Para criar o segredo: `npx wrangler secret put CITYOU_ADMIN_TOKEN` (ou Cloudflare → Workers → cityou → Settings → Variables and Secrets).
+Se o cookie `cityou_demo` expirar ou for apagado, a sessão é outra e a pessoa pode rodar de novo.

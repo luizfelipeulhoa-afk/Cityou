@@ -319,6 +319,40 @@ test('prévia abre os oito locais e mantém o saldo de teste ao alternar cidades
   }
 })
 
+test('moedas de teste dos sócios: só com o segredo, uma vez por sessão', async () => {
+  const token = 'segredo-de-teste-com-mais-de-16'
+  const withToken = createTestHarness({ workers: [{ configPath: 'wrangler.test.jsonc', vars: { CITYOU_ADMIN_TOKEN: token } }] })
+  await withToken.listen()
+  try {
+    const session = newDemoSession((path, init) => withToken.fetch(ORIGIN + path, init))
+    const grant = (given, cookie = session.cookie) => withToken.fetch(`${ORIGIN}/api/admin/credits`, {
+      method: 'POST', body: '{}',
+      headers: { Cookie: cookie, Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json', ...(given && { 'X-Cityou-Admin': given }) },
+    })
+    assert.equal((await grant(null)).status, 403)
+    assert.equal((await grant('token-errado-token-errado')).status, 403)
+    assert.equal((await city(session, RIO)).credits, 50)
+    const ok = await grant(token)
+    assert.equal(ok.status, 200)
+    assert.equal((await ok.json()).credits, 50_050)
+    assert.equal((await city(session, RIO)).credits, 50_050)
+    assert.equal((await grant(token)).status, 409)
+    assert.equal((await city(session, RIO)).credits, 50_050)
+    // Outra sessão (outro sócio) recebe a sua parte, e a primeira continua intacta.
+    const other = newDemoSession((path, init) => withToken.fetch(ORIGIN + path, init))
+    assert.equal((await city(other, RIO)).credits, 50)
+  } finally {
+    await withToken.close()
+  }
+  // Sem o segredo configurado, a rota não existe.
+  const session = newDemoSession()
+  const response = await call('/api/admin/credits', {
+    method: 'POST', body: '{}',
+    headers: { Cookie: session.cookie, Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json', 'X-Cityou-Admin': 'qualquer-coisa-qualquer' },
+  })
+  assert.equal(response.status, 404)
+})
+
 test('trecho viário é validado e cobrado em conjunto, com reenvio idempotente', async () => {
   const session = newDemoSession()
   const start = await city(session, RIO)
