@@ -52,6 +52,10 @@ Decisão fechada: o 3D migra para **TresJS** (`@tresjs/core`), não para React T
 
 Limites de desempenho: uma luz direcional + hemisfério, sem sombras e sem mapa de ambiente, modelos opacos, globo em um draw call, alvo de 60 fps em celular médio. Meça antes e depois, não estime: `npm run perf:world` (abertura) e `npm run perf:world-frame` (custo por quadro), alternando as duas versões.
 
+## Terreno de cenário (`src/terrain/`, em construção)
+
+Terreno com relevo real e estilizado, configurado por região (primeiro o Rio, em volta de Copacabana). Plano, decisões e etapas: `docs/TERRAIN.md`. A cidade de produção (`CityWorld.js`, `sceneEnvironment.js`, `worker/city.js`) ainda não usa este módulo.
+
 ## Backend
 
 - `backend/app.py` (`create_app`) só aceita acesso local; toda escrita exige o cabeçalho `X-Fifones-City: 1`.
