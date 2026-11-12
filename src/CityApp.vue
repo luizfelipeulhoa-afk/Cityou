@@ -466,6 +466,7 @@ function onVisibility() {
   }
 }
 function thumbnail(item) {
+  if (item.preview) return item.preview
   if (['road','tree','home','tasks','agenda','memory','projects','stunt','chatgpt','claude','gemini','grok'].includes(item.id)) return `/previews/${item.id}.png`
   const color = /^#[0-9a-f]{3,8}$/i.test(item.color) ? item.color : '#65aeb1'
   const kind = `${item.id} ${item.model}`.toLowerCase()

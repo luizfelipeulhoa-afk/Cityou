@@ -73,6 +73,14 @@ Terreno com relevo real e estilizado, configurado por região (primeiro o Rio, e
 - Página de teste: `/terrain.html` (`TerrainLab.vue` + `TerrainStage.vue`, TresJS com `render-mode="on-demand"`): vistas dos marcos, sobreposição das zonas bloqueadas, toque num lote para assentar um prédio. `npm run test:terrain` (`tools/terrain-check.mjs`) confere tudo isso no navegador e grava as imagens em `.verification/`; `--dist` confere a página construída e `--perf` mede o custo por quadro e a montagem com a CPU 4× mais lenta.
 - Custo de hoje: 32,8 mil triângulos de terreno (orçamento de 60 mil), 3 draws (terreno com o mar, árvores, palmeiras), montagem em cerca de 0,2 s na thread principal (0,5 s com a CPU 4× mais lenta). Ao ligar o terreno à cidade, leve `createTerrainData` para um worker: o módulo já não depende do three.
 
+## Prédios do Rio com GLB (`public-fifones/models/rio/`)
+
+Nove prédios de exemplo construíveis na cidade do Rio (barraca de feira, casa da laje, quiosque de coco, academia, posto salva-vidas, ponto do bonde, casarão, igrejinha, edifício Art Déco), já no catálogo regional (`rio-*` com `model` e `preview` em `shared/game/city-layout.js`). Guia, tabela de custos e como acrescentar outro: `docs/PREDIOS-RIO.md`. Regras de trabalho:
+
+- Os GLB do Tripo chegam com 175 a 190 mil triângulos: reduza com `node tools/optimize-city-models.mjs <entrada> <saida> --tris 6000` (redutor próprio, sem baixar nada, textura em WebP de 1024). Não use `npx --yes` para baixar ferramentas: o ambiente bloqueia.
+- Orçamento travado em `tests/city-models.test.mjs` (`npm test`): até 8 mil triângulos e 500 KB por arquivo, sem Draco nem meshopt (o carregador da cidade não decodifica), `height` do catálogo = altura do modelo a 90% da área.
+- A miniatura do menu vem de `item.preview`; gere com `node tools/catalog-previews.mjs <url-do-worker> rio-`.
+
 ## Backend
 
 - `backend/app.py` (`create_app`) só aceita acesso local; toda escrita exige o cabeçalho `X-Fifones-City: 1`.

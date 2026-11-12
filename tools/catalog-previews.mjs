@@ -1,12 +1,18 @@
 // Render catalog artwork from the actual local models. No ledger API writes.
+// Uso: node tools/catalog-previews.mjs [url-base] [prefixo-de-id]
+//   sem argumentos: o FastAPI local (porta 8766). Para os prédios do Rio: node tools/catalog-previews.mjs http://127.0.0.1:8787 rio-
+//   (o Worker local, npm run dev:worker, serve o catálogo regional do Rio).
 import fs from 'node:fs'
 import { chromium, python, browserOptions } from './runtime.mjs'
-const browser = await chromium.launch({...browserOptions})
+const base = process.argv[2] || 'http://127.0.0.1:8766'
+const prefix = process.argv[3] || ''
+const browser = await chromium.launch({...browserOptions, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']})
 try {
   const page = await browser.newPage({viewport:{width:1000,height:800}})
-  await page.goto('http://127.0.0.1:8766/city.html', {waitUntil:'networkidle'})
+  await page.goto(`${base}/city.html`, {waitUntil:'networkidle'})
   await page.waitForFunction(() => window.__fifonesCity?.state?.catalog?.length)
   const catalog = await page.evaluate(() => window.__fifonesCity.state.catalog.filter(i => i.cost > 0))
+    .then(items => items.filter(i => i.id.startsWith(prefix) && (!prefix || i.model)))
   fs.mkdirSync('public-fifones/previews', {recursive:true})
   for (const item of catalog) {
     await page.evaluate(item => {
