@@ -60,6 +60,9 @@ Terreno com relevo real e estilizado, configurado por região (primeiro o Rio, e
 - Região: `src/terrain/regions/rio.js` (origem, rumo, escala, picos corrigidos, pontos de controle) e `rio.lots.json` (máscara editável, uma letra por lote: `.` livre, `#` bloqueado, `d` decorativo). O mapa é girado: −Z aponta para o noroeste; 1 unidade = 1 lote = 50 m.
 - `src/terrain/png.js` lê PNG de 16 bits sem canvas (`DecompressionStream`); `src/terrain/frame.js` converte latitude/longitude em coordenadas do mundo.
 - Nos tiles, a terra tem valor inteiro e o mar tem valor fracionário (até +20 m junto à costa): não separe terra de água pela altura.
+- Núcleo sem three (roda nos testes): `terrainData.js` (`createTerrainData(região, alturas)`: alturas no mundo, platô, malha, cores, vegetação e a API `isBuildable(lote, tamanho)`, `snapToLot(posição, tamanho)`, `getHeightAt(x, z)`, `getBlockedAreas()`), `lots.js` (máscara) e `rtin.js` (malha de triângulos retângulos por bisseção, sem frestas).
+- Convenções do terreno: o platô da zona jogável fica em y = 0 e o mar em y = −0,4. Um lote é `{ x, z }`, as coordenadas inteiras do seu centro (o tile `(x + 8, z + 8)` da cidade); um prédio de n × n é ancorado no lote de menor x e z. Os cantos dos lotes caem em amostras do mapa de alturas: não mude `heightmap.center` sem conferir isso.
+- O platô é exatamente plano porque os cantos dos lotes livres e decorativos são vértices forçados da malha. `getHeightAt` devolve a altura da malha desenhada, não a do mapa de alturas.
 
 ## Backend
 

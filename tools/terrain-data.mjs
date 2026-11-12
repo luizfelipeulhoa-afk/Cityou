@@ -125,7 +125,7 @@ function components(isMember) {
 }
 const neighbors8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]
 const landParts = components(index => meters[index] > 0)
-let removedSpecks = 0
+let removedSpecks = 0, removedBumps = 0
 for (let index = 0; index < meters.length; index++) {
   if (meters[index] > 0 && landParts.sizes[landParts.label[index]] <= 2) { meters[index] = 0; removedSpecks++ }
 }
@@ -143,6 +143,49 @@ for (let pass = 0; pass < 4; pass++) {
       if (value > 0) { sum += value; count++ }
     }
     if (count) { meters[index] = sum / count; filledHoles++ }
+  }
+}
+
+// Ponta de uma amostra só, mais de 45 m acima de todas as vizinhas: é ruído do SRTM (havia uma de 99 m na
+// beira d'água de Copacabana). Vira a média das vizinhas de terra, ou água se quase tudo em volta é água.
+let removedSpikes = 0
+for (let y = 1; y < size - 1; y++) {
+  for (let x = 1; x < size - 1; x++) {
+    const index = y * size + x
+    let highest = 0, sum = 0, count = 0
+    for (const [dx, dy] of neighbors8) {
+      const near = meters[(y + dy) * size + x + dx]
+      highest = Math.max(highest, near)
+      if (near > 0) { sum += near; count++ }
+    }
+    if (meters[index] - highest <= 45) continue
+    meters[index] = count >= 4 ? sum / count : 0
+    removedSpikes++
+  }
+}
+
+// Um prédio alto isolado vira um "morro" de uma amostra no meio da planície (ou da areia): sai.
+if (region.lowland) {
+  const { start } = region.lowland
+  for (let pass = 0; pass < 2; pass++) {
+    const source = meters.slice()
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const value = source[y * size + x]
+        if (value < start || value > 90) continue
+        let total = 0, flat = 0, sum = 0, count = 0
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            const nx = x + dx, ny = y + dy
+            if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue
+            const near = source[ny * size + nx]
+            total++
+            if (near < start) { flat++; if (near > 0) { sum += near; count++ } }
+          }
+        }
+        if (count && flat / total >= 0.62) { meters[y * size + x] = sum / count; removedBumps++ }
+      }
+    }
   }
 }
 
@@ -168,7 +211,17 @@ for (const peak of region.peaks ?? []) {
       if (t > 0) meters[j * size + i] *= 1 + (factor - 1) * t * t * (3 - 2 * t)
     }
   }
-  report.push(`  ${peak.name}: ${top.value.toFixed(0)} m nos dados, ${peak.height} m reais → fator local ${factor.toFixed(2)} num raio de ${peak.radius} m`)
+  // Topo arredondado (opcional): sem isso um pico estreito vira uma ponta de um vértice só na malha.
+  if (peak.cap) {
+    const cap = peak.cap / cellMeters
+    for (let j = Math.floor(top.j - cap); j <= Math.ceil(top.j + cap); j++) {
+      for (let i = Math.floor(top.i - cap); i <= Math.ceil(top.i + cap); i++) {
+        const t = Math.hypot(i - top.i, j - top.j) / cap
+        if (t < 1 && i >= 0 && j >= 0 && i < size && j < size) meters[j * size + i] = Math.max(meters[j * size + i], peak.height * (1 - 0.25 * t * t))
+      }
+    }
+  }
+  report.push(`  ${peak.name}: ${top.value.toFixed(0)} m nos dados, ${peak.height} m reais → fator local ${factor.toFixed(2)} num raio de ${peak.radius} m${peak.cap ? `, topo arredondado em ${peak.cap} m` : ''}`)
 }
 
 // ---------- 5. Planícies: alisa o ruído dos prédios, rebaixa e deixa a orla descer até o mar ----------
@@ -365,7 +418,7 @@ if (preview) {
 console.log(`Região ${region.name}`)
 console.log(`  Tiles: zoom ${zoom}, ${(x1 - x0 + 1) * (y1 - y0 + 1)} (${downloaded} baixados agora, o resto do cache em ${path.relative('.', CACHE)}/)`)
 console.log(`  Grade: ${size} × ${size} amostras de ${cellMeters} m (${(size - 1) * cellMeters / 1000} km de lado), ${(land / values.length * 100).toFixed(1)}% de terra, ponto mais alto ${(highest * metersPerValue).toFixed(0)} m`)
-console.log(`  Limpeza: ${removedSpecks} amostras de terra soltas no mar removidas, ${filledHoles} furos de água pequenos fechados`)
+console.log(`  Limpeza: ${removedSpecks} amostras de terra soltas no mar removidas, ${filledHoles} furos de água pequenos fechados, ${removedSpikes} pontas de uma amostra removidas, ${removedBumps} calombos de prédio na planície aplainados`)
 console.log(`  Arquivo: ${path.relative('.', heightFile)} (${(png.length / 1024).toFixed(0)} KB)`)
 console.log(`  Máscara: ${path.relative('.', maskFile)}, ${mask.rows[0].length} × ${mask.rows.length} lotes: ${count('.')} livres, ${count('d')} decorativos, ${count('#')} bloqueados${maskOption ? ' (recriada agora)' : ''}`)
 console.log(report.join('\n'))

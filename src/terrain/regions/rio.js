@@ -25,14 +25,22 @@ export default {
   },
 
   // O SRTM achata picos estreitos. O script leva cada um à altura real com um fator local (raio em metros).
+  // `cap` arredonda o topo nesse raio: o Pão de Açúcar é um domo, não uma ponta.
   peaks: [
-    { name: 'Pão de Açúcar', lat: -22.9494, lon: -43.1558, height: 396, radius: 450 },
+    { name: 'Pão de Açúcar', lat: -22.9494, lon: -43.1558, height: 396, radius: 450, cap: 120 },
     { name: 'Corcovado', lat: -22.9516, lon: -43.2122, height: 710, radius: 700 },
   ],
 
   // Planícies urbanas: o SRTM mede o topo dos prédios (20 a 30 m). O script alisa e rebaixa o que está
   // abaixo de `start` (metros), sem tocar no que passa de `end`, e deixa a orla descer até o mar.
   lowland: { start: 27, end: 45, keep: 0.4, shoreBase: 1, shoreSlope: 0.045 },
+
+  // Marcos do cenário: a malha guarda mais detalhe em volta deles (raio em unidades) e a página de teste os
+  // enquadra com `view` (ângulo a partir da vertical, em radianos, e distância da câmera).
+  landmarks: [
+    { id: 'pao-de-acucar', name: 'Pão de Açúcar', lat: -22.9494, lon: -43.1558, radius: 16, view: { polar: 1.3, distance: 52 } },
+    { id: 'corcovado', name: 'Corcovado', lat: -22.9516, lon: -43.2122, radius: 22, view: { polar: 1.27, distance: 84 } },
+  ],
 
   // Conferidos pelo script e pelos testes: tipo do ponto e altura (metros reais, antes do exagero).
   controlPoints: [

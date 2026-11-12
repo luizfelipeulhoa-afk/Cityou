@@ -49,10 +49,10 @@ O que `tools/terrain-data.mjs` faz com os tiles:
 
 1. Monta o mosaico e separa terra de água pelo tipo do valor (inteiro = SRTM = terra; fracionário = preenchimento do mar). Junto à costa de Copacabana esse preenchimento começa em +21 m e só cruza o zero a uns 400 m da praia.
 2. Amostra a grade girada da região (513 × 513, uma amostra a cada 50 m).
-3. Limpa o que é ruído: amostras de terra soltas no mar e furos de água de até 6 amostras.
-4. Corrige os picos. O SRTM achata picos estreitos: o Pão de Açúcar vem com 306 m e o Corcovado com 639 m. Um fator local (1,29 num raio de 450 m; 1,11 num raio de 700 m) leva cada um à altura real, 396 m e 710 m. Os picos e os raios estão em `regions/rio.js`.
+3. Limpa o que é ruído: amostras de terra soltas no mar, furos de água de até 6 amostras, pontas de uma amostra só (havia uma de 99 m na beira d'água de Copacabana) e calombos de prédio alto no meio da planície.
+4. Corrige os picos. O SRTM achata picos estreitos: o Pão de Açúcar vem com 306 m e o Corcovado com 639 m. Um fator local (1,29 num raio de 450 m; 1,11 num raio de 700 m) leva cada um à altura real, 396 m e 710 m. O topo do Pão de Açúcar é arredondado num raio de 120 m, para a malha mostrar um domo e não uma ponta. Os picos e os raios estão em `regions/rio.js`.
 5. Alisa e rebaixa as planícies. O SRTM mede o topo dos prédios (Copacabana aparece com 20 a 30 m). Abaixo de 27 m a altura é alisada e reduzida a 40%, e a orla desce até o mar; acima de 45 m nada muda.
-6. Grava o PNG de 16 bits (`valor = metros × 20`; 0 = água): `src/terrain/regions/rio.height.png`, 168 KB.
+6. Grava o PNG de 16 bits (`valor = metros × 20`; 0 = água): `src/terrain/regions/rio.height.png`, 166 KB.
 7. Confere os pontos de controle de `regions/rio.js` no arquivo gravado e falha se algum não bater.
 
 Como regenerar: `npm run terrain:data -- rio`. Com `--preview`, grava uma imagem de conferência em `.verification/terrain-rio.png`. Com `--mask`, recria a máscara dos lotes a partir do relevo (a planície ligada à origem; os lotes livres que encostam na água viram decorativos); com `--mask=x0,z0,colunas,linhas`, muda também o retângulo da grade. Sem `--mask`, a máscara não é tocada: ela é um arquivo editado à mão.

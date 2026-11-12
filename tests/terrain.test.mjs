@@ -88,3 +88,159 @@ test('rio: a máscara dos lotes é uma grade regular e só usa os símbolos da l
   assert.ok([...rows[0], ...rows.at(-1)].every(symbol => symbol === '#'))
   assert.ok(rows.every(row => row[0] === '#' && row.at(-1) === '#'))
 })
+
+// ---------- Lotes ----------
+const { createLots } = await import('../src/terrain/lots.js')
+
+test('lotes: tipo, construção, encaixe e áreas bloqueadas vêm da máscara', () => {
+  const rows = ['######', '#...d#', '#..#.#', '#....#', '######']
+  const lots = createLots({ x0: -2, z0: -2, rows })
+  assert.equal(lots.kindAt({ x: -1, z: -1 }), 'free')
+  assert.equal(lots.kindAt({ x: 2, z: -1 }), 'decorative')
+  assert.equal(lots.kindAt({ x: 1, z: 0 }), 'blocked')
+  assert.equal(lots.kindAt({ x: 40, z: 40 }), 'blocked', 'fora da grade é bloqueado')
+  assert.equal(lots.isBuildable({ x: -1, z: -1 }), true)
+  assert.equal(lots.isBuildable({ x: 2, z: -1 }), false, 'decorativo não recebe prédio')
+  assert.equal(lots.isBuildable({ x: 1, z: 0 }), false, 'bloqueado recusa')
+  assert.equal(lots.isBuildable({ x: -1, z: -1 }, 2), true, 'área 2×2 toda livre')
+  assert.equal(lots.isBuildable({ x: 0, z: -1 }, 2), false, 'área 2×2 que pega um lote bloqueado')
+  assert.equal(lots.isBuildable({ x: 0.5, z: 0 }), false)
+  assert.deepEqual(lots.snapToLot({ x: 0.4, z: -0.6 }), { x: 0, z: -1 })
+  assert.deepEqual(lots.snapToLot({ x: -0.5, z: -0.5 }, 2), { x: -1, z: -1 })
+  assert.deepEqual(lots.footprintCenter({ x: -1, z: -1 }, 2), { x: -0.5, z: -0.5 })
+  assert.deepEqual(lots.bounds, { minX: -1.5, maxX: 2.5, minZ: -1.5, maxZ: 1.5 })
+  // Os retângulos cobrem cada lote bloqueado exatamente uma vez.
+  const covered = new Map()
+  for (const area of lots.getBlockedAreas()) {
+    for (let dz = 0; dz < area.depth; dz++) for (let dx = 0; dx < area.width; dx++) {
+      const key = `${area.x + dx},${area.z + dz}`
+      covered.set(key, (covered.get(key) ?? 0) + 1)
+    }
+  }
+  const blocked = rows.flatMap((row, r) => [...row].flatMap((symbol, c) => (symbol === '#' ? [`${c - 2},${r - 2}`] : [])))
+  assert.deepEqual([...covered.keys()].sort(), blocked.sort())
+  assert.ok([...covered.values()].every(times => times === 1))
+  // O alvo da câmera volta para a zona jogável.
+  assert.deepEqual(lots.clampToPlayable(0.2, -0.7), { x: 0.2, z: -0.7 })
+  for (const [x, z] of [[1, 0], [30, 30], [-9, 0.3], [0, -8]]) {
+    const point = lots.clampToPlayable(x, z)
+    const inside = lots.playable.some(lot => Math.abs(point.x - lot.x) <= 0.5 && Math.abs(point.z - lot.z) <= 0.5)
+    assert.ok(inside, `(${x}, ${z}) → (${point.x}, ${point.z}) deveria cair num lote jogável`)
+  }
+})
+
+// ---------- Malha ----------
+const { computeErrors, countTriangles, forEachTriangle, locateTriangle } = await import('../src/terrain/rtin.js')
+
+test('malha: sem frestas para qualquer limite, com os vértices forçados e a localização de pontos', () => {
+  const side = 33, last = side - 1
+  let seed = 12345
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  const heights = Float32Array.from({ length: side * side }, (_, index) => Math.sin(index % side / 3) * 2 + random() * 3)
+  const forced = 9 * side + 22
+  const errors = computeErrors(side, (index, x, y, a, b) => (index === forced ? Infinity : Math.abs(heights[index] - (heights[a] + heights[b]) / 2)))
+  assert.throws(() => computeErrors(30, () => 0), /2\^n \+ 1/)
+  assert.equal(countTriangles(errors, side, -1), 2 * last * last, 'limite abaixo de zero dá a grade inteira')
+  for (const threshold of [-1, 0.4, 1.5, 4, 1e9]) {
+    const edges = new Map(), vertices = new Set(), triangles = new Set()
+    let area = 0
+    forEachTriangle(errors, side, threshold, (ax, ay, bx, by, cx, cy) => {
+      const cross = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
+      assert.ok(cross < 0, 'a face olha para cima')
+      area += -cross / 2
+      const ids = [ay * side + ax, by * side + bx, cy * side + cx]
+      ids.forEach(id => vertices.add(id))
+      triangles.add([ax, ay, bx, by, cx, cy].join())
+      for (let k = 0; k < 3; k++) {
+        const key = [ids[k], ids[(k + 1) % 3]].sort((p, q) => p - q).join('-')
+        edges.set(key, (edges.get(key) ?? 0) + 1)
+      }
+    })
+    assert.equal(area, last * last, `limite ${threshold}: a malha cobre a grade inteira`)
+    assert.ok(vertices.has(forced), `limite ${threshold}: o vértice forçado está na malha`)
+    for (const [key, times] of edges) {
+      const [p, q] = key.split('-').map(Number)
+      const onBorder = (p % side === 0 && q % side === 0) || (p % side === last && q % side === last) || (p < side && q < side) || (p >= last * side && q >= last * side)
+      assert.equal(times, onBorder ? 1 : 2, `limite ${threshold}: aresta ${key} aparece ${times} vez(es)`)
+    }
+    for (let n = 0; n < 200; n++) {
+      const gx = random() * last, gy = random() * last
+      const [ax, ay, bx, by, cx, cy] = locateTriangle(errors, side, threshold, gx, gy)
+      assert.ok(triangles.has([ax, ay, bx, by, cx, cy].join()), 'o triângulo localizado é um dos da malha')
+      const determinant = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+      const wa = ((by - cy) * (gx - cx) + (cx - bx) * (gy - cy)) / determinant, wb = ((cy - ay) * (gx - cx) + (ax - cx) * (gy - cy)) / determinant
+      assert.ok(wa >= -1e-9 && wb >= -1e-9 && wa + wb <= 1 + 1e-9, 'o ponto está dentro do triângulo localizado')
+    }
+  }
+})
+
+// ---------- Terreno do Rio ----------
+const { createTerrainData } = await import('../src/terrain/terrainData.js')
+const terrain = createTerrainData(rio, heights.data)
+
+test('rio: a malha cabe no orçamento e o platô é exatamente plano sob todos os lotes jogáveis', () => {
+  assert.ok(terrain.triangles <= 60000, `${terrain.triangles} triângulos`)
+  assert.equal(terrain.positions.length, terrain.triangles * 9)
+  assert.equal(terrain.colors.length, terrain.triangles * 9)
+  const perLot = new Map()
+  for (let t = 0; t < terrain.triangles; t++) {
+    const p = terrain.positions.subarray(t * 9, t * 9 + 9)
+    const lot = { x: Math.round((p[0] + p[3] + p[6]) / 3), z: Math.round((p[2] + p[5] + p[8]) / 3) }
+    if (terrain.lots.kindAt(lot) === 'blocked') continue
+    assert.ok(p[1] === 0 && p[4] === 0 && p[7] === 0, `lote (${lot.x}, ${lot.z}): triângulo fora de y = 0`)
+    const key = `${lot.x},${lot.z}`
+    perLot.set(key, (perLot.get(key) ?? 0) + 1)
+  }
+  assert.equal(perLot.size, terrain.lots.playable.length)
+  assert.ok([...perLot.values()].every(times => times === 2), 'cada lote jogável é coberto por dois triângulos só dele')
+  for (const lot of terrain.lots.playable) {
+    for (const [dx, dz] of [[0, 0], [-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5], [0.31, -0.2]]) {
+      assert.equal(terrain.getHeightAt(lot.x + dx, lot.z + dz), 0, `lote (${lot.x}, ${lot.z}) em (${dx}, ${dz})`)
+    }
+  }
+})
+
+test('rio: getHeightAt devolve a altura da malha desenhada, o mar fica no nível do mar e os marcos estão de pé', () => {
+  let seed = 99
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  const points = Array.from({ length: 300 }, () => [-70 + random() * 150, -90 + random() * 130])
+  const found = new Array(points.length).fill(null)
+  for (let t = 0; t < terrain.triangles - 8; t++) { // os oito últimos são o mar além da grade
+    const [ax, ay, az, bx, by, bz, cx, cy, cz] = terrain.positions.subarray(t * 9, t * 9 + 9)
+    const minX = Math.min(ax, bx, cx), maxX = Math.max(ax, bx, cx), minZ = Math.min(az, bz, cz), maxZ = Math.max(az, bz, cz)
+    points.forEach(([x, z], n) => {
+      if (found[n] !== null || x < minX || x > maxX || z < minZ || z > maxZ) return
+      const determinant = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz)
+      const wa = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / determinant, wb = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / determinant
+      if (wa >= -1e-7 && wb >= -1e-7 && wa + wb <= 1 + 1e-7) found[n] = wa * ay + wb * by + (1 - wa - wb) * cy
+    })
+  }
+  points.forEach(([x, z], n) => {
+    assert.notEqual(found[n], null, `nenhum triângulo cobre (${x}, ${z})`)
+    assert.ok(Math.abs(terrain.getHeightAt(x, z) - found[n]) < 1e-4, `(${x}, ${z}): ${terrain.getHeightAt(x, z)} na consulta, ${found[n]} na malha`)
+  })
+  assert.equal(terrain.seaY, -0.4)
+  assert.ok(Math.abs(terrain.getHeightAt(0, 60) - terrain.seaY) < 1e-6, 'mar aberto em frente à praia')
+  assert.equal(terrain.getHeightAt(9999, 0), terrain.seaY, 'fora da grade')
+  const top = (lat, lon) => {
+    const { x, z } = terrain.frame.toWorld(lat, lon)
+    let best = -Infinity
+    for (let dx = -6; dx <= 6; dx += 0.5) for (let dz = -6; dz <= 6; dz += 0.5) best = Math.max(best, terrain.getHeightAt(x + dx, z + dz))
+    return best
+  }
+  const unitsPerMeter = rio.exaggeration / rio.metersPerUnit
+  assert.ok(Math.abs(top(-22.9494, -43.1558) - (396 * unitsPerMeter + terrain.seaY)) < 0.6, `Pão de Açúcar: ${top(-22.9494, -43.1558)}`)
+  assert.ok(Math.abs(top(-22.9516, -43.2122) - (710 * unitsPerMeter + terrain.seaY)) < 0.8, `Corcovado: ${top(-22.9516, -43.2122)}`)
+})
+
+test('rio: a API do terreno responde pela máscara', () => {
+  const free = terrain.lots.playable.find(lot => terrain.lots.kindAt(lot) === 'free')
+  const decorative = terrain.lots.playable.find(lot => terrain.lots.kindAt(lot) === 'decorative')
+  assert.equal(terrain.isBuildable(free), true)
+  assert.equal(terrain.isBuildable(decorative), false)
+  assert.equal(terrain.isBuildable({ x: rio.lots.x0, z: rio.lots.z0 }), false, 'a borda da grade é bloqueada')
+  assert.equal(terrain.isBuildable({ x: 0, z: 60 }), false, 'o mar é bloqueado')
+  assert.deepEqual(terrain.snapToLot({ x: free.x + 0.3, z: free.z - 0.4 }), free)
+  const blocked = terrain.getBlockedAreas().reduce((sum, area) => sum + area.width * area.depth, 0)
+  assert.equal(blocked, rio.lots.rows.join('').split('#').length - 1)
+})
