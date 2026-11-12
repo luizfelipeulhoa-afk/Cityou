@@ -10,7 +10,7 @@ Vários Claude trabalham neste repositório em branches e sessões diferentes, e
 
 - Vue 3 (`<script setup>`), Three.js **0.172.0 fixado**, GSAP 3.12, Vite 5. Backend: FastAPI 0.141.1 + SQLite.
 - `@tresjs/core` **5.10.1 fixado** (3D declarativo, em migração; ver a seção "3D declarativo").
-- `npm run dev` (porta 5177, encaminha `/api` para 8766), `npm run build`, `npm test` (node:test), `npm run test:map`, `npm run test:tres` (laboratório do TresJS no navegador).
+- `npm run dev` (porta 5177, encaminha `/api` para 8766), `npm run build` (o build principal e, em seguida, o da página de teste do terreno), `npm test` (node:test), `npm run test:map`, `npm run test:tres` (laboratório do TresJS no navegador), `npm run test:terrain` (página de teste do terreno no navegador).
 - Backend: `python -m backend` (porta 8766). Testes: `pytest tests -q` com `backend/requirements-dev.txt`.
 - A pasta pública do Vite é `public-fifones/`, não `public/`.
 - Testes de navegador usam `tools/runtime.mjs`. Em sessão na nuvem: `CITYOU_CHROME=/opt/pw-browsers/chromium`.
@@ -22,6 +22,9 @@ Vários Claude trabalham neste repositório em branches e sessões diferentes, e
 | `index.html` | `src/main.js` → `src/App.vue` | painel pessoal |
 | `city.html` | `src/city-main.js` → `src/CityApp.vue` | cidade 3D (`src/fifones/CityWorld.js`) |
 | `world.html` | `src/world-main.js` → `src/WorldApp.vue` | mapa-mundo BuildU |
+| `terrain.html` | `src/terrain-main.js` → `src/terrain/TerrainLab.vue` | página de teste do terreno do Rio (sem link no app, `noindex`) |
+
+A página de teste do terreno é construída à parte (`vite.terrain.config.js`). Não a ponha nas entradas do `vite.config.js`: isso redistribui os pacotes compartilhados e cada página de produção passa a pedir de 1 a 3 arquivos a mais (medido).
 
 ## Mapa-mundo (`src/world/`)
 
@@ -49,10 +52,11 @@ Decisão fechada: o 3D migra para **TresJS** (`@tresjs/core`), não para React T
 - `vite.config.js` usa as opções de template do TresJS: tags `Tres*` e `primitive` são elementos da cena. Não crie componente Vue com nome começando em `Tres`.
 - Objeto do three em `shallowRef` ou `markRaw`, nunca em `ref`; nada reativo por quadro (use `useLoop`); `<primitive>` não libera nada, quem cria libera.
 - A API do TresJS 5 difere de exemplos antigos: confira em `node_modules/@tresjs/core/dist/*.d.ts`.
+- `invalidate()` aceita um número de quadros. Como ouvinte direto de um evento (`controls.addEventListener('change', invalidate)`) ele recebe o evento, o contador vira `NaN` e a cena para de redesenhar: use `() => invalidate()`.
 
 Limites de desempenho: uma luz direcional + hemisfério, sem sombras e sem mapa de ambiente, modelos opacos, globo em um draw call, alvo de 60 fps em celular médio. Meça antes e depois, não estime: `npm run perf:world` (abertura) e `npm run perf:world-frame` (custo por quadro), alternando as duas versões.
 
-## Terreno de cenário (`src/terrain/`, em construção)
+## Terreno de cenário (`src/terrain/`)
 
 Terreno com relevo real e estilizado, configurado por região (primeiro o Rio, em volta de Copacabana). Plano, decisões e etapas: `docs/TERRAIN.md`. A cidade de produção (`CityWorld.js`, `sceneEnvironment.js`, `worker/city.js`) ainda não usa este módulo.
 
@@ -65,6 +69,8 @@ Terreno com relevo real e estilizado, configurado por região (primeiro o Rio, e
 - O platô é exatamente plano porque os cantos dos lotes livres e decorativos são vértices forçados da malha. `getHeightAt` devolve a altura da malha desenhada, não a do mapa de alturas.
 - Cena three: `TerrainScene.js`. `loadTerrain(região)` baixa o PNG e monta os dados; `createTerrainObjects(dados)` devolve o grupo (terreno e mar num draw call, árvores e palmeiras em dois `InstancedMesh`, um só `MeshLambertMaterial` de faces planas com cor por vértice) e `setBlockedOverlay(visível)`; `seatBuilding(dados, objeto, lote, tamanho)` assenta o prédio sobre um disco de 10 lados, ou devolve `null` se a área não é toda livre. Geometria sem atributo `color` sai preta com esse material: pinte os vértices.
 - Câmera: `camera.js`. Chame `constrainCamera(dados, limites, câmera, alvo, névoa)` depois de `controls.update()`: prende o alvo à zona jogável, mantém a câmera acima do terreno e ajusta a névoa. A névoa tem a cor do céu e termina na menor profundidade dos trechos de borda com terra dentro do campo de visão (`edgeDepth`), no máximo 300 unidades: a borda do cenário nunca aparece. `tests/terrain-scene.test.mjs` varre os limites da câmera e confirma. Mudou o tamanho da grade, os limites ou o campo de visão: rode o teste.
+- Página de teste: `/terrain.html` (`TerrainLab.vue` + `TerrainStage.vue`, TresJS com `render-mode="on-demand"`): vistas dos marcos, sobreposição das zonas bloqueadas, toque num lote para assentar um prédio. `npm run test:terrain` (`tools/terrain-check.mjs`) confere tudo isso no navegador e grava as imagens em `.verification/`; `--dist` confere a página construída e `--perf` mede o custo por quadro e a montagem com a CPU 4× mais lenta.
+- Custo de hoje: 32,8 mil triângulos de terreno (orçamento de 60 mil), 3 draws (terreno com o mar, árvores, palmeiras), montagem em cerca de 0,2 s na thread principal (0,5 s com a CPU 4× mais lenta). Ao ligar o terreno à cidade, leve `createTerrainData` para um worker: o módulo já não depende do three.
 
 ## Backend
 

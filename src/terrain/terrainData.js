@@ -13,7 +13,9 @@ export const PALETTE = {
 }
 
 const DEFAULTS = {
-  plateau: { height: 0.4, blend: 3 }, // altura do platô acima do mar e largura da mistura com o relevo, em unidades
+  // Altura do platô acima do mar e largura da mistura com o relevo, em unidades: `blend` do lado da terra (estreita, para
+  // os morros vizinhos não serem achatados) e `shore` do lado da água (mais larga: é a faixa de areia que desce até o mar).
+  plateau: { height: 0.4, blend: 2, shore: 3 },
   detail: {
     maxTriangles: 60000,
     tolerance: 0.05, // erro de altura aceito junto à zona jogável, em unidades
@@ -101,7 +103,7 @@ export function createTerrainData(region, values) {
       }
     }
   }
-  const reach = Math.ceil(plateau.blend / spacing)
+  const reach = Math.ceil(Math.max(plateau.blend, plateau.shore) / spacing)
   const column = x => Math.round((x - originX) / spacing), line = z => Math.round((z - originZ) / spacing)
   for (let j = Math.max(0, line(play.minZ) - reach); j <= Math.min(last, line(play.maxZ) + reach); j++) {
     for (let i = Math.max(0, column(play.minX) - reach); i <= Math.min(last, column(play.maxX) + reach); i++) {
@@ -112,7 +114,7 @@ export function createTerrainData(region, values) {
         const distance = (pi - i) ** 2 + (pj - j) ** 2
         if (distance < nearest) nearest = distance
       }
-      heights[index] *= smoothstep(0, plateau.blend, Math.sqrt(nearest) * spacing)
+      heights[index] *= smoothstep(0, values[index] === 0 ? plateau.shore : plateau.blend, Math.sqrt(nearest) * spacing)
     }
   }
 
@@ -208,7 +210,7 @@ export function createTerrainData(region, values) {
       const elevation = ((ay + by + cy) / 3 - seaY) / unitsPerMeter
       const fromWater = Math.min(shore[a], shore[b], shore[c]) * cellMeters
       if (slope >= 40 || (elevation >= 520 && slope >= 24)) { paint(rockBands[elevation >= 430 ? 1 : 0], jitter); stats.rock++ }
-      else if (fromWater <= 130 && elevation <= 9 && slope < 14) {
+      else if (fromWater <= 130 && elevation <= 9) { // a faixa da praia; costão alto junto ao mar não entra, pela altitude
         paint(P.sand, jitter)
         if (distance < vegetation.palmRange && random() < area * vegetation.palmDensity) plant(palms, ax, ay, az, bx, by, bz, cx, cy, cz, 0.85 + random() * 0.35)
         stats.sand++

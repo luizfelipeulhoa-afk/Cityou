@@ -95,4 +95,5 @@ Fica imperativo, montado com `<primitive>`: geometria e shader do globo, o worke
 - **Mesmas opções do renderizador.** O padrão do `<TresCanvas>` é tone mapping ACES. Passe as de hoje: no mapa, `NeutralToneMapping` com exposição 1,05, sem sombras e com alfa; na cidade, ACES com 0,95 e sombras.
 - **`<primitive>` não libera nada.** Quem cria o objeto libera geometria, material e textura em `onUnmounted`.
 - **Limites de desempenho de sempre**: uma luz direcional e um hemisfério, sem sombras no mapa, modelos opacos, globo em um draw call. Meça antes e depois de cada fase com `npm run perf:world` e `npm run perf:world-frame`, alternando as duas versões.
+- **`invalidate()` não é ouvinte de evento.** Ele aceita um número de quadros; se receber o evento (`controls.addEventListener('change', invalidate)`), o contador vira `NaN` e a cena para de redesenhar. Use `() => invalidate()`. Exemplo em uso: `src/terrain/TerrainStage.vue`.
 - **API do TresJS**: confira em `node_modules/@tresjs/core/dist/*.d.ts` antes de copiar um exemplo. A versão 5 não tem mais `useRenderLoop`: o laço por quadro é `useLoop()`, e `invalidate()` e `advance()` vêm de `useTres()`.

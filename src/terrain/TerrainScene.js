@@ -45,7 +45,7 @@ function merge(parts) {
 
 // Árvore de encosta: copa de 15 faces (um icosaedro sem a base) e tronco de 3 lados. Altura perto de 0,9.
 function treeGeometry() {
-  const crown = new IcosahedronGeometry(0.42, 0).toNonIndexed()
+  const crown = new IcosahedronGeometry(0.42, 0) // já vem sem índice: três vértices por face
   const kept = []
   const source = crown.attributes.position
   for (let face = 0; face < source.count; face += 3) {

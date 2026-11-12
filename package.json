@@ -6,7 +6,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5177",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.terrain.config.js",
     "preview": "vite preview --host 127.0.0.1 --port 5177",
     "start": "python -m backend",
     "test": "node --test tests/progression.test.mjs tests/world.test.mjs tests/game-rules.test.mjs tests/glb-material.test.mjs tests/terrain.test.mjs tests/terrain-scene.test.mjs",
@@ -14,6 +14,7 @@
     "test:ui": "node tools/personal-playtest.mjs && node tools/browser-playtest.mjs",
     "test:world": "node tools/world-playtest.mjs",
     "test:tres": "node tools/tres-lab-check.mjs",
+    "test:terrain": "node tools/terrain-check.mjs",
     "terrain:data": "node tools/terrain-data.mjs",
     "perf:world": "node tools/world-perf.mjs",
     "perf:world-frame": "node tools/world-frame-bench.mjs",
