@@ -286,6 +286,9 @@ test('prévia abre os oito locais e mantém o saldo de teste ao alternar cidades
     const rio = await city(session, 'cristo-redentor')
     assert.ok(rio.catalog.some(item => item.id === 'rio-fair'))
     assert.equal(rio.catalog.some(item => item.id === 'island-market'), false)
+    const withModel = rio.catalog.filter(item => item.model?.startsWith('/models/rio/'))
+    assert.equal(withModel.length, 9)
+    assert.ok(withModel.every(item => item.preview === `/previews/${item.id}.png`))
     assert.notDeepEqual(rio.protected_tiles, (await city(session, PETRA)).protected_tiles)
     await build(session, RIO, 'lote-agua', initial.revision, {
       kind: 'tree', x: -8, y: -8, status: 422,
@@ -301,6 +304,10 @@ test('prévia abre os oito locais e mantém o saldo de teste ao alternar cidades
     assert.equal((await city(session, 'cristo-redentor')).credits, 4980)
     assert.equal((await city(session, PETRA)).credits, 4980)
     assert.equal((await city(session, RIO)).credits, 4980)
+    // Prédio com GLB próprio (3 × 3): mesma validação de lote e mesmo custo do catálogo.
+    const deco = await build(session, RIO, 'edificio-deco', built.revision, { kind: 'rio-edificio-deco', x: 11, y: 11 })
+    assert.equal(deco.credits, 4920)
+    await build(session, RIO, 'edificio-deco-sobreposto', deco.revision, { kind: 'rio-laje', x: 12, y: 12, status: 409 })
 
     const regular = newDemoSession()
     assert.equal((await world(regular)).test_mode, false)
