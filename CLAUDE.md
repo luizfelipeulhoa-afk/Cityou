@@ -54,7 +54,7 @@ A página de apresentação e a de teste do terreno são construídas à parte (
 
 ## Plano em andamento: sair do Fifones
 
-O app nasceu de uma cópia do Fifones e ainda tem botões, rotas e prédios que dependem dele (iframe para a porta 8765, `connected:false`, prédios de IA). Decisão do dono (13/11/2026): tirar toda ligação com o Fifones e ligar as telas a dados reais do Worker. O plano, em 8 etapas com critério de pronto, o destino de cada tela, a Fita do Tempo (desfazer/refazer) e a ambientação do 3D estão em `docs/PLANO-PROXIMOS-PASSOS.md`. Leia antes de mexer em `src/App.vue`, `src/CityApp.vue`, `worker/demo.js` ou no catálogo. Não crie botão novo que abra o Fifones. A Sede Fifones saiu do Rio e de toda cidade piloto (13/11/2026): `newTown` não a cria e `withoutHeadquarters` (`worker/city.js`, chamado em `regionalCity` de `worker/demo.js`) a tira das cidades salvas antes; as cidades antigas seguem com ela.
+O app nasceu de uma cópia do Fifones e ainda tem botões, rotas e prédios que dependem dele (iframe para a porta 8765, `connected:false`, prédios de IA). Decisão do dono (13/11/2026): tirar toda ligação com o Fifones e ligar as telas a dados reais do Worker. O plano, em 8 etapas (mais a 9, feita, e a 10, proposta) com critério de pronto, o destino de cada tela, a Fita do Tempo (desfazer/refazer) e a ambientação do 3D estão em `docs/PLANO-PROXIMOS-PASSOS.md`. Leia antes de mexer em `src/App.vue`, `src/CityApp.vue`, `worker/demo.js` ou no catálogo. Não crie botão novo que abra o Fifones. A Sede Fifones saiu do Rio e de toda cidade piloto (13/11/2026): `newTown` não a cria e `withoutHeadquarters` (`worker/city.js`, chamado em `regionalCity` de `worker/demo.js`) a tira das cidades salvas antes; as cidades antigas seguem com ela.
 
 ## Design system
 

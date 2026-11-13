@@ -15,3 +15,5 @@ Coisas que já custaram tempo neste repositório e como contornar. Acrescente um
 | Foto de comprovação recusada com 413 | O corpo do pedido aceita 24.000 bytes e a regra permite foto de 250.000 | Em aberto: "Itens sem dono no plano", no checkpoint |
 | O limite de uso acaba no meio do trabalho | Subagentes em modelo caro: três em Opus com a sessão principal no esforço máximo bastaram | Executores e revisões amplas em Haiku. Ver "Como trabalhamos" no `CLAUDE.md` |
 | Um subagente não entrega | Caiu por limite de uso | O trabalho dele fica salvo: mande uma mensagem para ele continuar em vez de criar outro |
+| Todo teste do Worker dá 500 depois de juntar a `main` | Desde a #32 o Worker não cria as tabelas do D1; um arquivo de teste que usa `wrangler.test.jsonc` sem aplicar `migrations/` falha | Aplicar as migrações no `before` do teste (exemplo: `tests/worker-tasks.test.mjs`) |
+| A medida do `perf:city` sai fora do padrão | O `dist` foi reconstruído (`npm run build`) enquanto o bench rodava, ou a diferença está dentro da margem de ruído | Não reconstruir o `dist` durante a medida; conferir só as medidas confiáveis da tabela de `docs/WORLD-PERF.md` |

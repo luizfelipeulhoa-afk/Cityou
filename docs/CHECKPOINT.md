@@ -6,7 +6,7 @@ Atualizado em 13/11/2026. Para continuar em outra IA ou com outro dev: `node too
 
 - **Objetivo:** entregar a primeira versão utilizável do Cityou, com painel pessoal e cidade 3D ligados aos dados do próprio app, sem depender do Fifones.
 - **O que falta:** integrar tarefas e Missões (etapa 2), migrar o catálogo e preservar as cidades salvas (3), tirar os atalhos e iframes legados do painel (4), ligar Agenda, Projetos e Peso aos dados reais (5) e concluir a segurança e o corte do legado (6). Ainda falta validar contas e latência na prévia e medir em celular físico. A tabela abaixo acompanha também a ambientação e a Fita do Tempo previstas no plano.
-- **Próximo passo:** executar a etapa 2. Está pronta quando Missões lista tarefas reais do Worker, o menu da cidade abre as abas corretas do painel e o redirecionamento por sessão expirada funciona sem repetir a requisição. Conferir esses fluxos na prévia ou em Worker local, com testes do Worker e de navegador.
+- **Próximo passo:** incorporar o **PR #34 (etapa 2)**: o conflito com a `main` foi resolvido em `cc478bd` e o PR está limpo (74 testes, 41 do Worker e 59 do `pytest` verdes). Falta revisão e a conferência no navegador: Missões lista tarefas reais do Worker, o menu da cidade abre as abas corretas do painel e a sessão vencida leva à entrada sem repetir a requisição. Depois, a etapa 3 (catálogo e migração).
 
 ## Em andamento por branch
 
@@ -14,18 +14,25 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 
 | Branch | O que está fazendo | Desde |
 |---|---|---|
-| (nenhum registrado) | A etapa 2 é a próxima e ainda não tem dono | 13/11/2026 |
+| `claude/etapa-2-tarefas-reais` | Etapa 2 (PR #34): conflito com a `main` resolvido, aguardando revisão e teste no navegador | 13/11/2026 |
 
-## O que este PR entrega
-- **Organização e transferência (branch `claude/exciting-mayer-xf1pmj`):** regra de leitura obrigatória no topo do `CLAUDE.md`, gancho de início de sessão (`.claude/hooks/session-start.sh`), `AGENTS.md` para o Codex e outros agentes, agentes `builder` e `reviewer`, skill `reflect`, `docs/known-issues.md`, a revisão de contas, produto e lei em `council/` (com o que a PR #32 já resolveu) e a correção da tela de partida que ficava presa ao voltar do navegador no mapa (`src/WorldApp.vue`). Não muda rota, dado guardado nem regra do jogo.
-- **Integração pós-PR #28:** incorpora a `main` até o #31, com os 23 GLB do Rio, o Fifo, o calçadão e as ondas. Preserva as correções locais de contas, dependências e benchmarks, além do monumento da Ilha, da baía de reserva e das amostras originais do relevo.
-- **Plano v2** (`docs/PLANO-PROXIMOS-PASSOS.md`): sair do Fifones com conexões reais, Fita do Tempo (desfazer/refazer), 3D ambientado; feito por um conselho de especialistas e revisado por um crítico.
-- **Etapa 1, medição de base:** `Server-Timing` com o tempo do Durable Object (`do`), `tools/api-perf.mjs` (cookie, escrita, `--suite`), `tools/city-frame-bench.mjs` (`npm run perf:city`), tabela de base em `docs/WORLD-PERF.md`.
-- **Etapa 7a, prédio e terreno como uma coisa só:** `src/terrain/lighting.js` (luz e céu por região), `src/tres/lambert.js`, `src/tres/groundBlend.js` (o disco bege do Tripo vira grama), sombra de contato, sem shadow map nem `PointLight`; `tools/city-look.mjs` (fotos antes e depois). Números em `docs/WORLD-PERF.md`.
-- **Skills** (só `.md`, fixadas por commit): `council-review`, `owasp-security`, `threejs-lighting`, `threejs-materials`, `threejs-textures`, `threejs-postprocessing`.
-- **Contexto:** este arquivo, `docs/HANDOFF-CONTEXTO.md` e `tools/handoff.mjs`.
+## O que já entrou na `main` (PR → etapa)
+| PR | O que entrou | Etapa do plano |
+|---|---|---|
+| #23 | Seis decorações da Ilha Inicial | fora do plano |
+| #24 | Rio: Cristo no topo de um morro do terreno, lotes na cor da mata, calçadão na orla | ambientação (parte da 7) |
+| #25 | Medição de base, prédio e terreno como uma coisa só, plano v2, seis skills, contexto | 1 e 7a |
+| #26 | Rua automática na construção do Rio (feita a partir do patch arquivado no #25) | 9 |
+| #27 | Desempenho do terreno da cidade (névoa 40–80, zoom máximo 46) e 8 prédios com GLB | 7 (parte) e fora do plano |
+| #28 | Terreno carrega no construtor e corte real do relevo distante; cidade vazia pronta em 5,6 s (era 8,4 s) | 7b (parte) |
+| #29 | Seis prédios e decorações novos (23 GLB), praia mais larga, Fifo | fora do plano |
+| #30 | Calçadão desenhado, Fifo andando, espuma e ondas, **sem a Sede Fifones nas cidades piloto** | fora do plano; reduz a etapa 3 |
+| #31 | Morro da comunidade em patamares, calçadão como decoração, ondas mais realistas | fora do plano |
+| #32 | Contas, isolamento do Durable Object, migrações do D1, benchmarks, Vite 6.4 | 6 (parte) |
+| #33 | Leitura obrigatória, gancho de sessão, `AGENTS.md`, agentes `builder` e `reviewer`, skill `reflect`, revisão em `council/` | organização |
+| #34 (aberto) | Etapa 2: tarefas reais, cliente único, cidade sem iframe | 2 |
 
-Testes ao fechar o PR de organização (13/11/2026): `npm test` 74, `npm run test:worker` 36, `npm run build` ok. Não rodados nessa rodada: os testes de navegador (`test:terrain`, `test:world`) e o `pytest`.
+Testes (13/11/2026): `main` depois do #33: `npm test` 74, `npm run test:worker` 36, build ok. PR #34 depois de juntar a `main`: `npm test` 74, Worker 41, `pytest` 59, build ok. Não rodados: testes de navegador (`test:terrain`, `test:world`) e a conferência da etapa 2 no navegador.
 
 ## Decisões do dono (13/11/2026): todas aprovadas
 1. Reembolso de 100% das peças de IA e StuntSync retiradas (recalculado pelo servidor, uma vez).
@@ -36,19 +43,20 @@ Testes ao fechar o PR de organização (13/11/2026): `npm test` 74, `npm run tes
 6. Ocupar todo o terreno do Rio com **rua automática** (etapa 9).
 "Esqueci a senha" fica fora até haver e-mail com domínio.
 
-## Estado das etapas (ordem: 9 → 2 a 6 → 7b → 8)
+## Estado das etapas (ordem: 1 ✔ → 7a ✔ → 9 ✔ → 2 → 3 a 6 → 7b → 8)
 | Etapa | Estado |
 |---|---|
 | 1 Medição de base | Feita. Falta a base da prévia publicada |
 | 7a Prédio e terreno como uma coisa só | Feita. Entrada animada e fade do terreno foram para a 7b |
 | 9 Rua automática (ocupar todo o terreno) | Implementada: prévia, confirmação, cobrança única e testes |
-| 2 Tarefas reais, cliente único, cidade sem iframe | Não começada |
+| 2 Tarefas reais, cliente único, cidade sem iframe | Em andamento no PR #34 (conflito resolvido, aguarda revisão e teste no navegador) |
 | 3 Catálogo e migração | Não começada |
 | 4 Painel sem iframe | Não começada |
 | 5 Agenda, Projetos e Peso reais | Não começada |
 | 6 Segurança e corte do legado | Correções de contas e dependências adiantadas. CSP, cabeçalho novo e corte do legado pendentes |
 | 7b Resto da ambientação | Não começada |
 | 8 Fita do Tempo e transições | Não começada |
+| 10 Portão para abrir contas (proposta) | Não começada; ver "Itens sem dono no plano" |
 
 ## O que falta, para o próximo developer
 
@@ -56,9 +64,11 @@ Testes ao fechar o PR de organização (13/11/2026): `npm test` 74, `npm run tes
 No Rio, escolher o lote de um prédio mostra a ligação mais curta à rede e o custo total. Confirmar grava o prédio e até 30 trechos de rua na mesma ação. Testes cobrem saldo insuficiente, áreas protegidas, caminho bloqueado e reenvio sem cobrança dupla. O teste de navegador é `node tools/auto-road-playtest.mjs <url-do-worker-em-modo-teste>`. A próxima etapa do plano é a 2.
 
 ### Etapa 2: tarefas reais, cliente único, cidade sem iframe
+**Estado:** em andamento no PR #34 (branch `claude/etapa-2-tarefas-reais`).
 `GET /api/personal/tasks` e concluir tarefa (apelidos para `/api/workspace/tasks*` por um deploy); saem `connected` e `source`; um `api()` único com 401 → `/?entrar=1&next=…` (copiar o padrão de `reloadPage` em `CityApp.vue`); `goToPanel(aba)`; saem `openWorkspace`, o diálogo, `setActivity`, a sondagem de 10 s e a atividade do `CityApp.vue`. Pronto quando: Missões lista tarefas, nenhum "8765" ou "offline" em `src/CityApp.vue`, os itens do menu chegam a `/app#/<aba>`.
 
 ### Etapa 3: catálogo e migração
+Atenção: o #30 já tirou a Sede Fifones do Rio e de toda cidade piloto (`withoutHeadquarters`); o item "Sede Cityou" só vale para as cidades antigas.
 Destino de prédio vira nome de aba; Sede Cityou; saem IA (chatgpt, claude, gemini, grok) e StuntSync com custo numa tabela só do servidor; **migrar o estado guardado antes de qualquer ação** (peça de tipo desconhecido derruba `occupiedTiles`, `city-layout.js:142-147`), reembolso recalculado (custo + melhorias) uma vez, marca "já migrado"; trocar o padrão `'stunt'` de `CityApp.vue:92`; apagar os GLB. Testes: cidade guardada com `stunt` nível 3 carrega, credita o valor exato uma vez e aceita nova construção.
 
 ### Etapa 4: painel sem iframe
