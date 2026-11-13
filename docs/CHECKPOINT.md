@@ -15,6 +15,7 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 | Branch | O que está fazendo | Desde |
 |---|---|---|
 | `claude/etapa-4-painel-sem-iframe` | Etapa 4: painel sem iframe do Fifones, aba Conta, Salvo/Salvando…/Sem conexão, "Em breve" (Agenda, Projetos, Fitness, Biblioteca, Estudos), Sair em todas as páginas, `next` do login validado | 13/11/2026 |
+| `claude/etapa-4-painel-sem-iframe` (inclui a etapa 5) | Etapa 5: Agenda, Projetos e Peso reais, juntada à etapa 4 | 13/11/2026 |
 | `claude/blissful-gates-qmt20l` | Montanha atrás do Cristo (`crop.keep`, névoa e malha), ai-memory (configuração, regras e roteiro do `wikisync`), documentos reconciliados e teste que confere o `CLAUDE.md` (PR #35, aberto) | 13/11/2026 |
 
 ## O que já entrou na `main` (PR → etapa)
@@ -54,7 +55,7 @@ Testes (13/11/2026): `main` depois do #33: `npm test` 74, `npm run test:worker` 
 | 2 Tarefas reais, cliente único, cidade sem iframe | Feita e conferida no navegador (13/11/2026, Worker local em modo de teste, Chromium): Missões lista a tarefa real e concluir dá +10; os cinco itens do menu chegam a `/app#/<aba>`; 401 leva a `/?entrar=1&next=%2Fcity` sem repetir pedido. Não conferido: a cidade embutida no painel (iframe) e celular |
 | 3 Catálogo e migração | Não começada |
 | 4 Painel sem iframe | Não começada |
-| 5 Agenda, Projetos e Peso reais | Não começada |
+| 5 Agenda, Projetos e Peso reais | Feita em três commits (13/11/2026, falta só ela entrar na `main`). **1 Agenda feita** (`worker/agenda.js`, `worker/records.js`, `tests/worker-agenda.test.mjs`, aba Agenda do painel); **2 Projetos feita** (`worker/projects.js`, `tests/worker-projects.test.mjs`, aba Projetos, `/api/workspace/projects` virou apelido); **3 Peso feito** (`worker/weights.js`, `tests/worker-weights.test.mjs`, aba Fitness com gráfico da média de 7 dias). Fica de fora: latência comparada com a base da etapa 1 e Biblioteca e Memórias (`sources`, etapa 4) |
 | 6 Segurança e corte do legado | Correções de contas e dependências adiantadas. CSP, cabeçalho novo e corte do legado pendentes |
 | 7b Resto da ambientação | Não começada |
 | 8 Fita do Tempo e transições | Não começada |
@@ -128,3 +129,5 @@ CITYOU_CHROME=/opt/pw-browsers/chromium node tools/city-look.mjs http://127.0.0.
 CITYOU_CHROME=/opt/pw-browsers/chromium npm run perf:city -- http://127.0.0.1:8787 --runs 3
 ```
 Não reconstrua o `dist` (`npm run build`) enquanto o bench roda: a medida sai contaminada.
+
+**Etapa 5, pendências (13/11/2026):** (1) latência não comparada com a base da etapa 1 (`npm run perf:api`), então a etapa está "feita no código, falta medir"; (2) pesagem com mais de 120 dias é aceita pela API mas fica fora da lista (a tela só deixa escolher os últimos 120 dias); (3) `?month=` inválido derruba também escritas (o cliente não o manda nelas); (4) o "hoje" do formulário de peso vem do navegador, não de São Paulo; (5) o primeiro `npm run build` após a parte 3 falhou uma vez sem causa conhecida.
