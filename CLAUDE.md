@@ -68,6 +68,8 @@ O app nasceu de uma cópia do Fifones e ainda tem botões, rotas e prédios que 
 
 **Etapa 3 feita no código (13/11/2026):** o catálogo não tem mais IA (chatgpt, claude, gemini, grok) nem StuntSync; a sede é "Sede Cityou" e todo `destination` é nome de aba do painel (sem `/#/`). Peças antigas guardadas saem da cidade e são reembolsadas em 100% (custo + melhorias, tabela `RETIRED_KINDS` em `worker/city.js`) uma só vez por `DemoSession.migrateCatalog()` (`worker/demo.js`, marca `migration:catalog-3`, roda no construtor antes de qualquer ação). Objetivo padrão do progresso: `'tasks'`. Teste: `tests/catalog-migration.test.mjs`. Decisão de produto: pacote conservador do PORTAR-KIT (ver `docs/CHECKPOINT.md`).
 
+**Etapa 5 em andamento (13/11/2026):** Agenda, Projetos e Peso reais no Durable Object, sem o Fifones, sem status nem atraso e sem pagar moedas ou XP. Módulos próprios, ligados a `DemoSession` com `Object.assign` no fim de `worker/demo.js`: `worker/records.js` (validação estrita `exact`, tetos por conta, `CITYOU_TEST_CAPS` só nos testes), `worker/agenda.js` (feita: `POST/PUT/DELETE /api/personal/events`, dias de respiro). Toda escrita devolve o `overview()` novo; `GET /api/personal` traz `tasks`, `events` do mês (`?month=`) e `events_month`. Campo fora da lista é 422. Testes: `tests/worker-agenda.test.mjs` com o ajudante `tests/helpers/worker-session.mjs`.
+
 ## Design system
 
 Cores, tipografia, forma, topografia do globo e os prompts de imagem e 3D dos prédios estão em `docs/DESIGN-SYSTEM.md`. Antes de criar uma cor, fonte ou prompt novo, leia esse arquivo; se a cor já existe em `:root` ou em `PALETTE`, use a existente. A mesma versão está no Claude Docs da empresa ("Design system Cityou"): mudanças entram pelos dois lados.

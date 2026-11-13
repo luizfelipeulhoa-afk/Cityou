@@ -119,11 +119,15 @@ Ação principal: "Novo compromisso".
 
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
-| Novo compromisso | Fifones | `POST /api/events` | `events` | Cartão na ordem da data |
-| Ver compromisso | Fifones | `PATCH /api/events/{id}` | `events` | Formulário de edição, com "Apagar" |
-| Abrir agenda completa | Fifones | | | **Sai**: a própria tela passa a ser a agenda completa |
+| Novo compromisso | `POST /api/personal/events` (etapa 5) | `POST /api/events` | `records` (kind `event`) | Compromisso no dia escolhido da grade do mês; nenhuma moeda ou XP |
+| Marcar respiro / Tirar o respiro | `POST` com `kind: 'respiro'` ou `DELETE /api/personal/events/{id}` | | `records` | Dia com selo "Dia de respiro" e "Nada a cumprir"; recusado se o dia tem compromisso firme |
+| Editar | `PUT /api/personal/events/{id}` | `PATCH /api/events/{id}` | `records` | Mesmo formulário, preenchido |
+| Apagar (pede "Apagar mesmo?") | `DELETE /api/personal/events/{id}` | `DELETE /api/events/{id}` | `records` | O compromisso sai; sem desfazer por enquanto |
+| Setas do mês | `GET /api/personal?month=AAAA-MM` | | | Outro mês da grade |
 
-Vazio: "Sua agenda tem espaço." com "Novo compromisso".
+A grade mostra dia livre, com compromisso (ponto cheio), com "se der" (ponto vazado) e de respiro (sol). Nada é vermelho e não há aviso de atraso: o que passou fica em cinza com o selo "passou". Seu dia lista os compromissos de hoje.
+
+Vazio: "Um pouco de espaço livre também faz parte."
 
 ### Hábitos
 

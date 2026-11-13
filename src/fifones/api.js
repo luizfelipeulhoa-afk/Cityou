@@ -95,6 +95,12 @@ export const loadTasks = () => api('/api/personal/tasks')
 export const completeTask = id => api(`/api/personal/tasks/${encodeURIComponent(id)}/complete`, 'POST', {})
 // Projetos ainda chegam vazios: ficam reais na etapa 5.
 export const loadProjects = () => api('/api/workspace/projects')
+// Agenda real (etapa 5). Toda escrita devolve o estado novo de /api/personal (do mês pedido): a tela não faz GET depois.
+const monthQuery = month => month ? '?month=' + encodeURIComponent(month) : ''
+export const loadPersonal = month => api('/api/personal' + monthQuery(month))
+export const addEvent = (body, month) => api('/api/personal/events' + monthQuery(month), 'POST', body)
+export const editEvent = (id, body, month) => api(`/api/personal/events/${encodeURIComponent(id)}` + monthQuery(month), 'PUT', body)
+export const removeEvent = (id, month) => api(`/api/personal/events/${encodeURIComponent(id)}` + monthQuery(month), 'DELETE')
 export const syncRewards = () => api('/api/rewards/sync' + cityQuery, 'POST', {})
 export const cityAction = action => api('/api/city/actions' + cityQuery, 'POST',
   { ...action, request_id: action.request_id || crypto.randomUUID() }, { retry: true })

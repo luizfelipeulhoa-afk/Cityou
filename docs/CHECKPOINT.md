@@ -14,6 +14,7 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 
 | Branch | O que está fazendo | Desde |
 |---|---|---|
+| `worktree-wf_adfabc5b-53f-3` | Etapa 5: Agenda, Projetos e Peso reais (três commits) | 13/11/2026 |
 | `claude/etapa-3-catalogo-migracao` | Etapa 3: catálogo sem IA e StuntSync, Sede Cityou, destinos como nome de aba, `migrateCatalog` (reembolso 100% uma vez) | 13/11/2026 |
 | `claude/blissful-gates-qmt20l` | Montanha atrás do Cristo (`crop.keep`, névoa e malha), ai-memory (configuração, regras e roteiro do `wikisync`), documentos reconciliados e teste que confere o `CLAUDE.md` (PR #35, aberto) | 13/11/2026 |
 
@@ -54,7 +55,7 @@ Testes (13/11/2026): `main` depois do #33: `npm test` 74, `npm run test:worker` 
 | 2 Tarefas reais, cliente único, cidade sem iframe | Feita e conferida no navegador (13/11/2026, Worker local em modo de teste, Chromium): Missões lista a tarefa real e concluir dá +10; os cinco itens do menu chegam a `/app#/<aba>`; 401 leva a `/?entrar=1&next=%2Fcity` sem repetir pedido. Não conferido: a cidade embutida no painel (iframe) e celular |
 | 3 Catálogo e migração | Não começada |
 | 4 Painel sem iframe | Não começada |
-| 5 Agenda, Projetos e Peso reais | Não começada |
+| 5 Agenda, Projetos e Peso reais | Em andamento em três commits. **1 Agenda feita** (`worker/agenda.js`, `worker/records.js`, `tests/worker-agenda.test.mjs`, aba Agenda do painel); faltam 2 Projetos e 3 Peso |
 | 6 Segurança e corte do legado | Correções de contas e dependências adiantadas. CSP, cabeçalho novo e corte do legado pendentes |
 | 7b Resto da ambientação | Não começada |
 | 8 Fita do Tempo e transições | Não começada |

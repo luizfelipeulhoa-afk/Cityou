@@ -6,6 +6,8 @@ import { buildSummary } from '../shared/game/summary.js'
 import { kindForDomain, stageFor } from '../shared/game/buildings.js'
 import { newCity, newTown, withoutHeadquarters, withoutRetired, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
 import { HttpError, json, errorResponse, readJsonObject } from './http.js'
+import { dateFormatter, isDate, capOf, capMessage } from './records.js'
+import { agendaMethods } from './agenda.js'
 
 const START = SPACE_ORDER[0]
 // A ilha é só cenário; a cidade onde se constrói começa aberta no Rio de Janeiro.
@@ -20,9 +22,8 @@ const ADOPTION_HOLD_MS = 5 * 60 * 1000
 const SESSION_SECONDS = 30 * 24 * 60 * 60
 const previewEnabled = env => env?.CITYOU_TEST_OPEN_REGIONS === '1'
 const kinds = ['habit', 'goal', 'note', 'transaction', 'meal']
-const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' })
-const sources = Object.fromEntries(['fitness', 'documents', 'memories', 'events']
-  .map(key => [key, { connected: false, data: key === 'fitness' ? {} : [] }]))
+// Biblioteca, Memórias e a ficha de Fitness ainda não têm armazenamento próprio: chegam vazias e indisponíveis.
+const sources = Object.fromEntries(['fitness', 'documents', 'memories'].map(key => [key, { connected: false, data: key === 'fitness' ? {} : [] }]))
 
 export function sessionToken(request) {
   return request.headers.get('Cookie')?.match(/(?:^|;\s*)cityou_demo=([a-f0-9]{64})(?:;|$)/)?.[1]
@@ -38,6 +39,8 @@ const routes = [
   [/^\/api\/personal$/, { GET: 'personal' }],
   [/^\/api\/personal\/entries$/, { POST: 'addEntry' }],
   [/^\/api\/personal\/entries\/([a-f0-9-]{36})\/checkin$/, { PUT: 'checkin' }],
+  [/^\/api\/personal\/events$/, { POST: 'addEvent' }],
+  [/^\/api\/personal\/events\/([a-f0-9-]{36})$/, { PUT: 'editEvent', DELETE: 'removeEvent' }],
   [/^\/api\/personal\/tasks$/, { GET: 'tasks', POST: 'addTask' }],
   [/^\/api\/personal\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/personal\/proofs\/([a-f0-9-]{36})\/(\d{4}-\d{2}-\d{2})\/photo$/, { GET: 'proofPhoto' }],
@@ -130,12 +133,6 @@ export async function demoApi(request, env, url, user = null, timing = null) {
   return result
 }
 
-function isDate(value) {
-  if (typeof value !== 'string' || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) return false
-  const date = new Date(value)
-  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && !value.startsWith('0000')
-}
-
 function titleOf(value) {
   if (typeof value !== 'string' || !value.trim() || value.length > 180) throw new HttpError(422, 'Escreva um título de até 180 caracteres.')
   return value.trim()
@@ -172,6 +169,8 @@ export class DemoSession {
     this.sql = ctx.storage.sql
     this.name = ctx.id.name
     this.db = env?.DB
+    this.env = env
+    this.month = null
     this.sql.exec('CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT, value TEXT NOT NULL, PRIMARY KEY (kind, id))')
     this.migrateCatalog()
   }
@@ -252,7 +251,8 @@ export class DemoSession {
     try {
       const owner = this.ownerFor(account)
       const writes = request.method !== 'GET'
-      const body = writes ? await readJsonObject(request, 24_000) : undefined
+      // DELETE não tem corpo: o servidor não lê nada e passa {}.
+      const body = !writes ? undefined : request.method === 'DELETE' ? {} : await readJsonObject(request, 24_000)
       let proof
       if (handler === 'checkin' && body.proof !== undefined) {
         try {
@@ -270,6 +270,7 @@ export class DemoSession {
       }
       return this.storage.transactionSync(() => {
         this.ownerFor(account)
+        this.month = url.searchParams.get('month')
         if (handler === 'city' || handler === 'cityAction' || handler === 'syncRewards') {
           this.requireLocation(location)
           return this[handler](body, location)
@@ -338,9 +339,12 @@ export class DemoSession {
     )
   }
 
-  add(kind, data) {
-    if (this.sql.exec('SELECT count(*) AS total FROM records WHERE kind = ?', kind).one().total >= 100) {
-      throw new HttpError(422, 'A demonstração aceita até 100 registros deste tipo.')
+  cap(kind) { return capOf(this.env, kind) }
+
+  // Tarefas e entradas seguem em 100 por tipo (pendência do plano); Agenda, Projetos e Peso passam o teto próprio.
+  add(kind, data, cap = null) {
+    if (this.sql.exec('SELECT count(*) AS total FROM records WHERE kind = ?', kind).one().total >= (cap ?? 100)) {
+      throw new HttpError(422, cap ? capMessage(cap) : 'A demonstração aceita até 100 registros deste tipo.')
     }
     const record = { ...data, id: crypto.randomUUID(), created_at: new Date().toISOString() }
     this.write(kind, record.id, record)
@@ -351,7 +355,10 @@ export class DemoSession {
     const proofs = this.list('proof').map(({ photo, ...rest }) => ({ ...rest, has_photo: Boolean(photo) }))
     const today = dateFormatter.format(new Date())
     const entries = this.list('entry')
-    return { entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), predios: [...this.buildingActivityIds()], sources }
+    return {
+      entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), predios: [...this.buildingActivityIds()],
+      tasks: this.list('task'), ...this.agendaView(), sources,
+    }
   }
 
   personal() { return json(this.overview()) }
@@ -649,3 +656,5 @@ export class DemoSession {
     return json(worldSnapshot(next, this.travelOpen))
   }
 }
+
+Object.assign(DemoSession.prototype, agendaMethods)
