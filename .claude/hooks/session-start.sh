@@ -28,7 +28,8 @@ if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
   hashes=node_modules/.session-start.sha256
   if ! sha256sum --check --status "$hashes" 2>/dev/null; then
     rm -f "$hashes"
-    if npm install --ignore-scripts --no-audit --no-fund >/dev/null 2>&1; then
+    # npm ci, e não npm install: o install reescreve o package-lock.json e deixaria o repositório sujo.
+    if npm ci --ignore-scripts --no-audit --no-fund >/dev/null 2>&1; then
       sha256sum .claude/hooks/session-start.sh package.json package-lock.json > "$hashes" 2>/dev/null || rm -f "$hashes"
     else
       echo "A instalação das dependências falhou. Rode npm install à mão antes dos testes."
