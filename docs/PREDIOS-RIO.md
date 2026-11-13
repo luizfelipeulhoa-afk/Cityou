@@ -1,6 +1,6 @@
 # Prédios do Rio com modelo 3D próprio
 
-Nove prédios de exemplo que a pessoa pode construir na cidade do Rio (`cristo-redentor`). Os modelos foram
+Catorze prédios de exemplo que a pessoa pode construir na cidade do Rio (`cristo-redentor`). Os modelos foram
 fornecidos pelo responsável do projeto (exportados do Tripo) e reduzidos aqui; ninguém gerou nada com créditos.
 
 | id | nome | área | custo | triângulos |
@@ -14,6 +14,11 @@ fornecidos pelo responsável do projeto (exportados do Tripo) e reduzidos aqui; 
 | `rio-casarao` | Casarão colonial | 3 × 3 | 50 | 8.000 |
 | `rio-igreja` | Igrejinha da vila | 3 × 3 | 55 | 7.000 |
 | `rio-edificio-deco` | Edifício Art Déco | 3 × 3 | 60 | 6.000 |
+| `rio-prefeitura` | Prefeitura | 3 × 3 | 70 | 6.000 |
+| `rio-casa` | Casa térrea | 2 × 2 | 20 | 6.000 |
+| `rio-picole` | Carrinho de picolé | 1 × 1 | 15 | 6.000 |
+| `rio-sobradinho` | Sobrado colorido | 2 × 2 | 30 | 6.000 |
+| `rio-predio-comercial` | Prédio comercial | 2 × 2 | 55 | 6.000 |
 
 Os custos e as áreas são propostas (como os demais números de `docs/GAME-DESIGN.md`). Nenhum tem destino nem
 interior: são prédios de cenário e de exemplo, sem ligação com tarefas ou hábitos.

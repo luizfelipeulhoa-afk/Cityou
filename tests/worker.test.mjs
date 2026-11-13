@@ -296,7 +296,7 @@ test('prévia abre os oito locais e mantém o saldo de teste ao alternar cidades
     assert.ok(rio.catalog.some(item => item.id === 'rio-fair'))
     assert.equal(rio.catalog.some(item => item.id === 'island-market'), false)
     const withModel = rio.catalog.filter(item => item.model?.startsWith('/models/rio/'))
-    assert.equal(withModel.length, 9)
+    assert.equal(withModel.length, 14)
     assert.ok(withModel.every(item => item.preview === `/previews/${item.id}.png`))
     assert.notDeepEqual(rio.protected_tiles, (await city(session, PETRA)).protected_tiles)
     await build(session, RIO, 'lote-agua', initial.revision, {
