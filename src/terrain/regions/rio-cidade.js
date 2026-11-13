@@ -19,13 +19,16 @@ const layout = getCityLayout('cristo-redentor')
 const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
 const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))
 const size = layout.max - layout.min + 1
-// Máscara: terra da grade plana ('.'); água e encosta protegida com o relevo real ('#'); a primeira fileira de água junto
-// à terra fica plana e não construível ('d'): é o calçadão de Copacabana, entre a avenida e a areia.
+// Máscara: terra da grade plana ('.'); encosta protegida com o relevo real ('#'); toda a água dentro da grade
+// fica plana e não construível ('d') — as duas primeiras fileiras são o calçadão de Copacabana (reto, mesma
+// largura em toda a frente), o resto (só mais 1 ou 2 fileiras, a grade acaba logo depois) é areia (13/11/2026:
+// antes só a 1ª fileira virava calçadão e o resto virava relevo de verdade, que mal cabia nessas poucas fileiras
+// e cortava a praia de forma torta; agora a faixa toda é lisa, maior e sem relevo no meio).
 const kind = (x, y) => {
   const key = tileKey(x, y)
   if (slope.has(key)) return '#'
   if (!water.has(key)) return '.'
-  return water.has(tileKey(x, y - 1)) ? '#' : 'd'
+  return 'd'
 }
 const rows = Array.from({ length: size }, (_, row) => Array.from({ length: size }, (_, column) =>
   kind(layout.min + column, layout.min + row)).join(''))
@@ -63,5 +66,7 @@ export default {
   // TERRAIN.fog, 80 unidades): com o corte acima, o mar aberto já cobre o resto, então o orçamento de malha da
   // cidade cai bem abaixo do da faixa de Copacabana. A vegetação acompanha a névoa.
   detail: { maxTriangles: 6000 },
-  vegetation: { ...rio.vegetation, treeRange: 40, palmRange: 26, decorativePalms: 0 },
+  // Palmeiras na areia (13/11/2026): a faixa de areia cresceu (acima) e ficou sem o coqueiro fixo que o calçadão
+  // feito à mão desenhava; `decorativePalms` espalha algumas nos lotes decorativos, como em `rio.js`.
+  vegetation: { ...rio.vegetation, treeRange: 40, palmRange: 26, decorativePalms: 0.22 },
 }

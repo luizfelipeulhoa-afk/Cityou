@@ -255,7 +255,7 @@ test('cidade: plano sob os lotes construíveis, relevo na encosta protegida, cal
   assert.ok(scenery.triangles <= 60000, `${scenery.triangles} triângulos`)
   const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
   const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))
-  let land = 0, promenade = 0
+  let land = 0, beach = 0
   for (let ty = layout.min; ty <= layout.max; ty++) {
     for (let tx = layout.min; tx <= layout.max; tx++) {
       // Lote da cidade (tx − 8, ty − 8); no terreno, z anda CITY_SHIFT.
@@ -263,10 +263,10 @@ test('cidade: plano sob os lotes construíveis, relevo na encosta protegida, cal
       const kind = scenery.lots.kindAt({ x, z })
       if (slope.has(tileKey(tx, ty))) { assert.equal(kind, 'blocked', `encosta (${tx}, ${ty})`); continue }
       if (water.has(tileKey(tx, ty))) {
-        // A primeira fileira de água junto à terra é o calçadão: plana e só decorativa.
-        const shoreline = !water.has(tileKey(tx, ty - 1))
-        assert.equal(kind, shoreline ? 'decorative' : 'blocked', `água (${tx}, ${ty})`)
-        if (shoreline) { promenade++; assert.equal(scenery.getHeightAt(x, z), 0) }
+        // Toda a água dentro da grade é plana e só decorativa: calçadão e areia, sem relevo no meio (13/11/2026).
+        assert.equal(kind, 'decorative', `água (${tx}, ${ty})`)
+        beach++
+        assert.equal(scenery.getHeightAt(x, z), 0)
         continue
       }
       land++
@@ -275,8 +275,8 @@ test('cidade: plano sob os lotes construíveis, relevo na encosta protegida, cal
     }
   }
   assert.ok(land > 700)
-  assert.equal(promenade, layout.max - layout.min + 1)
-  assert.equal(scenery.lots.playable.length, land + promenade)
+  assert.ok(beach >= (layout.max - layout.min + 1) * 2, `${beach} lotes de praia`)
+  assert.equal(scenery.lots.playable.length, land + beach)
   // O morro do Cristo fica bem acima do platô.
   assert.ok(scenery.getHeightAt(CRISTO_PEAK.x, CRISTO_PEAK.z - CITY_SHIFT) > 6)
 })

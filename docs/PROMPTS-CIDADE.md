@@ -13,6 +13,15 @@ Seguem `docs/DESIGN-SYSTEM.md`: bloco de estilo (com a base de grama, ou de arei
 | Prédio residencial | `rio-predio` | 2x2 | 5000 |
 | Prédio comercial | `rio-predio-comercial` | 2x2 | 5000 |
 | Hospital | `rio-hospital` | 3x3 | 6000 |
+| Flamboyant | `rio-arvore-flamboyant` | 1x1 | 3000 |
+| Amendoeira-da-praia | `rio-arvore-amendoeira` | 1x1 | 3000 |
+| Mangueira | `rio-arvore-mangueira` | 1x1 | 3000 |
+| Comunidade do morro | `rio-comunidade` | 3x3 | 7000 |
+| Delegacia de polícia | `rio-policia` | 2x2 | 4000 |
+| Corpo de bombeiros | `rio-bombeiro` | 2x2 | 4000 |
+| Maracanã (o maior prédio da cidade) | `rio-maracana` | 6x6 | 8000 |
+| Coqueiro | `rio-arvore-coqueiro` | 1x1 | 3000 |
+| Shopping center (o segundo maior, depois do Maracanã) | `rio-shopping` | 5x5 | 7000 |
 
 ## Carrinho de picolé — `rio-picole` (1x1)
 
@@ -100,6 +109,108 @@ Three-quarter isometric view, camera 30 degrees above, front-right corner facing
 Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, slightly oversized roof and doorway, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The building stands on a thin round 10-sided low-poly base disk, flat grass-green top with brown earth sides, diameter just larger than the building footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
 
 Subject: a city hospital: a clean three-story building in cream with sky blue window bands, a big plain coral cross shape on the facade (no letters), a covered ambulance entrance with a small white ambulance parked in front (coral stripe, no text), a second lower wing to the side, a flat roof with a helipad circle in sunny yellow, a strip of lawn and two round trees.
+
+Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
+```
+
+## Flamboyant — `rio-arvore-flamboyant` (1x1)
+
+Árvore típica do Rio, de copa larga e achatada com flores vermelho-alaranjadas (como as da Avenida Beira-Mar e do Parque Lage).
+
+```
+Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The object stands on a thin round 10-sided low-poly base disk, flat grass-green top with brown earth sides, diameter just larger than the object footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
+
+Subject: a Rio flamboyant tree (flame tree): a short gnarled warm wood brown trunk splitting low into wide spreading chunky branches, topped by a broad, flat, umbrella-shaped canopy made of faceted low-poly leaf clumps in coral and a touch of sunny yellow mixed into dark green, wider than it is tall, like a giant flat cloud of color.
+
+Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
+```
+
+## Amendoeira-da-praia — `rio-arvore-amendoeira` (1x1)
+
+A árvore mais comum do calçadão de Copacabana: copa em camadas horizontais, folhas largas.
+
+```
+Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The object stands on a thin round 10-sided low-poly base disk, flat sand top with brown earth sides, diameter just larger than the object footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
+
+Subject: a Rio seaside almond tree (amendoeira), the classic beachfront tree of Copacabana: a straight warm wood brown trunk, branches growing out in distinct wide horizontal tiers like steps, each tier a flat faceted pad of large paddle-shaped leaves in grass green with a few dark green and sunny yellow (autumn) leaf clumps mixed in, overall a tiered, pagoda-like silhouette.
+
+Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
+```
+
+## Mangueira — `rio-arvore-mangueira` (1x1)
+
+Árvore grande e densa de copa arredondada, a mais comum nas ruas e praças do Rio (dá nome ao bairro e à escola de samba).
+
+```
+Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The object stands on a thin round 10-sided low-poly base disk, flat grass-green top with brown earth sides, diameter just larger than the object footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
+
+Subject: a large Rio mango tree (mangueira): a thick, short warm wood brown trunk, dense and tall rounded canopy made of many faceted low-poly leaf clumps in dark green with grass-green highlights, a few clusters of small sunny yellow and coral mango fruit shapes peeking out near the bottom of the canopy, overall a big full dome of foliage.
+
+Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
+```
+
+## Comunidade do morro — `rio-comunidade` (3x3)
+
+Um quarteirão de casas coloridas empilhadas e escalonadas num morro, como nas comunidades do Rio (Santa Marta, Vidigal): arquitetura vernacular, não um prédio único.
+
+```
+Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, slightly oversized doorways and water tanks, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The building stands on a thin round 10-sided low-poly base disk, flat grass-green top with brown earth sides, diameter just larger than the building footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
+
+Subject: a hillside community block (morro) typical of Rio de Janeiro: a cluster of a dozen small boxy houses of different heights (one to three floors each), stacked and staggered up a gentle terraced slope, each house a flat-roofed cube painted a different bold flat color (sunny yellow, coral, sky blue, terracotta, cream, deep navy), small square windows, a few narrow outdoor stairs connecting levels, small cream water tank cylinders and a couple of satellite-dish-free rooftop clotheslines (one chunky rope bar each) on the flat roofs, a scatter of potted plants. Dense and lively but tidy and readable, no graffiti, no clutter, no text.
+
+Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
+```
+
+## Delegacia de polícia — `rio-policia` (2x2)
+
+```
+Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, slightly oversized roof and doorway, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The building stands on a thin round 10-sided low-poly base disk, flat grass-green top with brown earth sides, diameter just larger than the building footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
+
+Subject: a small city police station: a two-story deep navy and cream building, a covered carport to the side with one chunky plain white-and-navy patrol car (no text, no light bar glow, just two simple roof-light boxes), a flagpole with a plain coral flag (no symbols), a low perimeter wall with a gate, a small satellite dish shape on the roof, a simple antenna mast.
+
+Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
+```
+
+## Corpo de bombeiros — `rio-bombeiro` (2x2)
+
+```
+Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, slightly oversized roof and doorway, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The building stands on a thin round 10-sided low-poly base disk, flat grass-green top with brown earth sides, diameter just larger than the building footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
+
+Subject: a small fire station: a two-story cream and coral building with one big tall garage door opening (oversized, like a toy) showing a chunky coral fire truck with a stone-gray ladder on top parked inside, a short square hose-drying tower beside the garage, a flagpole with a plain coral flag (no symbols), a small round grass lawn patch in front.
+
+Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
+```
+
+## Maracanã — `rio-maracana` (6x6, o maior prédio da cidade)
+
+O estádio é de propósito o maior volume do Rio: face_limit mais alto (8000) e, na redução, `--tris 7000` (ainda dentro do orçamento de 8000 de `tests/city-models.test.mjs`), para a fachada curva e a cobertura não perderem a leitura num prédio tão grande.
+
+```
+Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, slightly oversized entrances, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The building stands on a thin round 10-sided low-poly base disk, flat grass-green top with brown earth sides, diameter just larger than the building footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
+
+Subject: a large oval stadium, the biggest landmark in the city, clearly bigger and taller than every other building: a deep navy and stone-gray curved outer facade wrapping all the way around, a ring of chunky white support pillars at the base holding up a wide cream cantilevered roof ring that leans up and out, four tall sunny-yellow floodlight towers at the corners each topped with a simple flat panel of light-boxes (no glow), a glimpse of the bright grass-green pitch and a few terracotta-and-cream seating tiers through the open oval center, simple ramps curving up the outside.
+
+Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
+```
+
+## Coqueiro — `rio-arvore-coqueiro` (1x1)
+
+```
+Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The object stands on a thin round 10-sided low-poly base disk, flat sand top with brown earth sides, diameter just larger than the object footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
+
+Subject: a Rio coconut palm tree (coqueiro): a tall, gently leaning warm wood brown trunk with a chunky faceted texture, a crown of six to eight curving fan-like fronds in grass green and dark green fanning out from the top, a small cluster of round coconuts in warm wood brown tucked under the crown.
+
+Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
+```
+
+## Shopping center — `rio-shopping` (5x5, o segundo maior prédio, depois do Maracanã)
+
+Segundo maior volume da cidade: `face_limit: 7000` no Tripo e, na redução, `--tris 6500` (dentro do orçamento de 8000 do teste) — menor que o Maracanã (6x6, 7000 triângulos), maior que tudo o resto.
+
+```
+Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, slightly oversized entrance canopy, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The building stands on a thin round 10-sided low-poly base disk, flat grass-green top with brown earth sides, diameter just larger than the building footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
+
+Subject: a big, wide, low shopping mall, the second-largest building in the city after the stadium: a long low two-story block in cream and sky blue, a huge rounded glass-free atrium bump on the front in deep navy with a wide coral entrance canopy jutting out over rows of chunky parking bollards, a flat roof lined with sunny-yellow skylight domes and a few rooftop air-conditioning box shapes, a strip of terracotta paving and small round trees along the front, the whole building wide and sprawling rather than tall.
 
 Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
 ```

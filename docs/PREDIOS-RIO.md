@@ -1,6 +1,6 @@
 # Prédios do Rio com modelo 3D próprio
 
-Dezessete prédios de exemplo que a pessoa pode construir na cidade do Rio (`cristo-redentor`). Os modelos foram
+Vinte e três prédios de exemplo que a pessoa pode construir na cidade do Rio (`cristo-redentor`). Os modelos foram
 fornecidos pelo responsável do projeto (exportados do Tripo) e reduzidos aqui; ninguém gerou nada com créditos.
 
 | id | nome | área | custo | triângulos |
@@ -22,6 +22,16 @@ fornecidos pelo responsável do projeto (exportados do Tripo) e reduzidos aqui; 
 | `rio-milho` | Carrinho de milho | 1 × 1 | 15 | 6.000 |
 | `rio-hospital` | Hospital | 3 × 3 | 75 | 6.000 |
 | `rio-academia-grande` | Academia grande | 3 × 3 | 65 | 6.000 |
+| `rio-policia` | Delegacia de polícia | 2 × 2 | 55 | 5.500 |
+| `rio-bombeiro` | Corpo de bombeiros | 2 × 2 | 60 | 6.000 |
+| `rio-arvore-coqueiro` | Coqueiro | 1 × 1 | 12 | 3.000 |
+| `rio-arvore-flamboyant` | Flamboyant | 1 × 1 | 12 | 3.000 |
+| `rio-arvore-mangueira` | Mangueira | 1 × 1 | 12 | 3.000 |
+| `rio-comunidade` | Comunidade do morro | 3 × 3 | 45 | 6.000 |
+
+Os seis últimos (polícia, bombeiro, coqueiro, flamboyant, mangueira e comunidade do morro) vieram prontos em
+13/11/2026, a partir dos prompts de `docs/PROMPTS-CIDADE.md`; o Maracanã (`rio-maracana`, 6 × 6) e o shopping
+center (`rio-shopping`, 5 × 5) do mesmo guia ainda não têm GLB.
 
 Os custos e as áreas são propostas (como os demais números de `docs/GAME-DESIGN.md`). Nenhum tem destino nem
 interior: são prédios de cenário e de exemplo, sem ligação com tarefas ou hábitos.
