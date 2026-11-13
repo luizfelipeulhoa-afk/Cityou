@@ -1,7 +1,8 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Icon from './personal/Icon.vue'
-import { ApiError, loadTasks, loadProjects, completeTask } from './fifones/api.js'
+// Cliente único da API (etapa 2): o mesmo `api()` da cidade, que trata o 401 levando a pessoa para entrar.
+import { api, completeTask, loadProjects, loadTasks } from './fifones/api.js'
 import { photoToDataUrl } from './personal/proof.js'
 const sections=[
 {id:'inicio',label:'Seu dia',icon:'home',group:'SEU ESPAÇO',description:'O que importa, sem carregar tudo na cabeça.'},
@@ -65,21 +66,6 @@ const areaCards=computed(()=>[
 {id:'fitness',icon:'fitness',tone:'peach',title:'Cuide de você',value:fitness.value.weights?.length?`${fitness.value.weights[0].kg} kg`:'Sua evolução',detail:'Treino, trajetória e recuperação'},
 {id:'financas',icon:'finance',tone:'purple',title:'Respire mais leve',value:transactions.value.length?money(income.value-expenses.value):'Sua vida financeira',detail:transactions.value.length?'saldo dos registros deste mês':'Entradas e saídas, com clareza'},
 {id:'estudos',icon:'study',tone:'blue',title:'Continue aprendendo',value:`${documents.value.length} materiais`,detail:'Leia com o Fifones ao seu lado'}])
-async function api(path, method = 'GET', body) {
-  const res = await fetch(path, {
-    method,
-    headers: {
-      Accept: 'application/json',
-      ...(method !== 'GET' ? { 'Content-Type': 'application/json', 'X-Fifones-City': '1' } : {}),
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  })
-  const value = await res.json().catch(() => null)
-  if (!res.ok) {
-    throw new ApiError(typeof value?.detail === 'string' ? value.detail : value?.message || 'Não foi possível salvar. Tente novamente.', res.status, value)
-  }
-  return value
-}
 function notify(text,kind='success'){notice.value={text,kind};clearTimeout(timer);timer=setTimeout(()=>notice.value='',4500)}
 function parseRoute(){const id=location.hash.replace(/^#\/?/,'').split('/')[0];route.value=sections.some(i=>i.id===id)||id==='cidade'||id==='mundo'?id:'inicio';search.value='';mobileMenu.value=false;document.title=(route.value==='cidade'?'Minha cidade':route.value==='mundo'?'Mapa-mundo':active.value?.label||'Seu espaço')+' · Cityou'}
 function navigate(id){location.hash='/'+id}
@@ -96,19 +82,15 @@ async function refresh() {
       ? 'Os registros pessoais precisam do servidor Cityou, que não está disponível neste endereço.'
       : 'Não foi possível carregar seus registros. Tente atualizar.'
   }
-  if (taskResult.status === 'fulfilled') {
-    tasks.value = taskResult.value.tasks || []
-    connected.value = taskResult.value.connected
-  } else {
-    connected.value = false
-  }
+  // Tarefas reais, guardadas na conta ou na demonstração deste navegador (etapa 2).
+  if (taskResult.status === 'fulfilled') tasks.value = taskResult.value.tasks || []
   if (projectResult.status === 'fulfilled') projects.value = projectResult.value.projects || []
   loading.value = false
   refreshing.value = false
 }
 function showForm(kind){previousFocus=document.activeElement;modal.value=kind;form.value={title:'',body:'',amount:'',direction:'expense',category:'pessoal',day:today(),due_date:'',target:1,domain:routeDomain[route.value]||'organizacao',place:''};nextTick(()=>document.querySelector('.entry-dialog input')?.focus())}
 function closeForm(){if(saving.value)return;modal.value=null;previousFocus?.focus?.()}
-async function save(){if(saving.value)return;saving.value=true;try{if(modal.value==='task'){await api('/api/personal/tasks','POST',{title:form.value.title,due_date:form.value.due_date||null,domain:form.value.domain,place:form.value.place});notify('Tarefa salva no seu Fifones.')}else{const raw=String(form.value.amount).trim().replace(/^R\$\s*/, '').replace(/\s/g,'');const normalized=/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(raw)?raw.replace(/\./g,'').replace(',','.'):/^\d+(?:[,.]\d{1,2})?$/.test(raw)?raw.replace(',','.'):'invalid';const cents=Math.round(Number(normalized)*100);if(modal.value==='transaction'&&(!Number.isFinite(cents)||cents<1))throw Error('Informe um valor válido.');await api('/api/personal/entries','POST',{kind:modal.value,title:form.value.title,body:form.value.body,category:form.value.category,day:form.value.day,direction:form.value.direction,amount_cents:modal.value==='transaction'?cents:0,target:modal.value==='goal'?Number(form.value.target):1,domain:form.value.domain,place:form.value.place});notify('Registro salvo.')}modal.value=null;await refresh();previousFocus?.focus?.()}catch(e){notify(e.message,'error')}finally{saving.value=false}}
+async function save(){if(saving.value)return;saving.value=true;try{if(modal.value==='task'){await api('/api/personal/tasks','POST',{title:form.value.title,due_date:form.value.due_date||null,domain:form.value.domain,place:form.value.place});notify('Tarefa salva.')}else{const raw=String(form.value.amount).trim().replace(/^R\$\s*/, '').replace(/\s/g,'');const normalized=/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(raw)?raw.replace(/\./g,'').replace(',','.'):/^\d+(?:[,.]\d{1,2})?$/.test(raw)?raw.replace(',','.'):'invalid';const cents=Math.round(Number(normalized)*100);if(modal.value==='transaction'&&(!Number.isFinite(cents)||cents<1))throw Error('Informe um valor válido.');await api('/api/personal/entries','POST',{kind:modal.value,title:form.value.title,body:form.value.body,category:form.value.category,day:form.value.day,direction:form.value.direction,amount_cents:modal.value==='transaction'?cents:0,target:modal.value==='goal'?Number(form.value.target):1,domain:form.value.domain,place:form.value.place});notify('Registro salvo.')}modal.value=null;await refresh();previousFocus?.focus?.()}catch(e){notify(e.message,'error')}finally{saving.value=false}}
 async function toggleHabit(item){if(saving.value)return;saving.value=true;try{const result=await api(`/api/personal/entries/${encodeURIComponent(item.id)}/checkin`,'PUT',{done:!isDone(item.id)});data.value={...data.value,...result};notify(isDone(item.id)?'Passo de hoje registrado.':'Registro de hoje desmarcado.')}catch(e){notify(e.message,'error')}finally{saving.value=false}}
 async function finish(task){if(saving.value)return;saving.value=true;try{await completeTask(task.id);notify('Tarefa concluída. Seu progresso também chega à cidade.');await refresh()}catch(e){notify(e.message,'error')}finally{saving.value=false}}
 function showProof(item){previousFocus=document.activeElement;proofDialog.value={item,note:'',file:null,preview:''};nextTick(()=>document.querySelector('.proof-dialog textarea')?.focus())}
@@ -145,7 +127,7 @@ onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);clearTimeout(bridgeTime
       <template v-else-if="route==='inicio'">
         <section class="capture-panel"><span class="capture-symbol"><Icon name="spark" :size="25" /></span><div><h2>O que vamos tirar da sua cabeça?</h2><p>Uma tarefa, uma ideia ou algo que você quer lembrar.</p></div><button class="capture-button" @click="showForm('note')">Anotar <Icon name="plus" :size="17" /></button><button class="voice-button" aria-label="Abrir conversa por voz com Fifones" @click="openBridge('Conversa por voz','/#/conversa')"><Icon name="mic" :size="20" /></button></section>
         <div class="overview-grid">
-          <section class="surface today-panel"><div class="surface-heading"><h2>Seu próximo passo</h2><a href="#/tarefas">Ver tarefas <Icon name="arrow" :size="15" /></a></div><div class="week-strip"><span v-for="d in weeks" :key="d.day" :class="{today:d.today}"><small>{{ d.label }}</small><strong>{{ d.num }}</strong><i v-if="d.today" /></span></div><ul v-if="pending.length" class="personal-task-list"><li v-for="task in pending.slice(0,3)" :key="task.id"><button class="round-check" :aria-label="`Concluir ${task.title}`" :disabled="saving" @click="finish(task)" /><div><strong>{{ task.title }}</strong><small>{{ task.due_date?formatDate(task.due_date):'No seu tempo' }}</small></div><span class="priority-dot" :class="`priority-${task.priority}`" /></li></ul><div v-else class="gentle-empty"><span class="empty-orbit"><Icon name="check" :size="24" /></span><strong>{{ connected?'Espaço para o que vem agora.':'Suas tarefas estão no Fifones original.' }}</strong><p>{{ connected?'Escolha uma tarefa pequena para começar.':'Reconecte a fonte para ver suas tarefas.' }}</p><button class="inline-button" @click="showForm('task')"><Icon name="plus" :size="15" />Criar uma tarefa</button></div></section>
+          <section class="surface today-panel"><div class="surface-heading"><h2>Seu próximo passo</h2><a href="#/tarefas">Ver tarefas <Icon name="arrow" :size="15" /></a></div><div class="week-strip"><span v-for="d in weeks" :key="d.day" :class="{today:d.today}"><small>{{ d.label }}</small><strong>{{ d.num }}</strong><i v-if="d.today" /></span></div><ul v-if="pending.length" class="personal-task-list"><li v-for="task in pending.slice(0,3)" :key="task.id"><button class="round-check" :aria-label="`Concluir ${task.title}`" :disabled="saving" @click="finish(task)" /><div><strong>{{ task.title }}</strong><small>{{ task.due_date?formatDate(task.due_date):'No seu tempo' }}</small></div><span class="priority-dot" :class="`priority-${task.priority}`" /></li></ul><div v-else class="gentle-empty"><span class="empty-orbit"><Icon name="check" :size="24" /></span><strong>Espaço para o que vem agora.</strong><p>Escolha uma tarefa pequena para começar.</p><button class="inline-button" @click="showForm('task')"><Icon name="plus" :size="15" />Criar uma tarefa</button></div></section>
           <section class="surface day-agenda"><div class="surface-heading"><h2>Na sua agenda</h2><a href="#/agenda"><Icon name="arrow" :size="17" /></a></div><div class="agenda-summary"><span class="agenda-day">{{ today().slice(-2) }}</span><div><strong>{{ todayEvents.length }} compromisso{{ todayEvents.length===1?'':'s' }}</strong><small>para hoje</small></div><Icon name="calendar" :size="28" /></div><div v-for="event in todayEvents.slice(0,2)" :key="event.id" class="small-event"><time>{{ formatTime(event.start_at) }}</time><strong>{{ event.title }}</strong></div><div v-if="!todayEvents.length" class="agenda-empty"><span class="agenda-doodle" aria-hidden="true"><Icon name="sun" :size="42" /></span><p>{{ data.sources.events?.connected?'Um pouco de espaço livre também faz parte.':'Agenda indisponível no momento.' }}</p></div><button class="quiet-button full-width" @click="openBridge('Agenda','/#/agenda')"><Icon name="plus" :size="15" />Adicionar compromisso</button></section>
         </div>
         <div class="section-label"><h2>Um pouco melhor, todos os dias</h2><span>Seu ritmo conta.</span></div>
