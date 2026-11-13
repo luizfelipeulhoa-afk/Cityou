@@ -11,7 +11,7 @@ import { toLambertScene } from '../tres/lambert.js'
 import { applyGroundBlendTo } from '../tres/groundBlend.js'
 import { lightingFor } from '../terrain/lighting.js'
 import { WORLD_MODELS_MANIFEST } from '../world/worldSpaces.js'
-import { getCityLayout, isPilotCity, placementProblem, previewBuild, tileKey } from '../../shared/game/city-layout.js'
+import { getCityLayout, HILL_STEP, hillLevelAt, isPilotCity, placementProblem, previewBuild, tileKey } from '../../shared/game/city-layout.js'
 import { createTapGesture } from '../interaction/tapGesture.js'
 import { buildRioFallback, createCoreBuilding, createEnvironment, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT, material } from './sceneEnvironment.js'
 import { CHARACTERS } from './characters.js'
@@ -78,6 +78,8 @@ export default class CityWorld {
     this.pilot = isPilotCity(this.region?.id)
     this.gridSize = this.layout.max - this.layout.min + 1
     this.protected = new Set(this.layout.protectedTiles.map(([x, y]) => tileKey(x, y)))
+    // Patamares do morro da comunidade: alturas distintas, da mais alta para a mais baixa (0 é o chão), para o clique.
+    this.hillHeights = [...new Set([0, ...(this.layout.hillTiles ?? []).map(([, , level]) => level * HILL_STEP)])].sort((a, b) => b - a)
     this.tap = createTapGesture()
     this.callbacks = { onSelect: NOOP, onTile: NOOP, onError: NOOP, onReady: NOOP, onModelStatus: NOOP, ...callbacks }
     this.state = { placements: [], catalog: [], unlock_radius: 3, credits: 0 }
@@ -106,6 +108,7 @@ export default class CityWorld {
     // Luz e céu vêm da tabela da região (src/terrain/lighting.js): o Rio usa a luz com que o terreno foi calibrado.
     this.look = lightingFor(callbacks.region?.id)
     this.groundColor = new THREE.Color(this.look.ground ?? 0xffffff) // compartilhada por todos os prédios (degradê de base)
+    this.hillGroundColor = new THREE.Color(0x4e9f5d).lerp(new THREE.Color(0xb07a4f), 0.4) // o chão dos patamares do morro
     this.scene.background = new THREE.Color(this.look.sky)
     this.scene.fog = new THREE.Fog(this.look.sky, this.look.fog.near, this.look.fog.far)
     this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 180)
@@ -216,7 +219,7 @@ export default class CityWorld {
       if (Math.max(Math.abs(x - CENTER), Math.abs(y - CENTER)) > radius || this.protected.has(tileKey(x, y))) continue
       color.copy(baseColor).multiplyScalar(1 + ((Math.abs(x * 13 + y * 7) % 7) - 3) * 0.007)
       this.tiles.setColorAt(index, color)
-      dummy.position.set(x - CENTER, 0.045, y - CENTER)
+      dummy.position.set(x - CENTER, 0.045 + this.groundHeight(x, y), y - CENTER)
       dummy.updateMatrix()
       this.tiles.setMatrixAt(index++, dummy.matrix)
     }
@@ -368,13 +371,27 @@ export default class CityWorld {
     this.pointer.set((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1)
   }
 
+  // Altura do chão do tile (0, ou o patamar do morro da comunidade × HILL_STEP).
+  groundHeight(x, y) {
+    return hillLevelAt(this.region?.id, x, y) * HILL_STEP
+  }
+
   getTile() {
     this.raycaster.setFromCamera(this.pointer, this.camera)
-    if (!this.raycaster.ray.intersectPlane(this.floor, this.floorHit)) return null
-    const x = Math.floor(this.floorHit.x + CENTER + 0.5)
-    const y = Math.floor(this.floorHit.z + CENTER + 0.5)
     const { min, max } = this.layout
-    return x >= min && x <= max && y >= min && y <= max ? { x, y } : null
+    // O raio cruza o plano de cada patamar, do mais alto (o mais perto da câmera) para o chão: vale o primeiro em que
+    // o tile atingido é mesmo daquele patamar.
+    let fallback = null
+    for (const height of this.hillHeights) {
+      this.floor.constant = -(0.062 + height)
+      if (!this.raycaster.ray.intersectPlane(this.floor, this.floorHit)) continue
+      const x = Math.floor(this.floorHit.x + CENTER + 0.5)
+      const y = Math.floor(this.floorHit.z + CENTER + 0.5)
+      if (x < min || x > max || y < min || y > max) continue
+      if (Math.abs(this.groundHeight(x, y) - height) < 1e-6) return { x, y }
+      if (height === 0) fallback = { x, y }
+    }
+    return fallback
   }
 
   getBuilding() {
@@ -589,11 +606,13 @@ export default class CityWorld {
     const { width, depth } = dimensions(definition, record.placement.rotation)
     const x = record.placement.x - CENTER + (width - 1) / 2
     const z = record.placement.y - CENTER + (depth - 1) / 2
-    record.sim.position.set(x, BUILDING_BASE_Y, z)
-    record.footprint = { x, z, width, depth }
+    // No morro da comunidade o prédio assenta no patamar (todos os tiles dele têm a mesma altura).
+    const lift = this.groundHeight(record.placement.x, record.placement.y)
+    record.sim.position.set(x, BUILDING_BASE_Y + lift, z)
+    record.footprint = { x, z, width, depth, lift }
     this.contactDirty = true
     record.sim.rotation.y = -(record.placement.rotation || 0) * Math.PI / 2
-    record.proxy.position.set(x, BUILDING_BASE_Y + record.height / 2, z)
+    record.proxy.position.set(x, BUILDING_BASE_Y + lift + record.height / 2, z)
     record.proxy.scale.set(width * 0.92, Math.max(record.height, 0.11), depth * 0.92)
   }
 
@@ -752,7 +771,9 @@ export default class CityWorld {
         }
       })
       // A base bege do GLB assume a cor do chão da região (só onde há terreno real): o prédio nasce do terreno.
-      if (this.look.ground !== null) applyGroundBlendTo(model, { ground: this.groundColor, range: this.look.groundFade, baseY: BUILDING_BASE_Y })
+      // No morro da comunidade o degradê de base vai para o chão do patamar (mais terra que mata), à altura dele.
+      const lift = this.groundHeight(record.placement.x, record.placement.y)
+      if (this.look.ground !== null) applyGroundBlendTo(model, { ground: lift ? this.hillGroundColor : this.groundColor, range: this.look.groundFade, baseY: BUILDING_BASE_Y + lift })
       const bounds = new THREE.Box3().setFromObject(model)
       const size = bounds.getSize(new THREE.Vector3())
       const center = bounds.getCenter(new THREE.Vector3())
@@ -858,7 +879,7 @@ export default class CityWorld {
       : this.isValid(tile, definition, rotation) && (moving || (this.state.credits ?? Infinity) >= (definition.cost || 0))
     if (!moving) this.setRoadPreview(quote?.road?.tiles.map(point => ({ ...point, valid })) ?? [])
     const color = valid ? 0x8fd64c : 0xf08066
-    this.preview.position.set(tile.x - CENTER + (width - 1) / 2, 0.095, tile.y - CENTER + (depth - 1) / 2)
+    this.preview.position.set(tile.x - CENTER + (width - 1) / 2, 0.095 + this.groundHeight(tile.x, tile.y), tile.y - CENTER + (depth - 1) / 2)
     this.previewFloor.scale.set(width * 0.96, 1, depth * 0.96)
     const height = Math.min(Number(definition.height) || 0.7, 1.7)
     this.previewGhost.position.y = height / 2
@@ -888,7 +909,7 @@ export default class CityWorld {
     this.selection.visible = Boolean(record && !this.interior)
     if (!record) return
     const { width, depth } = dimensions(this.definitions.get(record.placement.kind), record.placement.rotation)
-    this.selection.position.set(record.sim.position.x, 0.105, record.sim.position.z)
+    this.selection.position.set(record.sim.position.x, 0.105 + (record.footprint?.lift ?? 0), record.sim.position.z)
     const [top, bottom, left, right] = this.selection.children
     top.scale.set(width, 1, 0.035); top.position.set(0, 0, -depth / 2)
     bottom.scale.set(width, 1, 0.035); bottom.position.set(0, 0, depth / 2)
@@ -1044,8 +1065,8 @@ export default class CityWorld {
     let index = 0
     for (const record of this.records.values()) {
       if (!record.footprint || record.placement.kind === 'road' || record.placement.kind === 'tree' || index >= this.contactShadows.instanceMatrix.count) continue
-      const { x, z, width, depth } = record.footprint
-      dummy.position.set(x, BUILDING_BASE_Y + 0.004, z)
+      const { x, z, width, depth, lift } = record.footprint
+      dummy.position.set(x, BUILDING_BASE_Y + (lift ?? 0) + 0.004, z)
       dummy.scale.set(width * scale, 1, depth * scale)
       dummy.updateMatrix()
       this.contactShadows.setMatrixAt(index++, dummy.matrix)
@@ -1164,7 +1185,7 @@ export default class CityWorld {
 
   projectTile(x, y) {
     this.camera.updateMatrixWorld()
-    const point = new THREE.Vector3(x - CENTER, 0.08, y - CENTER).project(this.camera)
+    const point = new THREE.Vector3(x - CENTER, 0.08 + this.groundHeight(x, y), y - CENTER).project(this.camera)
     const rect = this.canvas.getBoundingClientRect()
     return { x: (point.x + 1) * rect.width / 2, y: (1 - point.y) * rect.height / 2 }
   }

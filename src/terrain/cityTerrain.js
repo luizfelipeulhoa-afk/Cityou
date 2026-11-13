@@ -13,7 +13,7 @@ export async function loadCityTerrain() {
   const objects = createTerrainObjects(data)
   objects.group.position.z = CITY_SHIFT
   const { crop } = rioCidade
-  const foam = createShoreFoam(shorePointsFromTerrain(data, { cx: crop.x, cz: crop.z, radius: crop.radius }))
+  const foam = createShoreFoam(shorePointsFromTerrain(data, { cx: crop.x, cz: crop.z, radius: crop.radius }), { heightAt: (x, z) => data.getHeightAt(x, z) })
   objects.group.add(foam.mesh)
   const y = data.getHeightAt(CRISTO_PEAK.x, CRISTO_PEAK.z - CITY_SHIFT)
   const dispose = () => { foam.dispose(); objects.dispose?.() }

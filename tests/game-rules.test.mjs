@@ -242,3 +242,79 @@ test('Rio sem a Sede Fifones: cidade nova sem sede e cidade salva antes perde a 
   // Cidades antigas (não piloto) mantêm a sede.
   assert.ok(newTown('petra').placements.some(item => item.kind === 'headquarters'))
 })
+
+import { HILL_STEP, hillLevelAt, previewRoadPath, roadPath, startingPromenade, tileHeight, usesAutoRoad } from '../shared/game/city-layout.js'
+import { countsForTravel } from '../worker/city.js'
+
+const rioCity = (extra = {}) => ({ ...newCity('cristo-redentor', true), location_id: 'cristo-redentor', unlock_radius: 16, ...extra })
+
+test('Rio: o morro da comunidade tem patamares, fica fora das áreas protegidas e aceita só o que é da comunidade', () => {
+  const layout = getCityLayout('cristo-redentor')
+  const protectedKeys = new Set(layout.protectedTiles.map(([x, y]) => tileKey(x, y)))
+  assert.ok(layout.hillTiles.length > 80)
+  assert.deepEqual([...new Set(layout.hillTiles.map(([, , level]) => level))].sort(), [1, 2])
+  for (const [x, y, level] of layout.hillTiles) {
+    assert.equal(protectedKeys.has(tileKey(x, y)), false, `${x},${y} é protegido`)
+    assert.equal(hillLevelAt('cristo-redentor', x, y), level)
+    assert.equal(tileHeight('cristo-redentor', x, y), level * HILL_STEP)
+  }
+  assert.equal(hillLevelAt('cristo-redentor', 0, 8), 0)
+  assert.equal(hillLevelAt('ilha-inicial', 13, -8), 0)
+  const city = rioCity()
+  // Prédio da comunidade num patamar inteiro: sem rua e só o preço dele.
+  const house = previewBuild(city, { kind: 'rio-casa', x: 17, y: -8, rotation: 0 })
+  assert.equal(house.error, undefined)
+  assert.deepEqual(house.road.tiles, [])
+  assert.equal(house.cost, getBuilding('rio-casa').cost)
+  assert.equal(previewBuild(city, { kind: 'rio-comunidade', x: 13, y: -8, rotation: 0 }).error, undefined) // 3 × 3 num patamar de 3 fileiras
+  assert.equal(previewBuild(city, { kind: 'rio-comunidade', x: -8, y: -8, rotation: 0 }).error, undefined)
+  // Atravessar dois patamares, prédio de fora da comunidade e rua no morro: recusados.
+  assert.match(previewBuild(city, { kind: 'rio-casa', x: 14, y: -6, rotation: 0 }).error, /mesmo patamar/)
+  assert.match(previewBuild(city, { kind: 'rio-hospital', x: 17, y: -8, rotation: 0 }).error, /No morro só cabem/)
+  const road = previewRoadPath(city, roadPath(16, -3, 16, -4))
+  assert.ok(road.error)
+  // Fora do morro, na encosta protegida, nada muda.
+  assert.match(previewBuild(city, { kind: 'rio-casa', x: 4, y: -8, rotation: 0 }).error, /áreas protegidas/)
+})
+
+test('Rio: decoração não pede rua, e a praia aceita o calçadão e o coqueiro, mas não prédios', () => {
+  const city = rioCity({ placements: rioCity().placements.filter(item => item.kind !== 'rio-calcadao') })
+  // Longe de qualquer rua: a casa pede rua automática (e não acha caminho curto), a árvore e o calçadão não.
+  const far = { x: -2, y: 14, rotation: 0 }
+  const tree = previewBuild(city, { kind: 'rio-arvore-mangueira', ...far })
+  assert.equal(tree.error, undefined)
+  assert.deepEqual(tree.road.tiles, [])
+  assert.equal(previewBuild(city, { kind: 'rio-calcadao', ...far }).cost, getBuilding('rio-calcadao').cost)
+  assert.equal(usesAutoRoad('cristo-redentor', 'rio-calcadao'), false)
+  assert.equal(usesAutoRoad('cristo-redentor', 'rio-casa'), true)
+  // Areia: as duas últimas fileiras desta coluna são água lisa na grade.
+  assert.equal(previewBuild(city, { kind: 'rio-calcadao', x: 0, y: 23, rotation: 0 }).error, undefined)
+  assert.equal(previewBuild(city, { kind: 'rio-arvore-coqueiro', x: 0, y: 24, rotation: 0 }).error, undefined)
+  assert.ok(previewBuild(city, { kind: 'rio-casa', x: 0, y: 23, rotation: 0 }).error)
+  assert.ok(previewBuild(city, { kind: 'rio-arvore-mangueira', x: 0, y: 24, rotation: 0 }).error)
+  assert.ok(previewBuild(city, { kind: 'rio-calcadao', x: 0, y: 24, rotation: 0 }).error) // 2 × 2 passaria da grade
+})
+
+test('Rio: o calçadão já vem posto na orla, é decoração e não conta para viajar', () => {
+  const modules = startingPromenade('cristo-redentor')
+  assert.equal(modules.length, 16)
+  const water = new Set(getCityLayout('cristo-redentor').waterTiles.map(([x, y]) => tileKey(x, y)))
+  const seen = new Set()
+  for (const { x, y } of modules) for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+    assert.ok(water.has(tileKey(x + dx, y + dy)), `${x + dx},${y + dy} não é praia`)
+    assert.equal(seen.has(tileKey(x + dx, y + dy)), false, 'módulos sobrepostos')
+    seen.add(tileKey(x + dx, y + dy))
+  }
+  assert.deepEqual(startingPromenade('ilha-inicial'), [])
+  const town = newTown('cristo-redentor')
+  const pieces = town.placements.filter(item => item.kind === 'rio-calcadao')
+  assert.equal(pieces.length, 16)
+  assert.equal(countsForTravel(pieces[0]), false)
+  assert.equal(countsForTravel({ kind: 'rio-casa' }), true)
+  // A pessoa tira o calçadão e recebe metade do preço de volta.
+  const city = { ...newCity('cristo-redentor', true), revision: 0 }
+  const before = city.credits
+  applyCityAction(city, { type: 'remove', kind: null, x: null, y: null, rotation: null, placement_id: pieces[0].id, expected_revision: 0, request_id: 'tirar-1' }, 'cristo-redentor', true)
+  assert.equal(city.placements.some(item => item.id === pieces[0].id), false)
+  assert.equal(city.credits, before + getBuilding('rio-calcadao').cost / 2)
+})
