@@ -14,6 +14,7 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 
 | Branch | O que está fazendo | Desde |
 |---|---|---|
+| `claude/etapa-3-catalogo-migracao` | Etapa 3: catálogo sem IA e StuntSync, Sede Cityou, destinos como nome de aba, `migrateCatalog` (reembolso 100% uma vez) | 13/11/2026 |
 | `claude/blissful-gates-qmt20l` | Montanha atrás do Cristo (`crop.keep`, névoa e malha), ai-memory (configuração, regras e roteiro do `wikisync`), documentos reconciliados e teste que confere o `CLAUDE.md` (PR #35, aberto) | 13/11/2026 |
 
 ## O que já entrou na `main` (PR → etapa)
@@ -42,6 +43,7 @@ Testes (13/11/2026): `main` depois do #33: `npm test` 74, `npm run test:worker` 
 5. Desfazer: janela de 120 s, sem contador.
 6. Ocupar todo o terreno do Rio com **rua automática** (etapa 9).
 "Esqueci a senha" fica fora até haver e-mail com domínio.
+7. **Pacote conservador do PORTAR-KIT** (decisão do dono, 13/11/2026; respostas A, B, C, D, F e G): 6 domínios do Cityou, economia atual, prédio sobe sem exigir tarefas, beta por convite, sem assistente de IA, uma organização.
 
 ## Estado das etapas (ordem: 1 ✔ → 7a ✔ → 9 ✔ → 2 → 3 a 6 → 7b → 8)
 | Etapa | Estado |
@@ -68,6 +70,7 @@ No Rio, escolher o lote de um prédio mostra a ligação mais curta à rede e o 
 `GET /api/personal/tasks` e concluir tarefa (apelidos para `/api/workspace/tasks*` por um deploy); saem `connected` e `source`; um `api()` único com 401 → `/?entrar=1&next=…` (copiar o padrão de `reloadPage` em `CityApp.vue`); `goToPanel(aba)`; saem `openWorkspace`, o diálogo, `setActivity`, a sondagem de 10 s e a atividade do `CityApp.vue`. Pronto quando: Missões lista tarefas, nenhum "8765" ou "offline" em `src/CityApp.vue`, os itens do menu chegam a `/app#/<aba>`.
 
 ### Etapa 3: catálogo e migração
+**Feita no código (branch `claude/etapa-3-catalogo-migracao`, PR aberto após a conferência):** `RETIRED_KINDS`/`withoutRetired` em `worker/city.js` (custo só no servidor); `DemoSession.migrateCatalog()` roda no construtor, regrava Ilha e cidades regionais, credita custo + melhorias uma vez (marca `migration:catalog-3`); padrão do objetivo virou `'tasks'`; 5 GLB e 5 PNG apagados; destinos são nome de aba. Testes: `tests/catalog-migration.test.mjs`. Falta conferir no navegador.
 Atenção: o #30 já tirou a Sede Fifones do Rio e de toda cidade piloto (`withoutHeadquarters`); o item "Sede Cityou" só vale para as cidades antigas.
 Destino de prédio vira nome de aba; Sede Cityou; saem IA (chatgpt, claude, gemini, grok) e StuntSync com custo numa tabela só do servidor; **migrar o estado guardado antes de qualquer ação** (peça de tipo desconhecido derruba `occupiedTiles`, `city-layout.js:142-147`), reembolso recalculado (custo + melhorias) uma vez, marca "já migrado"; trocar o padrão `'stunt'` de `CityApp.vue:92`; apagar os GLB. Testes: cidade guardada com `stunt` nível 3 carrega, credita o valor exato uma vez e aceita nova construção.
 

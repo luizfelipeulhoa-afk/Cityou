@@ -94,8 +94,8 @@ const historyOpen = ref(false)
 const missionTab = ref('tasks')
 const celebration = ref(null)
 let celebrationTimer = null
-let goalPreference = 'stunt'
-try { goalPreference = localStorage.getItem('fifones-city-building-goal') || 'stunt' } catch { /* Private browsing still works. */ }
+let goalPreference = 'tasks'
+try { goalPreference = localStorage.getItem('fifones-city-building-goal') || 'tasks' } catch { /* Private browsing still works. */ }
 const goalId = ref(goalPreference)
 const progress = computed(() => progression(state.value || {}, goalId.value))
 function setGoal(id) {
@@ -440,20 +440,19 @@ function onVisibility() {
 }
 function thumbnail(item) {
   if (item.preview) return item.preview
-  if (['road','tree','home','tasks','agenda','memory','projects','stunt','chatgpt','claude','gemini','grok'].includes(item.id)) return `/previews/${item.id}.png`
+  if (['road','tree','home','tasks','agenda','memory','projects'].includes(item.id)) return `/previews/${item.id}.png`
   const color = /^#[0-9a-f]{3,8}$/i.test(item.color) ? item.color : '#65aeb1'
   const kind = `${item.id} ${item.model}`.toLowerCase()
   let art
   if (/tree/.test(kind)) art = '<path d="M49 63v-22" stroke="#886c4c" stroke-width="4"/><path d="M49 12L30 43h11L26 55h46L57 43h11z" fill="#9bd66c"/><path d="M49 12v43h23L57 43h11z" fill="#67ba57"/>'
   else if (/road/.test(kind)) art = '<path d="M9 49L59 23l34 18-50 27z" fill="#78908b"/><path d="M22 49l50-26m-37 33l50-26" stroke="#e4ddba" stroke-width="1.5" stroke-dasharray="6 5"/>'
   else {
-    const tower = /chatgpt|claude|gemini|grok|projects/.test(kind)
+    const tower = /projects/.test(kind)
     const home = /home/.test(kind)
     const top = tower ? 12 : 28
     art = `<path d="M29 ${top + 12}l22-12 23 12v34L51 ${top + 58} 29 ${top + 46}z" fill="${color}"/><path d="M51 ${top}l23 12-23 13-22-13z" fill="#fff4d6"/><path d="M51 ${top + 25}l23-13v34L51 ${top + 58}z" fill="#203f43" opacity=".19"/><path d="M36 ${top + 23}v6m8-2v6m-8 1v6m8-2v6m15-17v6m8-10v6m-8 1v6m8-10v6" stroke="#fff7dc" stroke-width="3"/>`
     if (home) art += '<path d="M24 42l26-24 29 23-28 16z" fill="#dc795b"/><path d="M50 18l29 23-28 16z" fill="#b55e4a"/>'
     if (/tasks|agenda|memory/.test(kind)) art += `<path d="M38 ${top+9}l13-7 13 7-13 7z" fill="#e8aa50"/><path d="M44 ${top+8}l5 3 9-5" fill="none" stroke="#fff7dc" stroke-width="2"/>`
-    if (/stunt/.test(kind)) art += '<path d="M18 58l23-13 13 8-24 13z" fill="#e18b54"/><path d="M19 57l17-22 5 10z" fill="#efb672"/>'
   }
   return 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="100" height="88" viewBox="0 0 100 88"><ellipse cx="51" cy="73" rx="34" ry="8" fill="#183b3e" opacity=".09"/>${art}</svg>`)
 }
