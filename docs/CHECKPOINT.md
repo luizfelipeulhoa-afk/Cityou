@@ -1,15 +1,31 @@
 # Checkpoint: de onde continuar
 
-Atualizado em 13/11/2026. Para continuar em outra IA ou com outro dev: `node tools/handoff.mjs --full --out contexto.md` junta este arquivo, `docs/HANDOFF-CONTEXTO.md` e o plano num arquivo só. Leia antes o `CLAUDE.md` (regras obrigatórias) e `docs/PLANO-PROXIMOS-PASSOS.md`.
+Atualizado em 13/11/2026. Para continuar em outra IA ou com outro dev: `node tools/handoff.mjs --full --out contexto.md` junta este arquivo, `docs/HANDOFF-CONTEXTO.md`, o plano e os tropeços conhecidos num arquivo só. Leia antes o `CLAUDE.md` (regras obrigatórias), `docs/PLANO-PROXIMOS-PASSOS.md` e `docs/known-issues.md`.
+
+## Rumo ao MVP
+
+- **Objetivo:** entregar a primeira versão utilizável do Cityou, com painel pessoal e cidade 3D ligados aos dados do próprio app, sem depender do Fifones.
+- **O que falta:** integrar tarefas e Missões (etapa 2), migrar o catálogo e preservar as cidades salvas (3), tirar os atalhos e iframes legados do painel (4), ligar Agenda, Projetos e Peso aos dados reais (5) e concluir a segurança e o corte do legado (6). Ainda falta validar contas e latência na prévia e medir em celular físico. A tabela abaixo acompanha também a ambientação e a Fita do Tempo previstas no plano.
+- **Próximo passo:** executar a etapa 2. Está pronta quando Missões lista tarefas reais do Worker, o menu da cidade abre as abas corretas do painel e o redirecionamento por sessão expirada funciona sem repetir a requisição. Conferir esses fluxos na prévia ou em Worker local, com testes do Worker e de navegador.
+
+## Em andamento por branch
+
+Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, apague a linha. Em 13/11/2026 entraram nove PRs de três sessões no mesmo dia e um commit ficou fora da `main`: esta tabela existe para isso não se repetir.
+
+| Branch | O que está fazendo | Desde |
+|---|---|---|
+| (nenhum registrado) | A etapa 2 é a próxima e ainda não tem dono | 13/11/2026 |
 
 ## O que este PR entrega
+- **Organização e transferência (branch `claude/exciting-mayer-xf1pmj`):** regra de leitura obrigatória no topo do `CLAUDE.md`, gancho de início de sessão (`.claude/hooks/session-start.sh`), `AGENTS.md` para o Codex e outros agentes, agentes `builder` e `reviewer`, skill `reflect`, `docs/known-issues.md`, a revisão de contas, produto e lei em `council/` (com o que a PR #32 já resolveu) e a correção da tela de partida que ficava presa ao voltar do navegador no mapa (`src/WorldApp.vue`). Não muda rota, dado guardado nem regra do jogo.
+- **Integração pós-PR #28:** incorpora a `main` até o #31, com os 23 GLB do Rio, o Fifo, o calçadão e as ondas. Preserva as correções locais de contas, dependências e benchmarks, além do monumento da Ilha, da baía de reserva e das amostras originais do relevo.
 - **Plano v2** (`docs/PLANO-PROXIMOS-PASSOS.md`): sair do Fifones com conexões reais, Fita do Tempo (desfazer/refazer), 3D ambientado; feito por um conselho de especialistas e revisado por um crítico.
 - **Etapa 1, medição de base:** `Server-Timing` com o tempo do Durable Object (`do`), `tools/api-perf.mjs` (cookie, escrita, `--suite`), `tools/city-frame-bench.mjs` (`npm run perf:city`), tabela de base em `docs/WORLD-PERF.md`.
 - **Etapa 7a, prédio e terreno como uma coisa só:** `src/terrain/lighting.js` (luz e céu por região), `src/tres/lambert.js`, `src/tres/groundBlend.js` (o disco bege do Tripo vira grama), sombra de contato, sem shadow map nem `PointLight`; `tools/city-look.mjs` (fotos antes e depois). Números em `docs/WORLD-PERF.md`.
 - **Skills** (só `.md`, fixadas por commit): `council-review`, `owasp-security`, `threejs-lighting`, `threejs-materials`, `threejs-textures`, `threejs-postprocessing`.
 - **Contexto:** este arquivo, `docs/HANDOFF-CONTEXTO.md` e `tools/handoff.mjs`.
 
-Testes ao fechar o PR: `npm test` 67, `npm run test:worker` 30, `npm run test:terrain` ok, `npm run build` ok.
+Testes ao fechar o PR de organização (13/11/2026): `npm test` 74, `npm run test:worker` 36, `npm run build` ok. Não rodados nessa rodada: os testes de navegador (`test:terrain`, `test:world`) e o `pytest`.
 
 ## Decisões do dono (13/11/2026): todas aprovadas
 1. Reembolso de 100% das peças de IA e StuntSync retiradas (recalculado pelo servidor, uma vez).
@@ -30,7 +46,7 @@ Testes ao fechar o PR: `npm test` 67, `npm run test:worker` 30, `npm run test:te
 | 3 Catálogo e migração | Não começada |
 | 4 Painel sem iframe | Não começada |
 | 5 Agenda, Projetos e Peso reais | Não começada |
-| 6 Segurança e corte do legado | Não começada |
+| 6 Segurança e corte do legado | Correções de contas e dependências adiantadas. CSP, cabeçalho novo e corte do legado pendentes |
 | 7b Resto da ambientação | Não começada |
 | 8 Fita do Tempo e transições | Não começada |
 
@@ -52,6 +68,8 @@ Saem `openBridge` e `openDocument`; aba Conta; indicador Salvo/Salvando; Bibliot
 Tipos `event`, `project`, `weight` na tabela `records` do Durable Object; `GET /api/personal` traz tudo (uma leitura por tela); escritas devolvem o estado novo; 422 para campo extra; definir teto de registros por conta (hoje 100 por tipo, o peso diário trava em ~3 meses).
 
 ### Etapa 6: segurança e corte do legado
+Já adiantado: Vite 6.4 com dependências auditadas, adoção e isolamento do Durable Object, limite de corpo e reserva de tentativas de login, e esquema gerido por migrações. Antes de habilitar D1, siga [CONTAS](CONTAS.md) e valide um banco existente caso ele tenha sido inicializado pelo Worker antigo.
+
 CSP e cabeçalhos pelo Worker, primeiro em `Report-Only` (`connect-src` com `blob:` e `data:`; sem `'wasm-unsafe-eval'`); `X-Cityou-Request` aceito junto do antigo e, um deploy depois, só ele (`tools/pilot-*.mjs` enviam o antigo); apagar `backend/`, pytest e scripts Python; proxy do Vite na 8787; atualizar a seção "Backend" do `CLAUDE.md`. Use a skill `owasp-security`.
 
 ### Etapa 7b: resto da ambientação
@@ -60,9 +78,24 @@ Entrada animada dos prédios na carga inicial e terreno entrando com a névoa ab
 ### Etapa 8: Fita do Tempo e transições
 Desfazer/refazer com pilha estrita no servidor (só o topo, só se a revisão for a gravada depois, janela de 120 s, últimas 10 ações, reembolso integral, `action_id`); `ActionTape.vue`; cortina na cor do céu, pré-busca e View Transition progressiva; Voltar hierárquico (‹ Mapa, ‹ Painel); renome `src/fifones` → `src/city` por último, num PR só de `git mv`.
 
+### Itens sem dono no plano (revisão de 13/11/2026)
+A revisão em `council/COUNCIL_SINTESE.md` achou problemas que nenhuma etapa cobre. São propostas: quem decide é o dono.
+
+| Item | Etapa sugerida | Pronto quando |
+|---|---|---|
+| Sessão vencida dentro do quadro do painel abre a página de apresentação dentro do quadro; a página de apresentação trata falha de rede como "contas desligadas"; consulta de 30 s da cidade | 2 | Teste de navegador com sessão vencida no painel, na cidade e no mapa |
+| "Exportar meus dados" e "Apagar minha conta" na aba Conta; barra de moedas e nível lendo o `resumo`; etapa do prédio e comprovações no painel | 4 | Exportar devolve tudo; apagar remove o objeto e as sessões; com teste |
+| Dividir `worker/demo.js` por assunto, só movendo código; editar e apagar registro; `request_id` ao criar; janela de datas no servidor (`canMarkDay`) | 5 | Testes passam antes e depois da divisão; reenvio não duplica |
+| Limite por IP e cadastro com convite; renovação e limpeza de sessão; registro de cadastro, login, bloqueio e moedas de teste; custo do hash de senha medido numa prévia; API com 503 quando o banco cai; limite da foto de comprovação igual ao da regra | 6 | Testes e a medida em `docs/BENCHMARKS.md` |
+| Portão para abrir contas: D1 separado para a prévia, migrações aplicadas, fluxo de conta inteiro no navegador numa prévia, restauração ensaiada, privacidade, termos e idade revisados por advogado | 10 (nova) | Lista toda marcada |
+| Regras do jogo: meta com alvo 1 paga 25 moedas sem teto; moedas sem uso depois de cerca de um mês | decisão do dono | — |
+| Diagramas no draw.io (`docs/diagrams/`): roteiro, arquitetura, fluxos de conta, ameaças | a qualquer momento | Abrem no draw.io |
+
 ### Pendências soltas
+- **Botão Voltar em camadas e troca de mapa ilha/Rio** (pedido do responsável, feito no commit `2802b41` e nunca incorporado): o patch está em `docs/research/pendencias/2802b41-voltar-e-troca-de-mapa.patch`. Não foi reaplicado porque a etapa 8 desenha o Voltar hierárquico e a etapa 2 reescreve o menu da cidade. Só a correção da tela de partida presa entrou.
+- O desenho detalhado das correções de contas (um agente de arquitetura) não foi entregue: caiu por limite de uso.
 - **Base da prévia publicada** (etapa 1): `node tools/api-perf.mjs <url> --suite 50 --cookie '<sessão>'`; precisa de URL e cookie.
-- `tools/pilot-perf.mjs` provavelmente está quebrado (constrói `home` na ilha, proibido desde o PR 22).
+- `tools/pilot-perf.mjs` voltou a medir Ilha e Rio a partir de uma sessão nova, sem gravar construções ou viagens. Rodadas e próximos passos em [BENCHMARKS](BENCHMARKS.md).
 - **Não conferido visualmente depois da 7a:** a Ilha Inicial, o modo "Luz do anoitecer" (`setLighting('dusk')`, calibrado com ACES) e as outras cidades antigas. Só o Rio foi fotografado.
 - `sceneEnvironment.js` ainda tem 24 `castShadow`/`receiveShadow` sem efeito; `refreshShadows()` em `CityWorld.js` agora só marca a sombra de contato (nome herdado).
 - Peso medido só com renderização por software e Worker local; nada foi medido em celular de verdade.

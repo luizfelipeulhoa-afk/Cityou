@@ -12,7 +12,7 @@ try {
   await page.goto(`${base}/city.html`, {waitUntil:'networkidle'})
   await page.waitForFunction(() => window.__fifonesCity?.state?.catalog?.length)
   const catalog = await page.evaluate(() => window.__fifonesCity.state.catalog.filter(i => i.cost > 0))
-    .then(items => items.filter(i => i.id.startsWith(prefix) && (!prefix || i.model)))
+    .then(items => items.filter(i => i.id.startsWith(prefix) && (!prefix || i.model || i.preview)))
   fs.mkdirSync('public-fifones/previews', {recursive:true})
   for (const item of catalog) {
     await page.evaluate(item => {

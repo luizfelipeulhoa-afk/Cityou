@@ -1,8 +1,9 @@
 import { buildPlaceholder } from '../world/monuments.js'
 import { fitModel } from '../world/SpaceMarker.js'
 import * as THREE from 'three'
-import { getCityLayout, isPilotCity, tileKey } from '../../shared/game/city-layout.js'
+import { getCityLayout, HILL_STEP, isPilotCity, tileKey } from '../../shared/game/city-layout.js'
 import { createPilotBuilding } from './pilotArchitecture.js'
+import { createShoreFoam } from '../terrain/shoreFoam.js'
 
 const palette = {
   sandstone: 0xc7ad85, grass: 0x9dbc83, bright: 0xb0e34c, leaf: 0x92d343,
@@ -384,18 +385,7 @@ function pilotIsland(group, layout, shore, land) {
   }))
   sceneryTiles(group, 'Recife raso', reef)
 
-  // Espuma que vai e vem na beira da água.
-  const foam = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }), shore.length)
-  foam.name = 'Espuma da maré'
-  foam.userData.decorative = true
-  const item = new THREE.Object3D()
-  for (const [index, { position: [x, , z] }] of shore.entries()) {
-    item.position.set(x * 1.015, -0.455, z * 1.015)
-    item.scale.set(1.32, 0.012, 1.32)
-    item.updateMatrix()
-    foam.setMatrixAt(index, item.matrix)
-  }
-  group.add(foam)
+  // A espuma que vai e vem na beira da água é a de src/terrain/shoreFoam.js (createPilotEnvironment).
 
   // Golfinhos, tartarugas e gaivotas: o que dá vida ao mar.
   const bodyMat = material(0x6f8fa5), bellyMat = material(0xdfe8ea), shellMat = material(0x5f8a52), skinMat = material(0x9bb36f)
@@ -471,7 +461,6 @@ function pilotIsland(group, layout, shore, land) {
   }
   place(0, true)
   const animateIsland = (time, reducedMotion) => {
-    foam.material.opacity = reducedMotion ? 0.5 : 0.42 + Math.sin(time * 0.9) * 0.14
     if (reducedMotion) return
     for (let i = 0; i < boats.length; i++) boats[i].rotation.z = Math.sin(time * 0.7 + i) * 0.035
     place(time, false)
@@ -513,30 +502,7 @@ function pilotRio(group, layout) {
   const promenade = layout.waterTiles
     .filter(([x, y]) => !water.has(tileKey(x, y - 1)) && y - 1 >= layout.min)
     .map(([x, y]) => ({ x: x - layout.center, z: y - layout.center }))
-  const DEPTH = 0.62 // do lado da avenida; o resto do lote é areia
-  const vertices = [], uvs = [], indices = []
-  for (const { x, z } of promenade) {
-    const base = vertices.length / 3, near = z - 0.5, far = z - 0.5 + DEPTH
-    vertices.push(x - 0.5, 0.022, near, x + 0.5, 0.022, near, x + 0.5, 0.022, far, x - 0.5, 0.022, far)
-    uvs.push((x - 0.5) / 1.5, 1, (x + 0.5) / 1.5, 1, (x + 0.5) / 1.5, 0, (x - 0.5) / 1.5, 0)
-    indices.push(base, base + 2, base + 1, base, base + 3, base + 2)
-  }
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
-  geometry.setIndex(indices)
-  geometry.computeVertexNormals()
-  const texture = copacabanaTexture()
-  const walk = new THREE.Mesh(geometry, material(texture ? 0xffffff : 0xe9dfc8, { map: texture }))
-  walk.name = 'Calçadão de Copacabana'
-  walk.receiveShadow = true
-  walk.userData.decorative = true
-  group.add(walk)
-  // Meio-fio entre a avenida e o calçadão, e uma borda baixa do lado da areia.
-  sceneryTiles(group, 'Meio-fio da orla', promenade.flatMap(({ x, z }) => [
-    { position: [x, 0.035, z - 0.5 + 0.02], scale: [1, 0.05, 0.04], tint: 0xe8e1cf },
-    { position: [x, 0.03, z - 0.5 + DEPTH], scale: [1, 0.035, 0.03], tint: 0xcdbb94 },
-  ]))
+  // O calçadão agora é decoração do catálogo (`rio-calcadao`, promenadePiece), não faz mais parte do cenário.
   // Coqueiros na areia, a cada três lotes.
   for (const [index, { x, z }] of promenade.entries()) {
     if (index % 3 === 1) palm(group, x, z + 0.3, 0.72)
@@ -683,6 +649,8 @@ function pilotSlope(group, layout, slope, water) {
 // falhar ao carregar. CityWorld.loadTerrain chama isto no catch, nunca de saída (13/11/2026): construir isto para
 // jogar fora um instante depois, sempre que o terreno carrega, era o "rastro" que atrasava a abertura da cidade.
 export function buildRioFallback(group, layout) {
+  const sea = pilotWater(false)
+  group.add(sea)
   const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
   const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))
   const land = []
@@ -694,7 +662,7 @@ export function buildRioFallback(group, layout) {
   }
   const floor = pilotLand(group, land)
   const hillside = pilotSlope(group, layout, slope, water)
-  return [floor, ...hillside, ...pilotRio(group, layout)].filter(Boolean)
+  return [sea, floor, ...hillside, ...pilotRio(group, layout)].filter(Boolean)
 }
 
 function createPilotEnvironment(group, region, layout) {
@@ -710,6 +678,8 @@ function createPilotEnvironment(group, region, layout) {
       position: [0, 0.01, 0], scale: [layout.max - layout.min + 1, 0.02, layout.max - layout.min + 1], tint: 0x6fb377,
     }])
     const backdrop = [sea, placeholder].filter(Boolean)
+    // O morro da comunidade fica fora do `backdrop`: vale com o terreno real e com a reserva.
+    communityHill(group, layout)
     const landmarkY = slopeHeight(site.x, site.y, layout.min)
     const landmark = addLandmark(group, region, site.x - layout.center, landmarkY, site.y - layout.center)
     return { group, landmark, backdrop, tileColor: 0xe9f5d8, animate: () => {}, lamps: [], setDusk() {} }
@@ -738,9 +708,90 @@ function createPilotEnvironment(group, region, layout) {
   pilotSlope(group, layout, slope, water)
   sceneryTiles(group, 'Faixa de areia protegida', shore)
   const animate = pilotIsland(group, layout, shore, land)
+  const foam = createShoreFoam(islandShorePoints(layout, water), { opacity: 0.8 })
+  group.add(foam.mesh)
   const site = layout.landmarks[0]
   const landmark = addLandmark(group, region, site.x - layout.center, -0.42, site.y - layout.center)
-  return { group, landmark, backdrop: [], tileColor: 0xdad0a7, animate, lamps: [], setDusk(value) { animate.setDusk?.(value) } }
+  return { group, landmark, backdrop: [], foams: [foam], tileColor: 0xdad0a7, animate, lamps: [], setDusk(value) { animate.setDusk?.(value) } }
+}
+
+// Onde a faixa de areia da ilha (os tiles de água junto à terra) encontra o mar aberto: um ponto de espuma na borda
+// de fora de cada tile de areia, com a onda andando para dentro.
+function islandShorePoints(layout, water) {
+  const inside = (x, y) => x >= layout.min && x <= layout.max && y >= layout.min && y <= layout.max
+  const sides = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+  const sandy = (x, y) => water.has(tileKey(x, y)) && sides.some(([a, b]) => inside(x + a, y + b) && !water.has(tileKey(x + a, y + b)))
+  const points = []
+  for (const [x, y] of layout.waterTiles) {
+    if (!sandy(x, y)) continue
+    for (const [a, b] of sides) {
+      if (!inside(x + a, y + b) || sandy(x + a, y + b) || !water.has(tileKey(x + a, y + b))) continue
+      points.push({ x: x - layout.center + a * 0.62, y: -0.47, z: y - layout.center + b * 0.62, dx: -a, dz: -b })
+    }
+  }
+  return points
+}
+
+// O morro da comunidade: patamares de HILL_STEP de altura sobre o platô (o terreno deixa esses lotes planos, em
+// y = 0, no máscara de rio-cidade.js). Cada patamar é plano para o prédio assentar; onde o vizinho é mais baixo
+// sobe uma parede de arrimo. Uma malha só, com cor por vértice, faces planas.
+function communityHill(group, layout) {
+  if (!layout.hillTiles?.length) return null
+  const levelOf = new Map(layout.hillTiles.map(([x, y, level]) => [tileKey(x, y), level]))
+  const inside = (x, y) => x >= layout.min && x <= layout.max && y >= layout.min && y <= layout.max
+  const vertices = [], colors = []
+  const earth = new THREE.Color(0xb07a4f), grass = new THREE.Color(0x4e9f5d)
+  // Mais alto, mais terra à mostra: o morro vai da mata para a terra batida.
+  const tops = [1, 2, 3].map(level => grass.clone().lerp(earth, 0.28 + level * 0.12))
+  const wall = earth.clone().lerp(new THREE.Color(0xa9a9b8), 0.3)
+  const color = new THREE.Color()
+  const push = (point, rgb, tone) => { vertices.push(point[0], point[1], point[2]); colors.push(rgb.r * tone, rgb.g * tone, rgb.b * tone) }
+  for (const [tx, ty, level] of layout.hillTiles) {
+    const x = tx - layout.center, z = ty - layout.center, top = level * HILL_STEP
+    const tone = 1 + ((Math.abs(tx * 13 + ty * 7) % 5) - 2) * 0.03
+    const corners = [[x - 0.5, top, z - 0.5], [x - 0.5, top, z + 0.5], [x + 0.5, top, z + 0.5], [x + 0.5, top, z - 0.5]]
+    for (const index of [0, 1, 2, 0, 2, 3]) push(corners[index], tops[level - 1], tone)
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = tx + dx, ny = ty + dz
+      // Fora da grade o chão também é o platô (y = 0): a parede desce até ele, para o morro não ser uma folha oca.
+      const base = (inside(nx, ny) ? levelOf.get(tileKey(nx, ny)) ?? 0 : 0) * HILL_STEP
+      if (base >= top) continue
+      // A parede fica na borda do tile, do alto do patamar até o chão do vizinho.
+      const a = dx ? [x + dx * 0.5, z - 0.5] : [x - 0.5, z + dz * 0.5]
+      const b = dx ? [x + dx * 0.5, z + 0.5] : [x + 0.5, z + dz * 0.5]
+      const shade = (point, height) => push([point[0], height, point[1]], wall, height === top ? 1 : 0.8)
+      for (const [point, height] of [[a, top], [b, top], [b, base], [a, top], [b, base], [a, base]]) shade(point, height)
+    }
+  }
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+  geometry.computeVertexNormals()
+  const mesh = new THREE.Mesh(geometry, material(0xffffff, { vertexColors: true, flatShading: true, side: THREE.DoubleSide }))
+  mesh.name = 'Morro da comunidade (patamares)'
+  mesh.userData.decorative = true
+  group.add(mesh)
+  return mesh
+}
+
+// Módulo de 2 × 2 do calçadão de Copacabana (decoração do catálogo, `rio-calcadao`): o desenho de ondas pretas e
+// brancas em coordenadas do mundo, para vários módulos lado a lado seguirem como uma calçada só.
+let promenadeTexture
+function promenadePiece(placement) {
+  const group = new THREE.Group()
+  promenadeTexture ??= copacabanaTexture()
+  if (promenadeTexture) promenadeTexture.wrapT = THREE.RepeatWrapping
+  const px = placement?.x ?? 0, py = placement?.y ?? 0
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute([-1, 0.03, -1, 1, 0.03, -1, 1, 0.03, 1, -1, 0.03, 1], 3))
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute([px / 1.5, py, (px + 2) / 1.5, py, (px + 2) / 1.5, py + 2, px / 1.5, py + 2], 2))
+  geometry.setIndex([0, 2, 1, 0, 3, 2])
+  geometry.computeVertexNormals()
+  const mesh = new THREE.Mesh(geometry, material(promenadeTexture ? 0xffffff : 0xe9dfc8, { map: promenadeTexture }))
+  mesh.name = 'Calçadão de Copacabana'
+  group.add(mesh)
+  group.userData.height = 0.06
+  return group
 }
 
 export function createEnvironment(scene, region) {
@@ -1039,6 +1090,7 @@ function createTownBuilding(kind, definition) {
 }
 
 export function createCoreBuilding(kind, definition = {}, placement = null) {
+  if (kind === 'rio-calcadao') return promenadePiece(placement)
   if (typeof kind === 'string' && kind.startsWith('dom-')) return createDomainBuilding(definition, placement?.etapa)
   if (Object.hasOwn(TOWN_PROFILES, kind)) return createTownBuilding(kind, definition)
   const pilotBuilding = createPilotBuilding(kind, definition)

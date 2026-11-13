@@ -19,23 +19,15 @@ try {
       const context = await browser.newContext(devices['Pixel 7'])
       const page = await context.newPage()
       try {
-        // The baseline needs an existing trip. Keep the city itself at its seed state.
-        await page.goto(new URL('/world.html', base).href, { waitUntil: 'domcontentloaded' })
-        if (region !== 'ilha-inicial') {
-          const origin = base.origin
-          const headers = { Origin: origin, 'X-Fifones-City': '1' }
-          const progress = await (await context.request.get(new URL('/api/world/progress', base).href)).json()
-          if (!progress.desbloqueados?.includes(region)) {
-            const home = await (await context.request.get(new URL('/api/city', base).href)).json()
-            const build = await context.request.post(new URL('/api/city/actions', base).href, {
-              headers, data: { type: 'build', kind: 'home', x: 7, y: 7, expected_revision: home.revision, request_id: crypto.randomUUID() },
-            })
-            if (!build.ok()) throw new Error(await build.text())
-            const travel = await context.request.post(new URL('/api/world/travel', base).href, {
-              headers, data: { local: region, request_id: crypto.randomUUID() },
-            })
-            if (!travel.ok()) throw new Error(await travel.text())
-          }
+        // Recebe o cookie sem renderizar o globo antes de medir a cidade.
+        const landing = await context.request.get(new URL('/', base).href)
+        if (!landing.ok()) throw new Error(`GET /: ${landing.status()}`)
+        const progressResponse = await context.request.get(new URL('/api/world/progress', base).href)
+        if (!progressResponse.ok()) throw new Error(`GET /api/world/progress: ${progressResponse.status()}`)
+        const progress = await progressResponse.json()
+        if (progress.test_mode !== true) throw new Error('Use um Worker isolado em modo de teste.')
+        if (!progress.desbloqueados?.includes(region)) {
+          throw new Error(`O destino ${region} não está aberto. Use uma sessão nova do Worker em modo de teste.`)
         }
 
         const session = await context.newCDPSession(page)

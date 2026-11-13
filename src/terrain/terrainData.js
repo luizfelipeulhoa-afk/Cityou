@@ -27,6 +27,8 @@ const DEFAULTS = {
     nearLeg: 2, nearRange: 24, legGrowth: 0.1, maxLeg: 32, // maior cateto permitido: nearLeg perto, crescendo com a distância
   },
   vegetation: { seed: 7, treeRange: 150, treeDensity: 0.16, palmRange: 70, palmDensity: 0.1, decorativePalms: 0.3 },
+  // Faixa de areia do relevo real: até `range` metros da água e abaixo de `elevation` metros de altitude.
+  beach: { range: 130, elevation: 9 },
   seaMargin: 1200, // quanto o mar continua além da grade de alturas, em unidades
 }
 
@@ -72,6 +74,7 @@ export function createTerrainData(region, values) {
   const plateau = { ...DEFAULTS.plateau, ...region.plateau }
   const detail = { ...DEFAULTS.detail, ...region.detail }
   const vegetation = { ...DEFAULTS.vegetation, ...region.vegetation }
+  const beach = { ...DEFAULTS.beach, ...region.beach }
   const seaMargin = region.seaMargin ?? DEFAULTS.seaMargin
   const { size, spacing, center, metersPerValue } = region.heightmap
   if (values.length !== size * size) throw new Error(`O mapa de alturas tem ${values.length} amostras; a região pede ${size} × ${size}.`)
@@ -104,6 +107,7 @@ export function createTerrainData(region, values) {
   // Mais barato que só apertar `detail.maxTriangles`: tira de vez a praia e os morros reais distantes que a câmera e a
   // névoa da cidade (CityWorld, src/terrain/lighting.js) nunca mostravam mesmo, e corta os triângulos de lá também.
   if (region.crop) {
+    values = values.slice()
     const { x: cropX, z: cropZ, radius, blend: cropBlend = 14 } = region.crop
     for (let j = 0; j < size; j++) {
       const wz = originZ + j * spacing
@@ -241,7 +245,7 @@ export function createTerrainData(region, values) {
       const elevation = ((ay + by + cy) / 3 - seaY) / unitsPerMeter
       const fromWater = Math.min(shore[a], shore[b], shore[c]) * cellMeters
       if (slope >= 40 || (elevation >= 520 && slope >= 24)) { paint(rockBands[elevation >= 430 ? 1 : 0], jitter); stats.rock++ }
-      else if (fromWater <= 130 && elevation <= 9) { // a faixa da praia; costão alto junto ao mar não entra, pela altitude
+      else if (fromWater <= beach.range && elevation <= beach.elevation) { // a faixa da praia; costão alto junto ao mar não entra, pela altitude
         paint(P.sand, jitter)
         if (distance < vegetation.palmRange && random() < area * vegetation.palmDensity) plant(palms, ax, ay, az, bx, by, bz, cx, cy, cz, 0.85 + random() * 0.35)
         stats.sand++

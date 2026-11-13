@@ -29,6 +29,8 @@ fornecidos pelo responsável do projeto (exportados do Tripo) e reduzidos aqui; 
 | `rio-arvore-mangueira` | Mangueira | 1 × 1 | 12 | 3.000 |
 | `rio-comunidade` | Comunidade do morro | 3 × 3 | 45 | 6.000 |
 
+O calçadão de Copacabana (`rio-calcadao`, 2 × 2, 4 moedas) também está no catálogo, mas é decoração sem modelo GLB (desenhada em código; miniatura em `previews/rio-calcadao.png`). Casas, comércio de rua, igrejinha, comunidade e árvores têm `hill: true` e podem ir no morro da comunidade; árvores e calçadão têm `decoration: true` e não pedem rua (detalhes em `docs/TERRAIN.md`).
+
 Os seis últimos (polícia, bombeiro, coqueiro, flamboyant, mangueira e comunidade do morro) vieram prontos em
 13/11/2026, a partir dos prompts de `docs/PROMPTS-CIDADE.md`; o Maracanã (`rio-maracana`, 6 × 6) e o shopping
 center (`rio-shopping`, 5 × 5) do mesmo guia ainda não têm GLB.

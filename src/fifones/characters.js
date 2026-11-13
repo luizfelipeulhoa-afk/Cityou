@@ -1,12 +1,14 @@
 // Personagens ambiente da cidade: só visual, sem estado no servidor (a pessoa não constrói nem move ninguém).
-// Um por região, carregado como qualquer GLB do catálogo (faces planas, sem sombra projetada). Coordenadas no
-// sistema da cidade (tile − CENTER, como em CityWorld), altura em unidades do jogo (height do catálogo é análogo).
+// Cada um anda num caminho fixo, ida e volta, em tiles da cidade (como as placements: cena = tile − CENTER).
+// `height` em unidades do jogo: uma pessoa é bem menor que o menor prédio (os carrinhos têm cerca de 1).
 // Prompts e propostas de personagens: docs/PROMPTS-PERSONAGENS.md.
 export const CHARACTERS = {
   'cristo-redentor': [
-    // Fifo, o primeiro personagem do Cityou: na faixa de areia perto do calçadão (por isso a bermuda de banho),
-    // de frente para a grade. Modelo fornecido pelo responsável do projeto, textura recomprimida (sem mapa de
-    // normais: a cidade usa faces planas e não o lê).
-    { id: 'fifo', name: 'Fifo', model: '/models/characters/fifo.glb', x: 11, z: 15, rotation: 2.6, height: 1.3 },
+    // Fifo, o primeiro personagem do Cityou: sai da praça, desce a rua até a avenida da praia e passeia pelo
+    // calçadão de Copacabana. Modelo fornecido pelo responsável do projeto, sem rig: o passo é um balanço leve.
+    {
+      id: 'fifo', name: 'Fifo', model: '/models/characters/fifo.glb', height: 0.42, speed: 0.55,
+      path: [[6.6, 9.4], [10.4, 9.4], [10.4, 19.4], [13.5, 19.4], [13.5, 22.5], [19.4, 22.5]],
+    },
   ],
 }

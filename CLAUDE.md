@@ -2,13 +2,38 @@
 
 Organização pessoal gamificada. O repositório tem a página de apresentação, três páginas Vite do app e um backend FastAPI local.
 
+## Antes de qualquer trabalho (obrigatório)
+
+Vale para qualquer agente e qualquer pedido sobre este projeto ou o app, por menor que seja:
+
+1. Leia este arquivo inteiro, na versão da `main` (`git fetch origin main && git show origin/main:CLAUDE.md`). O arquivo carregado na sessão é o do seu branch, que pode estar atrás.
+2. Leia `docs/CHECKPOINT.md` (onde estamos, decisões do dono e próximo passo), `docs/PLANO-PROXIMOS-PASSOS.md` (o plano) e `docs/known-issues.md` (tropeços conhecidos e como contornar).
+3. Só então planeje ou edite. Se o pedido contrariar uma decisão registrada, avise antes de fazer. Ao começar uma etapa, anote o seu branch em "Em andamento por branch" no checkpoint.
+
+O gancho `.claude/hooks/session-start.sh` (registrado em `.claude/settings.json`) repete este aviso no começo de cada sessão, diz quando o `CLAUDE.md` do branch difere do da `main` e, nas sessões na nuvem, instala as dependências do npm quando o `package-lock.json` muda. Outros agentes (Codex e afins) chegam aqui pelo `AGENTS.md`.
+
+## Como trabalhamos: orquestrador e executores
+
+- A sessão principal é o orquestrador: planeja, escreve os pedidos e confere os resultados. Trabalho em volume vai para um executor quando ele dá conta.
+- Executores são os subagentes de `.claude/agents/`: `builder` (escreve código a partir de um pedido fechado) e `reviewer` (lê um diff contra o pedido), os dois em Haiku. Todo pedido traz objetivo, arquivos a ler e uma linha "Pronto quando:" com um comando ou algo que dá para ver.
+- Antes de aceitar o resultado de um executor, o orquestrador roda a conferência ele mesmo. Falhou: devolve com a falha. Relatório de executor não é repassado sem conferir.
+- Ficam com o orquestrador, não vão para um executor em Haiku: `worker/auth.js`, sessão, limites de abuso, regras de moedas (`shared/game/rules.js`) e decisões de arquitetura.
+- Custo medido em 13/11/2026 (uma rodada por caso; `docs/research/2026-11-13-revisao-mvp.md`, seção 7): a mesma revisão em Haiku achou 76% dos achados válidos contra 79% em Opus, por 86% a 97% menos pela tabela de preços, mas errou a ordem de prioridade. Três especialistas em Opus com a sessão principal no esforço máximo estouraram o limite de uso de 5 horas. Por isso revisão ampla (`council-review`, `council-especialistas`) roda em Haiku e com poucos conselheiros, e o modelo forte fica para contas, sessão e a síntese.
+- Fim de sessão: skill `reflect` (atualiza `docs/CHECKPOINT.md`, registra tropeços em `docs/known-issues.md` e propõe ajustes de skill com a evidência; só aplica com o OK do responsável).
+- Revisão de contas, produto e lei de 13/11/2026, com o que já foi resolvido: `council/COUNCIL_SINTESE.md`.
+
 ## Regra de trabalho: mantenha este arquivo em dia
 
 Vários Claude trabalham neste repositório em branches e sessões diferentes, e este arquivo é o que um novo lê primeiro. Toda mudança que outro Claude precisa saber (arquivo ou módulo novo, comando novo, regra de desempenho, convenção, rota, decisão fechada) entra aqui **no mesmo commit** da mudança, na seção do assunto, em poucas linhas. Antes de começar, leia a versão do `main` e leia o `git log` do que mudou desde o seu branch, para não desfazer o trabalho de outro. Se o assunto já tem guia em `docs/`, aqui vai só o resumo e o caminho do guia.
 
+O objetivo final é entregar o **MVP do Cityou**. Ao fechar cada rodada, atualize [docs/CHECKPOINT.md](docs/CHECKPOINT.md) e informe na entrega o que avançou, o que foi verificado, **o que ainda falta para o MVP** e **qual é o próximo passo**, com um critério de pronto verificável. Identifique bloqueios e decisões pendentes quando afetarem esse passo. O checkpoint registra a ordem atual e o plano detalha as etapas.
+
 ## Stack e comandos
 
-- Vue 3 (`<script setup>`), Three.js **0.172.0 fixado**, GSAP 3.12, Vite 5. Backend: FastAPI 0.141.1 + SQLite.
+- Histórico de benchmarks de API, terreno, cidade e globo, com comandos e próximas medições: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+- Pós-PR #28: monumentos com GLB carregam também na Ilha Inicial. A reserva do Rio recria a Baía quando o terreno real falha, e o recorte do terreno preserva as amostras de origem.
+
+- Vue 3 (`<script setup>`), Three.js **0.172.0 fixado**, GSAP 3.12, Vite 6.4. Backend: FastAPI 0.141.1 + SQLite.
 - `@tresjs/core` **5.10.1 fixado** (3D declarativo, em migração; ver a seção "3D declarativo").
 - `npm run dev` (porta 5177, encaminha `/api` para 8766), `npm run build` (o build principal e, em seguida, o da página de teste do terreno), `npm test` (node:test), `npm run test:map`, `npm run test:tres` (laboratório do TresJS no navegador), `npm run test:terrain` (página de teste do terreno no navegador).
 - Backend: `python -m backend` (porta 8766). Testes: `pytest tests -q` com `backend/requirements-dev.txt`.
@@ -115,9 +140,13 @@ rua até a avenida da praia e passeia pelo calçadão. Modelo em `public-fifones
 
 ## Contas e página de apresentação
 
-Guia: `docs/CONTAS.md`. Resumo: `worker/auth.js` faz cadastro, entrada e saída (cookie `cityou_session`, PBKDF2, tabelas do D1 criadas pelo próprio Worker). A conta não copia dados: `users.data_key` é o nome do Durable Object `DemoSession` da pessoa, adotado da demonstração no cadastro; objeto de conta não vence. Com o D1 ligado, `/app`, `/city` e `/world` pedem login (`pageGate` em `worker/index.js`) e `/` leva quem já entrou ao app; sem o D1 (produção hoje, até pôr o `database_id` em `wrangler.jsonc`), tudo segue como demonstração e a página diz "Abrir a demonstração". Página nova do app entra em `APP_PAGES` e em `run_worker_first`. Links para o painel usam `/app#/...`; os `/#/...` do catálogo ainda são do Fifones: a cidade os traduz para a aba do painel (`panelTabOf` em `src/CityApp.vue`) até a etapa 3 trocar o catálogo por nomes de aba. **Login obrigatório:** `REQUIRE_LOGIN="true"` em `wrangler.jsonc` (produção e prévia) faz toda rota de dados da API responder 401 sem sessão, além das páginas, mas só vale com o D1 ligado; sem `database_id` nada muda (a demonstração continua). Teste com `wrangler.test-login.jsonc`. Falta: esqueci a senha (precisa de e-mail com domínio).
+Guia: `docs/CONTAS.md`. `worker/auth.js` faz cadastro, entrada e saída (cookie `cityou_session`, PBKDF2). Aplique `migrations/` antes de habilitar o D1. `users.data_key` identifica o Durable Object da conta. O cadastro confirma a adoção e troca o cookie da demonstração, e o objeto confere o proprietário e preserva os dados no alarme. Cadastro e login limitam o corpo a 4.000 bytes; o login reserva tentativas atomicamente.
+
+Com D1 ligado, `/app`, `/city` e `/world` pedem login (`pageGate` em `worker/index.js`) e `/` leva quem já entrou ao app. Sem D1 (configuração versionada de produção), a demonstração continua. Página nova do app entra em `APP_PAGES` e em `run_worker_first`. Links para o painel usam `/app#/...`; os `/#/...` do catálogo ainda são do Fifones: a cidade os traduz para a aba do painel (`panelTabOf` em `src/CityApp.vue`) até a etapa 3 trocar o catálogo por nomes de aba. **Login obrigatório:** `REQUIRE_LOGIN="true"` com D1 faz a API de dados responder 401 sem sessão. Teste com `wrangler.test-login.jsonc`. Falta: esqueci a senha (precisa de e-mail com domínio).
 
 ## Backend
+
+- Entrada Python local, configuração e testes: [docs/main.py.md](docs/main.py.md).
 
 - `backend/app.py` (`create_app`) só aceita acesso local; toda escrita exige o cabeçalho `X-Fifones-City: 1`.
 - Módulos novos seguem `backend/personal.py`: `register(application, root, clock)` com SQLite próprio em `data/`.
@@ -164,6 +193,8 @@ Procedência e revisão em `.claude/skills/SOURCES.md`. Use por assunto:
 - Prompts para outras ferramentas de IA (Tripo, por exemplo): `prompt-master`.
 - Procurar skills novas: `find-skills` (usa `npx skills find`, que precisa de acesso a `skills.sh`; na sessão de nuvem o proxy bloqueia e a busca volta vazia: use a pesquisa do GitHub e `git clone`).
 - Segurança (sessão, cabeçalhos, CSP): `owasp-security`. Decisão de risco ou revisão de plano e PR por um conselho de conselheiros: `council-review` (11 a 14 subagentes por rodada).
+- Fim de sessão: `reflect` (própria deste repositório; ver "Como trabalhamos").
+- Do responsável, copiadas da conta dele em 13/11/2026: `council-especialistas` (conselho próprio; 3 a 4 especialistas quando o escopo é estreito), `ponytail` (a solução mais simples que funciona, sem cortar validação, erro, segurança ou acessibilidade), `behavior-design-etico` e `gamificacao-saude-etica` (recompensas, engajamento e economia sem dark patterns nem punição), `project-timeline-synthesizer` (linha do tempo do projeto) e `test-suite-generator` (só Python com pytest: serve ao `backend/`, que sai na etapa 6).
 
 As skills de design da nextlevelbuilder vieram só com os `.md`: os scripts de busca e os CSVs citados nelas não estão no repositório, então use-as como referência. A `design` cita chaves de API externas: não configure nenhuma sem pedido.
 

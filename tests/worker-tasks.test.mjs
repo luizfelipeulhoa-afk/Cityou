@@ -2,6 +2,8 @@
 // nada de `connected`/`source` (o Fifones). Rode com: npm run test:worker
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { createTestHarness } from 'wrangler'
 import { sessionCookie } from '../worker/demo.js'
 
@@ -9,7 +11,18 @@ const ORIGIN = 'https://cityou.test'
 const harness = createTestHarness({ workers: [{ configPath: 'wrangler.test.jsonc' }] })
 const loginHarness = createTestHarness({ workers: [{ configPath: 'wrangler.test-login.jsonc' }] })
 
-before(async () => { await Promise.all([harness.listen(), loginHarness.listen()]) })
+// Desde a #32 o esquema do D1 vem só de migrations/ (o Worker não cria mais as tabelas): aplicar antes dos testes.
+async function applyMigrations(db) {
+  for (const file of readdirSync('migrations').filter(name => name.endsWith('.sql')).sort()) {
+    const sql = readFileSync(join('migrations', file), 'utf8').replace(/^\s*--.*$/gm, '')
+    await db.batch(sql.split(';').map(part => part.trim()).filter(Boolean).map(statement => db.prepare(statement)))
+  }
+}
+
+before(async () => {
+  await Promise.all([harness.listen(), loginHarness.listen()])
+  for (const target of [harness, loginHarness]) await applyMigrations((await target.getWorker().getEnv()).DB)
+})
 after(async () => { await Promise.all([harness.close(), loginHarness.close()]) })
 
 function session(target = harness) {

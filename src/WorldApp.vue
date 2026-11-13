@@ -65,8 +65,15 @@ watch(progress, p => {
   sync?.push()
 }, { deep: true })
 const onPageHide = () => sync?.flushOnExit()
-onMounted(() => { void loadMap(); window.addEventListener('pagehide', onPageHide) })
-onBeforeUnmount(() => { window.removeEventListener('pagehide', onPageHide); sync?.stop(); clearTimeout(departureTimer) })
+// Ao voltar do navegador, a página pode voltar do cache com a tela de partida (azul) ainda ligada.
+function onPageShow(event) {
+  if (!event.persisted) return
+  clearTimeout(departureTimer)
+  arrival.value = null
+  visiting.value = false
+}
+onMounted(() => { void loadMap(); window.addEventListener('pagehide', onPageHide); window.addEventListener('pageshow', onPageShow) })
+onBeforeUnmount(() => { window.removeEventListener('pagehide', onPageHide); window.removeEventListener('pageshow', onPageShow); sync?.stop(); clearTimeout(departureTimer) })
 
 const spaces = computed(() => applyProgress(WORLD_SPACES, progress.value))
 const done = computed(() => spaces.value.filter(s => s.concluido).length)
