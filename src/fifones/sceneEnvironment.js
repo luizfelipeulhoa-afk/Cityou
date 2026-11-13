@@ -3,6 +3,7 @@ import { fitModel } from '../world/SpaceMarker.js'
 import * as THREE from 'three'
 import { getCityLayout, isPilotCity, tileKey } from '../../shared/game/city-layout.js'
 import { createPilotBuilding } from './pilotArchitecture.js'
+import { createShoreFoam } from '../terrain/shoreFoam.js'
 
 const palette = {
   sandstone: 0xc7ad85, grass: 0x9dbc83, bright: 0xb0e34c, leaf: 0x92d343,
@@ -384,18 +385,7 @@ function pilotIsland(group, layout, shore, land) {
   }))
   sceneryTiles(group, 'Recife raso', reef)
 
-  // Espuma que vai e vem na beira da água.
-  const foam = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }), shore.length)
-  foam.name = 'Espuma da maré'
-  foam.userData.decorative = true
-  const item = new THREE.Object3D()
-  for (const [index, { position: [x, , z] }] of shore.entries()) {
-    item.position.set(x * 1.015, -0.455, z * 1.015)
-    item.scale.set(1.32, 0.012, 1.32)
-    item.updateMatrix()
-    foam.setMatrixAt(index, item.matrix)
-  }
-  group.add(foam)
+  // A espuma que vai e vem na beira da água é a de src/terrain/shoreFoam.js (createPilotEnvironment).
 
   // Golfinhos, tartarugas e gaivotas: o que dá vida ao mar.
   const bodyMat = material(0x6f8fa5), bellyMat = material(0xdfe8ea), shellMat = material(0x5f8a52), skinMat = material(0x9bb36f)
@@ -471,7 +461,6 @@ function pilotIsland(group, layout, shore, land) {
   }
   place(0, true)
   const animateIsland = (time, reducedMotion) => {
-    foam.material.opacity = reducedMotion ? 0.5 : 0.42 + Math.sin(time * 0.9) * 0.14
     if (reducedMotion) return
     for (let i = 0; i < boats.length; i++) boats[i].rotation.z = Math.sin(time * 0.7 + i) * 0.035
     place(time, false)
@@ -513,31 +502,8 @@ function pilotRio(group, layout) {
   const promenade = layout.waterTiles
     .filter(([x, y]) => !water.has(tileKey(x, y - 1)) && y - 1 >= layout.min)
     .map(([x, y]) => ({ x: x - layout.center, z: y - layout.center }))
-  const DEPTH = 0.62 // do lado da avenida; o resto do lote é areia
-  const vertices = [], uvs = [], indices = []
-  for (const { x, z } of promenade) {
-    const base = vertices.length / 3, near = z - 0.5, far = z - 0.5 + DEPTH
-    vertices.push(x - 0.5, 0.022, near, x + 0.5, 0.022, near, x + 0.5, 0.022, far, x - 0.5, 0.022, far)
-    uvs.push((x - 0.5) / 1.5, 1, (x + 0.5) / 1.5, 1, (x + 0.5) / 1.5, 0, (x - 0.5) / 1.5, 0)
-    indices.push(base, base + 2, base + 1, base, base + 3, base + 2)
-  }
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
-  geometry.setIndex(indices)
-  geometry.computeVertexNormals()
-  const texture = copacabanaTexture()
-  const walk = new THREE.Mesh(geometry, material(texture ? 0xffffff : 0xe9dfc8, { map: texture }))
-  walk.name = 'Calçadão de Copacabana'
-  walk.receiveShadow = true
-  walk.userData.decorative = true
-  group.add(walk)
-  // Meio-fio entre a avenida e o calçadão, e uma borda baixa do lado da areia.
-  sceneryTiles(group, 'Meio-fio da orla', promenade.flatMap(({ x, z }) => [
-    { position: [x, 0.035, z - 0.5 + 0.02], scale: [1, 0.05, 0.04], tint: 0xe8e1cf },
-    { position: [x, 0.03, z - 0.5 + DEPTH], scale: [1, 0.035, 0.03], tint: 0xcdbb94 },
-  ]))
-  // Coqueiros na areia, a cada três lotes.
+  // O calçadão em si (copacabanaPromenade) é desenhado sempre, com ou sem o terreno real. Coqueiros na areia, a cada
+  // três lotes.
   for (const [index, { x, z }] of promenade.entries()) {
     if (index % 3 === 1) palm(group, x, z + 0.3, 0.72)
   }
@@ -710,6 +676,8 @@ function createPilotEnvironment(group, region, layout) {
       position: [0, 0.01, 0], scale: [layout.max - layout.min + 1, 0.02, layout.max - layout.min + 1], tint: 0x6fb377,
     }])
     const backdrop = [sea, placeholder].filter(Boolean)
+    // O calçadão fica fora do `backdrop`: vale com o terreno real e com a reserva.
+    copacabanaPromenade(group, layout)
     const landmarkY = slopeHeight(site.x, site.y, layout.min)
     const landmark = addLandmark(group, region, site.x - layout.center, landmarkY, site.y - layout.center)
     return { group, landmark, backdrop, tileColor: 0xe9f5d8, animate: () => {}, lamps: [], setDusk() {} }
@@ -738,9 +706,56 @@ function createPilotEnvironment(group, region, layout) {
   pilotSlope(group, layout, slope, water)
   sceneryTiles(group, 'Faixa de areia protegida', shore)
   const animate = pilotIsland(group, layout, shore, land)
+  const foam = createShoreFoam(islandShorePoints(layout, water), { opacity: 0.8 })
+  group.add(foam.mesh)
   const site = layout.landmarks[0]
   const landmark = addLandmark(group, region, site.x - layout.center, -0.42, site.y - layout.center)
-  return { group, landmark, backdrop: [], tileColor: 0xdad0a7, animate, lamps: [], setDusk(value) { animate.setDusk?.(value) } }
+  return { group, landmark, backdrop: [], foams: [foam], tileColor: 0xdad0a7, animate, lamps: [], setDusk(value) { animate.setDusk?.(value) } }
+}
+
+// Onde a faixa de areia da ilha (os tiles de água junto à terra) encontra o mar aberto: um ponto de espuma na borda
+// de fora de cada tile de areia, com a onda andando para dentro.
+function islandShorePoints(layout, water) {
+  const inside = (x, y) => x >= layout.min && x <= layout.max && y >= layout.min && y <= layout.max
+  const sides = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+  const sandy = (x, y) => water.has(tileKey(x, y)) && sides.some(([a, b]) => inside(x + a, y + b) && !water.has(tileKey(x + a, y + b)))
+  const points = []
+  for (const [x, y] of layout.waterTiles) {
+    if (!sandy(x, y)) continue
+    for (const [a, b] of sides) {
+      if (!inside(x + a, y + b) || sandy(x + a, y + b) || !water.has(tileKey(x + a, y + b))) continue
+      points.push({ x: x - layout.center + a * 0.62, y: -0.47, z: y - layout.center + b * 0.62, dx: -a, dz: -b })
+    }
+  }
+  return points
+}
+
+// Calçadão de Copacabana: as duas primeiras fileiras de água de cada coluna, junto à terra (a frente dos prédios
+// da orla), com o desenho de ondas pretas e brancas. No terreno real essas fileiras são planas (`d` em
+// src/terrain/regions/rio-cidade.js); o resto da faixa é areia.
+function copacabanaPromenade(group, layout) {
+  const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
+  const tiles = layout.waterTiles.filter(([x, y]) => !water.has(tileKey(x, y - 1)) || !water.has(tileKey(x, y - 2)))
+  const vertices = [], uvs = [], indices = []
+  for (const [tx, ty] of tiles) {
+    const x = tx - layout.center, z = ty - layout.center, base = vertices.length / 3
+    vertices.push(x - 0.5, 0.025, z - 0.5, x + 0.5, 0.025, z - 0.5, x + 0.5, 0.025, z + 0.5, x - 0.5, 0.025, z + 0.5)
+    // Textura no espaço do mundo: as ondas seguem contínuas de um tile ao outro, paralelas ao mar.
+    uvs.push((x - 0.5) / 1.5, z - 0.5, (x + 0.5) / 1.5, z - 0.5, (x + 0.5) / 1.5, z + 0.5, (x - 0.5) / 1.5, z + 0.5)
+    indices.push(base, base + 2, base + 1, base, base + 3, base + 2)
+  }
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+  geometry.setIndex(indices)
+  geometry.computeVertexNormals()
+  const texture = copacabanaTexture()
+  if (texture) texture.wrapT = THREE.RepeatWrapping
+  const walk = new THREE.Mesh(geometry, material(texture ? 0xffffff : 0xe9dfc8, { map: texture }))
+  walk.name = 'Calçadão de Copacabana'
+  walk.userData.decorative = true
+  group.add(walk)
+  return walk
 }
 
 export function createEnvironment(scene, region) {

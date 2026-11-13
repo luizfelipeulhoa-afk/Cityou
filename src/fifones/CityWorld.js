@@ -154,6 +154,8 @@ export default class CityWorld {
       void this.loadLandmark(this.region)
       void this.loadTerrain()
     }
+    this.walkers = []
+    this.foams = [...(this.environment.foams ?? [])]
     void this.loadCharacters()
     this.buildings = new THREE.Group()
     this.buildings.name = 'Fifones · CubeCity SimObjects'
@@ -645,6 +647,7 @@ export default class CityWorld {
       }
       this.environment.backdrop = []
       this.environment.group.add(terrain.group)
+      if (terrain.foam) this.foams.push(terrain.foam)
       // O Cristo sai do chão provisório e vai, menor, para o topo do morro do terreno.
       const anchor = this.environment.landmark
       if (anchor && terrain.landmark) {
@@ -665,7 +668,8 @@ export default class CityWorld {
   }
 
   // Personagens ambiente da região (characters.js): só visual, carregados do mesmo jeito que o monumento
-  // (faces planas, sem sombra projetada). Se um não carregar, a cidade segue sem ele.
+  // (faces planas, sem sombra projetada) e andando no caminho deles (animateCharacters). Se um não carregar, a
+  // cidade segue sem ele.
   async loadCharacters() {
     for (const character of CHARACTERS[this.region?.id] ?? []) {
       try {
@@ -675,15 +679,41 @@ export default class CityWorld {
         toLambertScene(resource.scene)
         const bounds = new THREE.Box3().setFromObject(resource.scene)
         const size = bounds.getSize(new THREE.Vector3())
-        const scale = (character.height ?? 1.3) / Math.max(size.y, 0.01)
+        const scale = character.height / Math.max(size.y, 0.01)
+        const center = bounds.getCenter(new THREE.Vector3())
         resource.scene.scale.setScalar(scale)
-        resource.scene.position.set(character.x, -bounds.min.y * scale, character.z)
-        resource.scene.rotation.y = character.rotation ?? 0
-        resource.scene.name = `Personagem · ${character.name}`
-        this.environment.group.add(resource.scene)
+        resource.scene.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale)
+        const walker = new THREE.Group()
+        walker.name = `Personagem · ${character.name}`
+        walker.add(resource.scene)
+        const points = character.path.map(([x, y]) => new THREE.Vector3(x - CENTER, 0, y - CENTER))
+        const lengths = points.slice(1).map((point, index) => point.distanceTo(points[index]))
+        this.walkers.push({ object: walker, points, lengths, total: lengths.reduce((a, b) => a + b, 0), speed: character.speed })
+        walker.position.copy(points[0])
+        this.environment.group.add(walker)
       } catch {
         // A cidade segue sem o personagem se o GLB não carregar.
       }
+    }
+  }
+
+  // Ida e volta no caminho, em velocidade constante, de frente para onde anda, com um balanço leve de passo (o
+  // modelo não tem rig). Com movimento reduzido, o personagem fica parado no começo do caminho.
+  animateCharacters(time) {
+    for (const walker of this.walkers) {
+      if (this.reducedMotion || !walker.total) continue
+      const cycle = walker.total * 2
+      let distance = (time * walker.speed) % cycle
+      const forward = distance <= walker.total
+      if (!forward) distance = cycle - distance
+      let index = 0
+      while (index < walker.lengths.length - 1 && distance > walker.lengths[index]) distance -= walker.lengths[index++]
+      const from = walker.points[index], to = walker.points[index + 1]
+      walker.object.position.lerpVectors(from, to, Math.min(1, distance / walker.lengths[index]))
+      walker.object.position.y = 0.06 + Math.abs(Math.sin(time * 9)) * 0.012
+      const sign = forward ? 1 : -1
+      walker.object.rotation.y = Math.atan2((to.x - from.x) * sign, (to.z - from.z) * sign)
+      walker.object.rotation.z = Math.sin(time * 9) * 0.04
     }
   }
 
@@ -1167,6 +1197,8 @@ export default class CityWorld {
     if (this.camera.position.y < 1.5) this.camera.position.y = 1.5
     if (this.contactDirty) this.refreshContactShadows()
     this.environment.animate(time, this.reducedMotion)
+    for (const foam of this.foams) foam.update(this.reducedMotion ? 0.5 : time)
+    this.animateCharacters(time)
     this.animateActivity(time)
     this.renderer.render(this.scene, this.camera)
   }

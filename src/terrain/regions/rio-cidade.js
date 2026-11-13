@@ -66,6 +66,8 @@ export default {
   // TERRAIN.fog, 80 unidades): com o corte acima, o mar aberto já cobre o resto, então o orçamento de malha da
   // cidade cai bem abaixo do da faixa de Copacabana. A vegetação acompanha a névoa.
   detail: { maxTriangles: 6000 },
+  // A borda da grade (o platô fica a uns 12 m de altitude) até o mar é areia, sem faixa verde no meio da praia.
+  beach: { range: 300, elevation: 16 },
   // Palmeiras na areia (13/11/2026): a faixa de areia cresceu (acima) e ficou sem o coqueiro fixo que o calçadão
   // feito à mão desenhava; `decorativePalms` espalha algumas nos lotes decorativos, como em `rio.js`.
   vegetation: { ...rio.vegetation, treeRange: 40, palmRange: 26, decorativePalms: 0.22 },
