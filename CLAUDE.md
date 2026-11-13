@@ -93,6 +93,23 @@ Nove prédios de exemplo construíveis na cidade do Rio (barraca de feira, casa 
 - De `docs/PROMPTS-CIDADE.md` já têm GLB (13/11/2026): Prefeitura, Casa térrea, Carrinho de picolé, Sobrado colorido, Prédio comercial, Carrinho de milho, Hospital, Academia grande, Delegacia de polícia, Corpo de bombeiros, Coqueiro, Flamboyant, Mangueira e Comunidade do morro — todos reduzidos (3 a 6 mil triângulos) e no catálogo do Rio (`docs/PREDIOS-RIO.md`, 23 prédios com GLB ao todo). Faltam o Maracanã e o shopping center do mesmo guia.
 - A miniatura do menu vem de `item.preview`; gere com `node tools/catalog-previews.mjs <url-do-worker> rio-`.
 
+## Personagens ambiente da cidade (`src/fifones/characters.js`)
+
+Primeiro personagem (13/11/2026): **Fifo**, na faixa de areia do Rio (`cristo-redentor`). É só cenário (sem estado
+no servidor, ninguém constrói nem move) — a lista por região fica em `characters.js` (id, `model`, posição `x`/`z`
+já no sistema de coordenadas da cena, `rotation`, `height`) e `CityWorld.loadCharacters()` carrega cada um do
+jeito de qualquer GLB do catálogo (`applyGlbStyle`, `toLambertScene`, faces planas), escalado pela altura do
+catálogo. Chamado já no construtor, como o terreno e o monumento. Modelo em
+`public-fifones/models/characters/fifo.glb`.
+
+- O GLB do Fifo tem 9 malhas com o mesmo material (um personagem real, não um prédio de uma peça só):
+  `tools/optimize-city-models.mjs` exige uma malha de uma parte e recusa. A textura foi recomprimida à mão
+  (script de uso único, sem reduzir a malha: 17.973 triângulos, 1,2 MB) tirando o mapa de normais, que o material
+  de faces planas da cidade não lê mesmo. Se entrar outro personagem assim, vale generalizar o redutor para
+  várias malhas antes de repetir o script à mão.
+- Prompts e propostas de personagens (o Explorador estilizado, a Tartaruga-marinha): `docs/PROMPTS-PERSONAGENS.md`
+  — são referência de estilo, não o Fifo (que veio pronto, num estilo mais realista).
+
 ## Contas e página de apresentação
 
 Guia: `docs/CONTAS.md`. Resumo: `worker/auth.js` faz cadastro, entrada e saída (cookie `cityou_session`, PBKDF2, tabelas do D1 criadas pelo próprio Worker). A conta não copia dados: `users.data_key` é o nome do Durable Object `DemoSession` da pessoa, adotado da demonstração no cadastro; objeto de conta não vence. Com o D1 ligado, `/app`, `/city` e `/world` pedem login (`pageGate` em `worker/index.js`) e `/` leva quem já entrou ao app; sem o D1 (produção hoje, até pôr o `database_id` em `wrangler.jsonc`), tudo segue como demonstração e a página diz "Abrir a demonstração". Página nova do app entra em `APP_PAGES` e em `run_worker_first`. Links para o painel usam `/app#/...`; os `/#/...` do catálogo apontam para o Fifones (porta 8765), não para o painel. **Login obrigatório:** `REQUIRE_LOGIN="true"` em `wrangler.jsonc` (produção e prévia) faz toda rota de dados da API responder 401 sem sessão, além das páginas, mas só vale com o D1 ligado; sem `database_id` nada muda (a demonstração continua). Teste com `wrangler.test-login.jsonc`. Falta: esqueci a senha (precisa de e-mail com domínio).

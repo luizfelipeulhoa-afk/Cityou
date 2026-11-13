@@ -14,6 +14,7 @@ import { WORLD_MODELS_MANIFEST } from '../world/worldSpaces.js'
 import { getCityLayout, isPilotCity, placementProblem, tileKey } from '../../shared/game/city-layout.js'
 import { createTapGesture } from '../interaction/tapGesture.js'
 import { buildRioFallback, createCoreBuilding, createEnvironment, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT, material } from './sceneEnvironment.js'
+import { CHARACTERS } from './characters.js'
 
 const CENTER = 8
 // Altura do chão sob o prédio (acima do platô, para a base não brigar com o chão no z-buffer).
@@ -153,6 +154,7 @@ export default class CityWorld {
       void this.loadLandmark(this.region)
       void this.loadTerrain()
     }
+    void this.loadCharacters()
     this.buildings = new THREE.Group()
     this.buildings.name = 'Fifones · CubeCity SimObjects'
     this.picking = new THREE.Group()
@@ -659,6 +661,29 @@ export default class CityWorld {
       }
       this.environment.backdrop = buildRioFallback(this.environment.group, this.layout)
       this.refreshShadows()
+    }
+  }
+
+  // Personagens ambiente da região (characters.js): só visual, carregados do mesmo jeito que o monumento
+  // (faces planas, sem sombra projetada). Se um não carregar, a cidade segue sem ele.
+  async loadCharacters() {
+    for (const character of CHARACTERS[this.region?.id] ?? []) {
+      try {
+        const resource = await this.loader.loadAsync(character.model)
+        if (this.destroyed) return
+        applyGlbStyle(resource.scene)
+        toLambertScene(resource.scene)
+        const bounds = new THREE.Box3().setFromObject(resource.scene)
+        const size = bounds.getSize(new THREE.Vector3())
+        const scale = (character.height ?? 1.3) / Math.max(size.y, 0.01)
+        resource.scene.scale.setScalar(scale)
+        resource.scene.position.set(character.x, -bounds.min.y * scale, character.z)
+        resource.scene.rotation.y = character.rotation ?? 0
+        resource.scene.name = `Personagem · ${character.name}`
+        this.environment.group.add(resource.scene)
+      } catch {
+        // A cidade segue sem o personagem se o GLB não carregar.
+      }
     }
   }
 
