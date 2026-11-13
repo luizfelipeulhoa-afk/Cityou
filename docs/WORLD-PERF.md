@@ -111,3 +111,26 @@ Texturas: 8 de 1024² em WebP. Decodificadas na GPU ficam em torno de 5,3 MB cad
 - Texturas KTX2 (Basis) no lugar de WebP: mantêm-se comprimidas na GPU e cortam a memória de vídeo em 4 a 8 vezes. Hoje a memória não é o gargalo.
 - Impostores (imagem pré-renderizada) para a cidade grande de `city.html`, se ela chegar a milhares de prédios. A cidade ainda não foi medida.
 - Teto de 30 fps e escala de render 0,7 em aparelhos fracos, detectados por medição de quadros.
+
+## Base da cidade (`city.html`) e da API, 13/11/2026
+
+Medida local, **não** é de produção nem de celular: Worker local (`wrangler dev`, modo de teste com 5.000 moedas), renderização por software (SwiftShader), CPU 4× mais lenta e rede 4G simulada. Serve para comparar versões na mesma máquina, alternando antes e depois. Comandos:
+
+```bash
+npx wrangler dev --port 8787 --ip 127.0.0.1 --var CITYOU_TEST_OPEN_REGIONS:1
+CITYOU_CHROME=/opt/pw-browsers/chromium npm run perf:city -- http://127.0.0.1:8787 --runs 3 --label antes
+node tools/api-perf.mjs http://127.0.0.1:8787 --suite 50
+```
+
+Cidade do Rio (`cristo-redentor`, com o terreno), mediana de 3 rodadas, duas execuções completas (a e b):
+
+| Cenário | 1º quadro | Pronto (GLB e terreno) | CPU de `render` p50 | Draws | Triângulos | Programas | Texturas |
+|---|---|---|---|---|---|---|---|
+| Cidade de partida (30 peças de base) | 2,46 / 2,51 s | 6,1 / 6,7 s | 4,4 / 4,9 ms | 51 | 57.752 | 10 | 3 |
+| + 25 prédios com GLB (os 9 do Rio) | 2,49 / 2,55 s | 10,6 / 10,1 s | 6,8 / 7,3 ms | 74 | 203.433 | 10 | 12 |
+
+Só 25 de 30 prédios cabem no Rio com as quatro ruas que o bench traça (o servidor exige frente para rua conectada).
+
+**Quais medidas são confiáveis** (diferença entre as duas execuções): draws, triângulos, programas e texturas, 0%; primeiro quadro, até 2,3%; pronto com cache vazio, até 8,8%; CPU de `render` com 25 prédios, 7,4%. **Ruins:** CPU de `render` sem prédios (11,4%, valores de 4 a 5 ms), abertura com cache (12 a 27%) e o intervalo de rAF por software (múltiplos de 16,7 ms, até 25%). Para decidir se uma mudança piorou ou melhorou, exija uma diferença maior que essas margens nas medidas ruins e use as confiáveis como juiz.
+
+API local (50 chamadas, mediana / p95, ida e volta): `GET /api/personal` 8,6 / 11,6 ms; `GET /api/city` 7,6 / 10,8 ms; girar uma peça 9,8 / 15,4 ms. O servidor responde em 1 a 3 ms (os temporizadores do Worker têm resolução de 1 ms). **Não há base de produção ou prévia ainda:** falta rodar `--suite` contra o site publicado, com cookie de sessão.

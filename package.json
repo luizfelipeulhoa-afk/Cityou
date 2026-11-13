@@ -18,6 +18,7 @@
     "terrain:data": "node tools/terrain-data.mjs",
     "perf:world": "node tools/world-perf.mjs",
     "perf:world-frame": "node tools/world-frame-bench.mjs",
+    "perf:city": "node tools/city-frame-bench.mjs",
     "test:worker": "node --test tests/worker.test.mjs",
     "dev:worker": "wrangler dev --port 8787",
     "perf:api": "node tools/api-perf.mjs"

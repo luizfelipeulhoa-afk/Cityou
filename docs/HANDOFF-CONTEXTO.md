@@ -37,11 +37,12 @@ Medidas locais (Worker local e renderização por software, **não** são de pro
 - API local, 50 chamadas: `GET /api/personal` ida e volta 8,6 ms (p95 11,6), servidor 1 ms; `GET /api/city` 7,6 ms (p95 10,8); girar peça 9,8 ms (p95 15,4). Timers do Worker têm resolução de 1 ms.
 - Cidade do Rio, 3 rodadas: sem prédios semeados 57.752 triângulos, 51 draws, 3 texturas, 1º quadro ~2,5 s, pronto ~6,1 s; com 25 prédios 203.433 triângulos, 74 draws, 12 texturas, pronto ~10,6 s (com cache ~4,6 s), CPU de render p50 ~6,8 ms (p95 15,8). Só 25 de 30 prédios cabem no Rio com as quatro ruas que o bench traça.
 
+**Repetibilidade (medida):** duas execuções completas do bench diferem 0% em draws/triângulos/programas/texturas, até 2,3% no 1º quadro, até 8,8% no pronto frio e 7,4% na CPU de render com 25 prédios; **acima de 10%:** CPU de render sem prédios (11,4%), abertura com cache (12 a 27%) e rAF por software (quantizado). Está tudo em `docs/WORLD-PERF.md`, com a tabela de base local, `npm run perf:city` e os comandos no `CLAUDE.md`.
+
 **Falta para fechar a etapa 1:**
-- A meta "duas execuções diferem menos de 10%" **ainda não foi cumprida**: a dispersão entre rodadas ficou em 1,07× sem prédios e 1,28× com 25 prédios. Comparar as medianas de duas execuções completas (a execução b estava rodando); se continuar acima de 10%, subir `--runs`, aumentar `FRAMES` ou medir CPU de render em vez de rAF.
-- Adicionar `perf:city` ao `package.json`, gravar a tabela de base em `docs/WORLD-PERF.md` (marcando que é local) e citar os comandos novos em `CLAUDE.md`.
-- Rodar `--suite` contra uma prévia publicada (precisa de cookie válido; produção exige login com o D1 ligado) para ter a base real de latência. Não foi feito.
+- Rodar `node tools/api-perf.mjs <url-da-prévia> --suite 50 --cookie '<sessão>'` contra a prévia publicada para ter a base real de latência (precisa de cookie válido; produção exige login com o D1 ligado) e gravar em `docs/WORLD-PERF.md`. Não foi feito.
 - `tools/pilot-perf.mjs` provavelmente está quebrado: tenta construir `home` na Ilha Inicial, o que o PR 22 proibiu. Não conferido.
+- Commitar e enviar (se houver alterações pendentes: `git status`).
 
 **Ferramentas e skills do projeto.** Skills em `.claude/skills/` (lista no `CLAUDE.md`). Entraram nesta rodada, só `.md` e fixadas por commit: `council-review`, `owasp-security`, `threejs-lighting`, `threejs-materials`, `threejs-textures`, `threejs-postprocessing`. `find-skills` não funciona na nuvem (proxy bloqueia `skills.sh`): use a busca do GitHub e `git clone`. Agent Reach foi avaliado e não instalado (exige programa Python com navegador próprio e sessões de login).
 
