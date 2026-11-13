@@ -13,7 +13,7 @@ import { lightingFor } from '../terrain/lighting.js'
 import { WORLD_MODELS_MANIFEST } from '../world/worldSpaces.js'
 import { getCityLayout, isPilotCity, placementProblem, tileKey } from '../../shared/game/city-layout.js'
 import { createTapGesture } from '../interaction/tapGesture.js'
-import { createCoreBuilding, createEnvironment, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT, material } from './sceneEnvironment.js'
+import { buildRioFallback, createCoreBuilding, createEnvironment, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT, material } from './sceneEnvironment.js'
 
 const CENTER = 8
 // Altura do chão sob o prédio (acima do platô, para a base não brigar com o chão no z-buffer).
@@ -130,7 +130,7 @@ export default class CityWorld {
     this.controls.minDistance = 9
     // No Rio o zoom máximo ficou mais fechado (13/11/2026): a névoa e o orçamento do terreno (rio-cidade.js,
     // src/terrain/lighting.js) foram cortados para o que dá para ver daqui para dentro.
-    this.controls.maxDistance = this.pilot ? (this.region?.id === 'cristo-redentor' ? 56 : 73) : 58
+    this.controls.maxDistance = this.pilot ? (this.region?.id === 'cristo-redentor' ? 46 : 73) : 58
     this.controls.minPolarAngle = 0.25
     this.controls.maxPolarAngle = Math.PI / 2.5
     this.controls.screenSpacePanning = false
@@ -147,6 +147,12 @@ export default class CityWorld {
     this.scene.add(this.ambient, this.sun)
     this.environment = createEnvironment(this.scene, callbacks.region)
     if (this.environment.landmark && !this.pilot) void this.loadLandmark(this.region)
+    // No Rio o terreno real e o Cristo começam a carregar já na construção da cidade (13/11/2026), sem esperar o
+    // estado do servidor nem o `requestIdleCallback` da chegada: a rede do terreno e a do estado correm juntas.
+    if (this.pilot && this.environment.backdrop?.length) {
+      void this.loadLandmark(this.region)
+      void this.loadTerrain()
+    }
     this.buildings = new THREE.Group()
     this.buildings.name = 'Fifones · CubeCity SimObjects'
     this.picking = new THREE.Group()
@@ -620,7 +626,9 @@ export default class CityWorld {
     }
   }
 
-  // O terreno real do Rio (src/terrain) no lugar do mar e dos morros feitos à mão. Se não carregar, o cenário à mão fica.
+  // O terreno real do Rio (src/terrain) no lugar do chão provisório. Se não carregar, só então entra a reserva
+  // feita à mão (buildRioFallback, morros e calçadão): construir essa reserva de saída, para jogar fora um instante
+  // depois quase sempre que o terreno carrega, era o que atrasava a cidade a abrir (13/11/2026).
   async loadTerrain() {
     try {
       const { loadCityTerrain } = await import('../terrain/cityTerrain.js')
@@ -635,7 +643,7 @@ export default class CityWorld {
       }
       this.environment.backdrop = []
       this.environment.group.add(terrain.group)
-      // O Cristo sai da encosta feita à mão e vai, menor, para o topo do morro do terreno.
+      // O Cristo sai do chão provisório e vai, menor, para o topo do morro do terreno.
       const anchor = this.environment.landmark
       if (anchor && terrain.landmark) {
         const { x, y, z, scale } = terrain.landmark
@@ -644,7 +652,13 @@ export default class CityWorld {
       }
       this.refreshShadows()
     } catch {
-      // A cidade mantém o cenário feito à mão quando o terreno está indisponível.
+      if (this.destroyed) return
+      for (const object of this.environment.backdrop) {
+        object.removeFromParent()
+        disposeOwned(object)
+      }
+      this.environment.backdrop = buildRioFallback(this.environment.group, this.layout)
+      this.refreshShadows()
     }
   }
 
@@ -979,16 +993,9 @@ export default class CityWorld {
     this.arrivalTween = null
   }
 
+  // O Cristo e o terreno real já começaram a carregar no construtor (sem esperar o estado do servidor): aqui só
+  // fica a animação de chegada, de câmera.
   startArrival() {
-    const loadLandmark = () => {
-      if (this.destroyed) return
-      void this.loadLandmark(this.region)
-      if (this.environment.backdrop?.length) void this.loadTerrain()
-    }
-    const idle = typeof window.requestIdleCallback === 'function'
-    const timer = idle ? window.requestIdleCallback(loadLandmark, { timeout: 1500 }) : setTimeout(loadLandmark, 300)
-    this.disposers.push(() => idle ? window.cancelIdleCallback(timer) : clearTimeout(timer))
-
     const key = `cityou:arrival:${this.region.id}`
     if (this.reducedMotion) return
     try {

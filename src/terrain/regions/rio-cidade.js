@@ -32,20 +32,36 @@ const rows = Array.from({ length: size }, (_, row) => Array.from({ length: size 
 
 const peak = { x: CRISTO_PEAK.x, z: CRISTO_PEAK.z - CITY_SHIFT } // no sistema do terreno
 const peakGeo = createFrame(rio).toGeo(peak.x, peak.z)
+const hill = { x: peak.x, z: peak.z, radiusX: 18, radiusZ: 9.5, height: 6.5 }
+
+// Retângulo que cobre a grade da cidade e o morro do Cristo (unidades do terreno), para o corte abaixo.
+const gridX0 = layout.min - layout.center, gridZ0 = layout.min - layout.center - CITY_SHIFT
+const cropBounds = {
+  minX: Math.min(gridX0, hill.x - hill.radiusX), maxX: Math.max(gridX0 + size - 1, hill.x + hill.radiusX),
+  minZ: Math.min(gridZ0, hill.z - hill.radiusZ), maxZ: Math.max(gridZ0 + size - 1, hill.z + hill.radiusZ),
+}
 
 export default {
   ...rio,
   id: 'rio-cidade',
   name: 'Rio de Janeiro · cenário da cidade',
-  lots: { x0: layout.min - layout.center, z0: layout.min - layout.center - CITY_SHIFT, rows },
+  lots: { x0: gridX0, z0: gridZ0, rows },
   // O morro do Cristo: some ao relevo real atrás da grade (unidades do terreno).
-  relief: [{ x: peak.x, z: peak.z, radiusX: 18, radiusZ: 9.5, height: 6.5 }],
+  relief: [hill],
   landmarks: [...rio.landmarks, { id: 'morro-do-cristo', name: 'Morro do Cristo', ...peakGeo, radius: 10 }],
   // Chão dos lotes com o verde da mata do mapa, um tom por lote e a variação por face do relevo.
   plateau: { tint: -0.3, contrast: 0.012, facets: 0.8 },
+  // Corte (13/11/2026, src/terrain/terrainData.js): além deste raio (a grade e o morro do Cristo, com folga), o
+  // relevo real vira mar liso. Sem isto, girar a câmera mostrava a praia e os morros reais de verdade, longe da
+  // cidade, que a névoa (abaixo) não cobria de todo lado: o corte tira de vez, não só esconde.
+  crop: {
+    x: (cropBounds.minX + cropBounds.maxX) / 2, z: (cropBounds.minZ + cropBounds.maxZ) / 2,
+    radius: Math.hypot((cropBounds.maxX - cropBounds.minX) / 2, (cropBounds.maxZ - cropBounds.minZ) / 2) + 4,
+    blend: 14,
+  },
   // A névoa da cidade fecha bem mais perto que a da faixa de Copacabana (13/11/2026, src/terrain/lighting.js:
-  // TERRAIN.fog, 80 unidades): o relevo real além disso nunca aparece, então o orçamento de malha da cidade
-  // cai bem abaixo do da faixa de Copacabana (abaixo), sem mudar o que se vê. A vegetação acompanha a névoa.
-  detail: { maxTriangles: 13000 },
-  vegetation: { ...rio.vegetation, treeRange: 56, palmRange: 36, decorativePalms: 0 },
+  // TERRAIN.fog, 80 unidades): com o corte acima, o mar aberto já cobre o resto, então o orçamento de malha da
+  // cidade cai bem abaixo do da faixa de Copacabana. A vegetação acompanha a névoa.
+  detail: { maxTriangles: 6000 },
+  vegetation: { ...rio.vegetation, treeRange: 40, palmRange: 26, decorativePalms: 0 },
 }

@@ -2,27 +2,33 @@
 
 Módulo de terreno com relevo real e estilizado, configurado por região. Primeiro uso: Copacabana, com o Pão de Açúcar, o Morro da Urca e o Corcovado ao fundo. Só a área central é jogável; o resto é cenário.
 
-Na cidade do Rio (Cristo Redentor), o terreno é o **cenário**: só o que fica em volta da grade. `CityWorld.loadTerrain` troca o mar e os morros feitos à mão pelo terreno de `regions/rio-cidade.js`. Essa região usa o mesmo mapa de alturas do Rio, mas a zona plana é a terra da grade da cidade (33 × 33 lotes), com a praia real alinhada à orla da cidade (`CITY_SHIFT`). Grade, ruas, prédios, `worker/city.js` e os dados salvos não mudaram. O terreno é baixado depois da primeira imagem (módulo e PNG sob demanda, 20 kB e 170 kB); se falhar, a cidade fica com o cenário feito à mão. Na cidade a vegetação distante é cortada (árvores a 80 unidades, palmeiras a 50), porque a névoa fecha em 105.
+Na cidade do Rio (Cristo Redentor), o terreno é o **cenário**: só o que fica em volta da grade. `CityWorld.loadTerrain` troca o chão provisório (um plano raso, 1 draw call) pelo terreno de `regions/rio-cidade.js`, já a partir do construtor da cidade (13/11/2026), sem esperar o estado do servidor nem o `requestIdleCallback` da chegada: a busca do terreno e a do estado correm juntas. Essa região usa o mesmo mapa de alturas do Rio, mas a zona plana é a terra da grade da cidade (33 × 33 lotes), com a praia real alinhada à orla da cidade (`CITY_SHIFT`). Grade, ruas, prédios, `worker/city.js` e os dados salvos não mudaram. O terreno é baixado depois da primeira imagem (módulo e PNG sob demanda, 20 kB e 170 kB); **só se isso falhar** a cidade monta a reserva feita à mão (`buildRioFallback` em `sceneEnvironment.js`, morros, encosta e calçadão) — essa reserva não entra mais de saída: construí-la para jogar fora um instante depois, quase sempre que o terreno carrega, era o que atrasava a cidade a abrir. Na cidade a vegetação distante é cortada (árvores a 40 unidades, palmeiras a 26), porque a névoa fecha em 80.
 
 Desde 13/11/2026, com o terreno carregado:
 
 Desempenho (13/11/2026, continuado): a cidade fecha a névoa bem mais perto (`TERRAIN.fog` em `src/terrain/lighting.js`,
 40 a 80 unidades, era 48 a 105) e a câmera inicial do Rio começa mais perto (`CityWorld.home`, zoom maior; o teto
-do zoom, `controls.maxDistance`, caiu de 73 para 56). Nada disso é visível além da névoa, então o orçamento de
-malha da cidade (`detail.maxTriangles` em `rio-cidade.js`) caiu de 60 mil (o de `rio.js`, usado em `/terrain.html`)
-para 13 mil: o algoritmo de erro já prioriza o que fica perto da grade e dos marcos (`detail.landmark`), então cortar
-o orçamento tira primeiro o relevo distante que a névoa nova já escondia. Vegetação (`treeRange`/`palmRange`) e o
-raio do morro do Cristo (`relief`) acompanham a nova distância. Medido com `node tools/city-frame-bench.mjs` (Worker
-local, CPU 4× mais lenta, rede 4G): de 57.756 para 35.852 triângulos e de 52 para 40 draws na cidade vazia (−38% e
-−23%); com 25 prédios, de 203.487 para 181.583 triângulos (−11%). O tempo até a cidade ficar pronta não mudou
-nesse teste: nele, quem domina é o download dos GLB sob a rede simulada, não o terreno; o download do mapa de
-alturas (170 KB, compartilhado com `/terrain.html`) e passar `createTerrainData` para um worker (já seguia como
-próximo passo) são o que falta para essa parte também cair.
+do zoom, `controls.maxDistance`, caiu de 73 para 56 e depois para 46: girar a câmera dava para ver a praia e os
+morros reais de verdade, bem longe da cidade, que a névoa radial (distância até a câmera, não até a cidade) não
+cobre de todo lado). Por isso a região ganhou um corte de verdade (`region.crop` em `rio-cidade.js`, aplicado em
+`createTerrainData`): além de um raio que cobre a grade e o morro do Cristo com folga, o relevo real vira mar liso
+(com uma faixa de mistura). Não é só esconder com névoa: o relevo distante nem entra na malha, e o orçamento de
+triângulos que antes se perdia nele (grama e rocha de verdade, fora de vista) vai para o que a câmera realmente
+mostra — por isso deu para cortar `detail.maxTriangles` de 60 mil (o de `rio.js`, usado em `/terrain.html`) para
+6 mil sem perder nitidez perto da grade e do morro (o algoritmo de erro já prioriza isso, `detail.landmark`).
+Vegetação (`treeRange`/`palmRange`) acompanha a nova distância. Medido com `node tools/city-frame-bench.mjs`
+(Worker local, CPU 4× mais lenta, rede 4G, mediana de 2 rodadas): a cidade vazia fica pronta em 5,6 s em vez de
+8,4 s (e com cache, 2,4 s em vez de 3,1 s) — a maior parte veio de não montar mais a reserva feita à mão
+(morros, encosta e calçadão) só para jogá-la fora um instante depois: agora só o terreno real é construído, e ele
+começa a carregar já no construtor da cidade, não depois do estado do servidor e do `requestIdleCallback` da
+chegada. Com 25 prédios o ganho é menor (9,3 s em vez de 10,0 s): ali quem domina é o download dos GLB sob a rede
+simulada. O download do mapa de alturas (170 KB, compartilhado com `/terrain.html`) e passar `createTerrainData`
+para um worker continuam como próximo passo, para essa parte também cair.
 
 - **Encosta protegida e morro do Cristo:** a encosta feita à mão (`pilotSlope`, com o Cristo grande em cima) só fica na reserva sem terreno. As `slopeTiles` do servidor são `#` na máscara de `rio-cidade.js` (relevo real, sem construção) e a região soma um morro (`relief`) atrás da grade, que continua os morros reais à esquerda. O Cristo vai para o topo dele (`CRISTO_PEAK`) com `CRISTO_SCALE` (0,6) do tamanho do monumento; `loadCityTerrain` devolve essa posição em `landmark`.
 - **Chão dos lotes:** é o platô do próprio terreno, no verde da mata (`plateau.tint` negativo, `contrast` e `facets` em `rio-cidade.js`); o `pilotLand` bege virou reserva. Ao construir, a grade aparece como lotes claros e translúcidos com um vão entre eles (`CityWorld.makeGround`, cidades piloto).
 - **Calçadão de Copacabana:** fica na primeira fileira de água junto à terra (`d` na máscara: plana e não construível), entre a avenida e a areia, com o desenho de ondas em textura (`pilotRio`, `copacabanaTexture`) e coqueiros na areia. Antes ele ocupava a última fileira de lotes construíveis.
-- `createTerrainData` aceita na região: `relief` (morros somados ao mapa, `{ x, z, radiusX, radiusZ, height }`), `plateau.tint`, `plateau.contrast`, `plateau.facets` e `vegetation.decorativePalms`. Os padrões mantêm a região de Copacabana (`rio.js`) como estava.
+- `createTerrainData` aceita na região: `relief` (morros somados ao mapa, `{ x, z, radiusX, radiusZ, height }`), `plateau.tint`, `plateau.contrast`, `plateau.facets`, `vegetation.decorativePalms` e `crop` (`{ x, z, radius, blend }`: além do raio, o relevo real vira mar liso, com `blend` unidades de mistura). Os padrões mantêm a região de Copacabana (`rio.js`) como estava, sem corte.
 
 Custo na cidade, com renderização por software, alternando as versões: de 23.065 para 64.302 triângulos e de cerca de 11 para cerca de 10 quadros/s; CPU por quadro igual (1,0 a 1,2 ms). Os arquivos carregados na abertura de cada página não mudam. Não medido em aparelho real.
 
