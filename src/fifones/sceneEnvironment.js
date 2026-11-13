@@ -9,8 +9,12 @@ const palette = {
   trunk: 0x827055, cream: 0xf5ead1, charcoal: 0x303d3c, orange: 0xed7f42,
 }
 
+// Lambert, como o terreno: a mesma resposta de luz e um fragment shader mais leve. Só o que precisa de brilho
+// (vidro, água, mar: rugosidade abaixo de 0,6 ou metal) continua Standard.
 export function material(color, options = {}) {
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.87, metalness: 0, ...options })
+  const { roughness = 0.87, metalness = 0, ...rest } = options
+  if (roughness < 0.6 || metalness > 0) return new THREE.MeshStandardMaterial({ color, roughness, metalness, ...rest })
+  return new THREE.MeshLambertMaterial({ color, ...rest })
 }
 
 export function box(parent, width, height, depth, x, y, z, mat) {

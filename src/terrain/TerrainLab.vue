@@ -1,6 +1,7 @@
 <script setup>
 // Página de teste do terreno (/terrain.html): o cenário do Rio com a zona jogável, a sobreposição das zonas
 // bloqueadas, as vistas dos marcos e o assento de prédios em lotes. Toque num lote para construir.
+import { TERRAIN } from './lighting.js'
 import { computed, markRaw, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { Box3, BoxGeometry, BufferAttribute, Color, ConeGeometry, Group, Mesh, NoToneMapping, PerspectiveCamera, SRGBColorSpace, Vector3 } from 'three'
 import { TresCanvas } from '@tresjs/core'
@@ -179,8 +180,8 @@ onBeforeUnmount(() => clearInterval(timer))
         :tone-mapping="NoToneMapping" :output-color-space="SRGBColorSpace" render-mode="on-demand" @ready="onReady"
       >
         <!-- Uma luz direcional e um hemisfério, sem sombras: o orçamento do mapa-mundo. Uma face plana recebe 100% da cor. -->
-        <TresHemisphereLight :args="[0xffffff, 0x70828f, 1.35]" />
-        <TresDirectionalLight :args="[0xfff6e6, 2.15]" :position="[-45, 80, 40]" />
+        <TresHemisphereLight :args="[TERRAIN.hemisphere.sky, TERRAIN.hemisphere.ground, TERRAIN.hemisphere.intensity]" />
+        <TresDirectionalLight :args="[TERRAIN.sun.color, TERRAIN.sun.intensity]" :position="TERRAIN.sun.direction" />
         <TerrainStage :data="data" :camera="camera" :show-blocked="showBlocked" :show-vegetation="showVegetation" @ready="onStage" @pick="pick">
           <primitive :object="buildings" />
         </TerrainStage>

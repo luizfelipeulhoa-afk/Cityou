@@ -7,12 +7,17 @@ import SimObject from '@/js/components/tiles/sim-object.js'
 import { getIntersectedTile } from '@/js/tools/interactor/utils.js'
 import { fitModel } from '../world/SpaceMarker.js'
 import { applyGlbStyle } from '../tres/glbMaterial.js'
+import { toLambertScene } from '../tres/lambert.js'
+import { applyGroundBlendTo } from '../tres/groundBlend.js'
+import { lightingFor } from '../terrain/lighting.js'
 import { WORLD_MODELS_MANIFEST } from '../world/worldSpaces.js'
 import { getCityLayout, isPilotCity, placementProblem, tileKey } from '../../shared/game/city-layout.js'
 import { createTapGesture } from '../interaction/tapGesture.js'
 import { createCoreBuilding, createEnvironment, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT, material } from './sceneEnvironment.js'
 
 const CENTER = 8
+// Altura do chão sob o prédio (acima do platô, para a base não brigar com o chão no z-buffer).
+const BUILDING_BASE_Y = 0.065
 const NOOP = () => {}
 const ACTIVITY_MAX_AGE = 45_000
 const ACTIVITY_STATES = new Set(['working', 'observed', 'focus', 'waiting', 'idle', 'unknown'])
@@ -97,8 +102,11 @@ export default class CityWorld {
     this.clock = new THREE.Clock()
     this.loader = new GLTFLoader()
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color(0xd1e4e5)
-    this.scene.fog = new THREE.Fog(0xd1e4e5, 48, 105)
+    // Luz e céu vêm da tabela da região (src/terrain/lighting.js): o Rio usa a luz com que o terreno foi calibrado.
+    this.look = lightingFor(callbacks.region?.id)
+    this.groundColor = new THREE.Color(this.look.ground ?? 0xffffff) // compartilhada por todos os prédios (degradê de base)
+    this.scene.background = new THREE.Color(this.look.sky)
+    this.scene.fog = new THREE.Fog(this.look.sky, this.look.fog.near, this.look.fog.far)
     this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 180)
     this.camera.position.set(17.5, 17.5, 23)
     try {
@@ -109,13 +117,12 @@ export default class CityWorld {
       return
     }
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.pilot ? 1.25 : 1.5))
-    this.renderer.shadowMap.enabled = true
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
-    if (this.pilot) this.renderer.shadowMap.autoUpdate = false
+    // Sem sombras projetadas (limite do CLAUDE.md): quem prende o prédio ao chão é a sombra de contato (makeContactShadows).
+    this.renderer.shadowMap.enabled = false
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 0.95
-    this.renderer.setClearColor(0xd1e4e5)
+    this.renderer.toneMapping = this.look.toneMapping === 'aces' ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping
+    this.renderer.toneMappingExposure = this.look.exposure
+    this.renderer.setClearColor(this.look.sky)
     this.controls = new OrbitControls(this.camera, canvas)
     this.controls.target.set(0, 0.8, 0)
     this.controls.enableDamping = !this.reducedMotion
@@ -131,16 +138,10 @@ export default class CityWorld {
     this.controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }
     this.controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }
     canvas.style.touchAction = 'none'
-    this.ambient = new THREE.HemisphereLight(0xe4f2fa, 0x647b55, 1.25)
-    this.sun = new THREE.DirectionalLight(0xffd2a4, 2.0)
-    this.sun.position.set(-12, 22, 12)
-    this.sun.castShadow = true
-    const shadowSize = this.pilot ? 1024 : 2048
-    this.sun.shadow.mapSize.set(shadowSize, shadowSize)
-    const shadowSide = this.pilot ? 21 : 16
-    Object.assign(this.sun.shadow.camera, { left: -shadowSide, right: shadowSide, top: shadowSide, bottom: -shadowSide, near: 1, far: 65 })
-    this.sun.shadow.normalBias = 0.035
-    this.sun.shadow.bias = -0.00015
+    const { hemisphere, sun } = this.look
+    this.ambient = new THREE.HemisphereLight(hemisphere.sky, hemisphere.ground, hemisphere.intensity)
+    this.sun = new THREE.DirectionalLight(sun.color, sun.intensity)
+    this.sun.position.set(...sun.direction).setLength(26)
     this.scene.add(this.ambient, this.sun)
     this.environment = createEnvironment(this.scene, callbacks.region)
     if (this.environment.landmark && !this.pilot) void this.loadLandmark(this.region)
@@ -152,6 +153,7 @@ export default class CityWorld {
     // Selection proxies only take part in raycasts.
     this.picking.visible = false
     this.makeGround()
+    this.makeContactShadows()
     if (this.pilot) this.makeRoads()
     this.makeIndicators()
     this.installEvents()
@@ -169,7 +171,6 @@ export default class CityWorld {
     const geo = this.pilot ? new THREE.BoxGeometry(0.9, 0.02, 0.9) : new THREE.BoxGeometry(0.98, 0.035, 0.98)
     const tileMaterial = this.pilot ? material(0xffffff, { transparent: true, opacity: 0.42, depthWrite: false }) : material(0xffffff)
     this.tiles = new THREE.InstancedMesh(geo, tileMaterial, this.gridSize ** 2)
-    this.tiles.receiveShadow = true
     this.tiles.name = `${this.gridSize} × ${this.gridSize} buildable lots`
     this.tiles.visible = !this.pilot
     this.scene.add(this.tiles)
@@ -178,13 +179,11 @@ export default class CityWorld {
     const boundaryMaterial = material(0xe7dfb9)
     for (let i = 0; i < 4; i++) {
       const edge = new THREE.Mesh(new THREE.BoxGeometry(1, 0.04, 1), boundaryMaterial)
-      edge.receiveShadow = true
       this.unlockBoundary.add(edge)
     }
     const postMaterial = material(0xe5a35c)
     for (let i = 0; i < 4; i++) {
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.19, 0.09), postMaterial)
-      post.castShadow = true
       this.unlockBoundary.add(post)
     }
     this.scene.add(this.unlockBoundary)
@@ -234,7 +233,6 @@ export default class CityWorld {
     for (const mesh of [this.roadDeck, this.roadMarks]) {
       mesh.count = 0
       mesh.frustumCulled = false
-      mesh.receiveShadow = true
       this.scene.add(mesh)
     }
   }
@@ -522,8 +520,7 @@ export default class CityWorld {
       const stone = material(0x69745d)
       for (const x of [-edgeX, edgeX]) for (const z of [-edgeZ, edgeZ]) {
         const post = add(x, 0.11, z, 0.055, 0.2, 0.055, stone)
-        post.castShadow = true
-        add(x, 0.222, z, 0.073, 0.04, 0.073)
+          add(x, 0.222, z, 0.073, 0.04, 0.073)
       }
     }
     record.levelDetails = details
@@ -580,9 +577,11 @@ export default class CityWorld {
     const { width, depth } = dimensions(definition, record.placement.rotation)
     const x = record.placement.x - CENTER + (width - 1) / 2
     const z = record.placement.y - CENTER + (depth - 1) / 2
-    record.sim.position.set(x, 0.065, z)
+    record.sim.position.set(x, BUILDING_BASE_Y, z)
+    record.footprint = { x, z, width, depth }
+    this.contactDirty = true
     record.sim.rotation.y = -(record.placement.rotation || 0) * Math.PI / 2
-    record.proxy.position.set(x, 0.065 + record.height / 2, z)
+    record.proxy.position.set(x, BUILDING_BASE_Y + record.height / 2, z)
     record.proxy.scale.set(width * 0.92, Math.max(record.height, 0.11), depth * 0.92)
   }
 
@@ -601,18 +600,13 @@ export default class CityWorld {
         return
       }
       applyGlbStyle(scene)
+      toLambertScene(scene)
       scene.rotation.y += region.rotacaoY * Math.PI / 180
       const model = fitModel(scene, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT)
       if (model.userData.fittedHeight <= 0) {
         disposeOwned(model, true, true)
         return
       }
-      scene.traverse(child => {
-        if (child.isMesh) {
-          child.castShadow = true
-          child.receiveShadow = true
-        }
-      })
       const anchor = this.environment.landmark
       const [fallback] = anchor.children
       anchor.remove(fallback)
@@ -659,7 +653,7 @@ export default class CityWorld {
     try {
       // Faces planas e material fosco uma vez por arquivo; os clones de cada construção herdam.
       if (!this.modelCache.has(url)) {
-        this.modelCache.set(url, this.loader.loadAsync(url).then((resource) => { applyGlbStyle(resource.scene); return resource }))
+        this.modelCache.set(url, this.loader.loadAsync(url).then((resource) => { applyGlbStyle(resource.scene); toLambertScene(resource.scene); return resource }))
       }
       const resource = await this.modelCache.get(url)
       if (this.destroyed || this.records.get(record.placement.id) !== record) return
@@ -680,14 +674,14 @@ export default class CityWorld {
         const source = sourceNodes[nodeIndex++]
         child.userData = { placementId: record.placement.id }
         if (child.isMesh) {
-          child.castShadow = true
-          child.receiveShadow = true
           if (child.material && !Array.isArray(child.material) && source?.material) {
             child.material.transparent = source.material.transparent
             child.material.depthWrite = source.material.depthWrite
           }
         }
       })
+      // A base bege do GLB assume a cor do chão da região (só onde há terreno real): o prédio nasce do terreno.
+      if (this.look.ground !== null) applyGroundBlendTo(model, { ground: this.groundColor, range: this.look.groundFade, baseY: BUILDING_BASE_Y })
       const bounds = new THREE.Box3().setFromObject(model)
       const size = bounds.getSize(new THREE.Vector3())
       const center = bounds.getCenter(new THREE.Vector3())
@@ -708,7 +702,6 @@ export default class CityWorld {
       this.captureMaterials(record)
       record.selected = undefined
       this.positionRecord(record, definition)
-      if (record.light) record.light.position.y = record.height * 0.7
       this.refreshSelection()
       if (record.constructionPending) this.animateConstruction(record)
       this.refreshShadows()
@@ -741,7 +734,7 @@ export default class CityWorld {
     disposeOwned(record.sim.mesh, !record.loaded)
     disposeOwned(record.proxy)
     if (record.levelDetails) disposeOwned(record.levelDetails)
-    if (record.light) { record.sim.remove(record.light); record.light.dispose(); record.light = null }
+    this.contactDirty = true
   }
 
   setTool(tool = {}) {
@@ -883,17 +876,6 @@ export default class CityWorld {
       }
       if (base.emissiveIntensity !== undefined) mat.emissiveIntensity = lit ? Math.max(base.emissiveIntensity, 0.55) : base.emissiveIntensity
     }
-    if (lit && !record.light) {
-      record.light = new THREE.PointLight(0xffffff, 0.55, 3, 2)
-      record.light.name = `Activity light · ${record.placement.id}`
-      record.sim.add(record.light)
-    }
-    if (record.light) {
-      record.light.visible = lit
-      record.light.color.copy(tint)
-      record.light.intensity = waiting ? 0.28 : 0.55
-      record.light.position.set(0, Math.max(0.3, record.height * 0.65), 0.35)
-    }
     if (!rotating || this.reducedMotion) for (const logo of record.logos) logo.object.rotation.y = logo.rotation
     record.sim.userData.inUse = inUse
     record.sim.userData.activityState = signalState
@@ -913,13 +895,14 @@ export default class CityWorld {
   setLighting(mode) {
     if (!this.renderer) return
     const dusk = mode === 'dusk'
-    this.scene.background.setHex(dusk ? 0xb9b9c4 : 0xd1e4e5)
+    const { sky, sun, hemisphere, exposure } = this.look
+    this.scene.background.setHex(dusk ? 0xb9b9c4 : sky)
     this.scene.fog.color.copy(this.scene.background)
-    this.sun.color.setHex(dusk ? 0xffae7a : 0xffd2a4)
-    this.sun.intensity = dusk ? 1.5 : 2.0
-    this.ambient.color.setHex(dusk ? 0xd3d7ed : 0xe4f2fa)
-    this.ambient.intensity = dusk ? 0.85 : 1.25
-    this.renderer.toneMappingExposure = dusk ? 0.95 : 0.95
+    this.sun.color.setHex(dusk ? 0xffae7a : sun.color)
+    this.sun.intensity = dusk ? sun.intensity * 0.75 : sun.intensity
+    this.ambient.color.setHex(dusk ? 0xd3d7ed : hemisphere.sky)
+    this.ambient.intensity = dusk ? hemisphere.intensity * 0.68 : hemisphere.intensity
+    this.renderer.toneMappingExposure = exposure
     this.environment.setDusk(dusk)
     this.refreshShadows()
   }
@@ -942,8 +925,51 @@ export default class CityWorld {
     this.controls.update()
   }
 
-  refreshShadows() {
-    if (this.pilot && this.renderer) this.renderer.shadowMap.needsUpdate = true
+  // Não há mais shadow map: o nome ficou porque vários pontos o chamam ao mudar peças; agora só marca a sombra de contato.
+  refreshShadows() { this.contactDirty = true }
+
+  /** Sombra de contato: um quad de gradiente radial sob cada prédio, todos num InstancedMesh (+1 draw, sem passe de sombra). */
+  makeContactShadows() {
+    const size = 64
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = size
+    const context = canvas.getContext('2d')
+    const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
+    gradient.addColorStop(0, 'rgba(255,255,255,1)')
+    gradient.addColorStop(0.5, 'rgba(255,255,255,0.8)')
+    gradient.addColorStop(1, 'rgba(255,255,255,0)')
+    context.fillStyle = gradient
+    context.fillRect(0, 0, size, size)
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.colorSpace = THREE.SRGBColorSpace
+    const { opacity, color } = this.look.contact
+    const geometry = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
+    const shadowMaterial = new THREE.MeshBasicMaterial({ map: texture, color, transparent: true, opacity, depthWrite: false })
+    this.contactShadows = new THREE.InstancedMesh(geometry, shadowMaterial, Math.max(64, this.gridSize ** 2))
+    this.contactShadows.name = 'Sombras de contato'
+    this.contactShadows.frustumCulled = false
+    this.contactShadows.renderOrder = 1
+    this.contactShadows.count = 0
+    this.scene.add(this.contactShadows)
+    this.contactDirty = true
+  }
+
+  refreshContactShadows() {
+    this.contactDirty = false
+    if (!this.contactShadows) return
+    const dummy = new THREE.Object3D()
+    const scale = this.look.contact.scale
+    let index = 0
+    for (const record of this.records.values()) {
+      if (!record.footprint || record.placement.kind === 'road' || record.placement.kind === 'tree' || index >= this.contactShadows.instanceMatrix.count) continue
+      const { x, z, width, depth } = record.footprint
+      dummy.position.set(x, BUILDING_BASE_Y + 0.004, z)
+      dummy.scale.set(width * scale, 1, depth * scale)
+      dummy.updateMatrix()
+      this.contactShadows.setMatrixAt(index++, dummy.matrix)
+    }
+    this.contactShadows.count = index
+    this.contactShadows.instanceMatrix.needsUpdate = true
   }
 
   stopArrival() {
@@ -1093,6 +1119,7 @@ export default class CityWorld {
     this.controls.target.y = THREE.MathUtils.clamp(this.controls.target.y, 0, 4)
     this.controls.update()
     if (this.camera.position.y < 1.5) this.camera.position.y = 1.5
+    if (this.contactDirty) this.refreshContactShadows()
     this.environment.animate(time, this.reducedMotion)
     this.animateActivity(time)
     this.renderer.render(this.scene, this.camera)

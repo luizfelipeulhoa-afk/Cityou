@@ -20,6 +20,9 @@ Kit montado em 10/11/2026 para o trabalho no BuildU (mapa-mundo, UI, backend e d
 | ux-heuristics | [wondelai/skills](https://github.com/wondelai/skills) | `d8d5d75` (02/11/2026) | MIT |
 | form-design | [owl-listener/designer-skills](https://github.com/owl-listener/designer-skills) | `9a6930c` (05/09/2026) | MIT |
 | find-skills | [vercel-labs/skills](https://github.com/vercel-labs/skills) | `e781cb4` (10/11/2026) | MIT |
+| council-review (só `SKILL.md`) | [ngmeyer/council-review](https://github.com/ngmeyer/council-review) | `e9a9ee3` (30/05/2026) | MIT |
+| owasp-security | [agamm/claude-code-owasp](https://github.com/agamm/claude-code-owasp) | `1ae29cb` (03/11/2026) | MIT |
+| threejs-lighting, threejs-materials, threejs-textures, threejs-postprocessing | [CloudAI-X/threejs-skills](https://github.com/CloudAI-X/threejs-skills) | `0e18186` (19/10/2026) | MIT |
 | ui-ux-pro-max, design-system, ui-styling, design | [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | `6ae86f6` (10/11/2026) | MIT |
 | impeccable | [pbakaus/impeccable](https://github.com/pbakaus/impeccable) | `c1e0e54` (10/11/2026) | Apache-2.0 |
 | gsap-plugins, gsap-utils, gsap-scrolltrigger | [greensock/gsap-skills](https://github.com/greensock/gsap-skills) (oficial) | `aed9cfd` (21/04/2026) | MIT |
@@ -38,6 +41,8 @@ Só arquivos `.md` (o `SKILL.md` e as referências de cada skill). Ficaram de fo
 - Configurações de plugin, hooks e servidores MCP dos repositórios de origem. Do Cloudflare vieram só as skills, sem o servidor MCP remoto.
 
 ## Revisão feita
+
+- 13/11/2026: entraram 6 skills (10 arquivos `.md`): `council-review`, `owasp-security` e quatro de Three.js. Varredura automática igual às anteriores (instruções para ignorar regras, esconder algo, burlar permissões, comandos perigosos, segredos, caracteres invisíveis), sem achados; as ocorrências de `token`, `eval` e `.env` na `owasp-security` são o próprio assunto da skill. Sem leitura linha a linha. A `council-review` tem 17 estrelas, o README diz que o repositório foi arquivado, e ela lança de 11 a 14 subagentes por rodada: use em decisão de risco, não em rotina. Avaliadas e não instaladas (motivo em `docs/PLANO-PROXIMOS-PASSOS.md`): Agent Reach, llm-council, Deep-Research-skills, agent-council, threejs-aaa-graphics-builder, security-review da Sentry, playwright-best-practices.
 
 - 11/11/2026: entraram 9 skills (88 arquivos `.md`). Varredura automática igual à anterior, sem achados relevantes. Só os `.md` foram copiados; os scripts Python, CSVs, fontes e o CLI da `impeccable` ficaram de fora. As menções a `GEMINI_API_KEY` e similares na `design` são exemplos de configuração, nada foi configurado.
 
