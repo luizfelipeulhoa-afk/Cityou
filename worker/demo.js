@@ -76,6 +76,15 @@ async function requireAdmin(request, env) {
   if (given !== expected) throw new HttpError(403, 'Token de administração inválido.')
 }
 
+/**
+ * Abre o Durable Object da sessão. `DO_LOCATION_HINT` (por exemplo `sam`) só vale para objetos ainda não criados:
+ * sem a variável nada muda. Medido em 13/11/2026: sem dica, a prévia leva ~120 ms só na ida e volta ao objeto (docs/BENCHMARKS.md).
+ */
+function sessionStub(env, key) {
+  const hint = env?.DO_LOCATION_HINT
+  return hint ? env.DEMO_SESSIONS.getByName(key, { locationHint: hint }) : env.DEMO_SESSIONS.getByName(key)
+}
+
 /** Nome do Durable Object com os dados da sessão de demonstração deste pedido, ou null sem cookie. */
 export async function demoKeyOf(request, env) {
   const token = sessionToken(request)
@@ -92,7 +101,7 @@ export function accountKey(id) {
 async function updateAdoption(env, key, path, account) {
   let response
   try {
-    response = await env.DEMO_SESSIONS.getByName(key).fetch(`https://cityou.internal${path}`, {
+    response = await sessionStub(env, key).fetch(`https://cityou.internal${path}`, {
       method: 'POST', headers: { [ACCOUNT_HEADER]: account },
     })
   } catch (error) {
@@ -130,7 +139,7 @@ export async function demoApi(request, env, url, user = null, timing = null) {
   if (user) forwarded.headers.set(ACCOUNT_HEADER, user.id)
   else forwarded.headers.delete(ACCOUNT_HEADER)
   // `do` = ida e volta ao Durable Object (inclui o trabalho dele): separa o servidor do banco no Server-Timing.
-  const call = () => env.DEMO_SESSIONS.getByName(key).fetch(forwarded)
+  const call = () => sessionStub(env, key).fetch(forwarded)
   const response = timing ? await timing.measure('do', call) : await call()
   const result = new Response(response.body, response)
   if (!user && result.status === 410) result.headers.append('Set-Cookie', sessionCookie(url))

@@ -190,6 +190,8 @@ No `shared/game/city-catalog.json`, os itens `island-*` são prédios da Ilha In
 
 Regras do jogo: `shared/game/rules.js` (puro, sem banco; `npm test`). O estudo de referência de city builders está em `docs/research/estudo-city-builders.md`; o que foi adotado e o que ficou de fora está em `docs/GAME-DESIGN.md`. Onde os dados ficam é decisão em aberto (`docs/DATA-MODEL.md`).
 
+Latência: na prévia o Durable Object custa ~120 ms por chamada (distância Worker→objeto, medida em `docs/BENCHMARKS.md`, seção "Piso de ~120 ms"). `DO_LOCATION_HINT` (ex.: `sam`, só objetos novos) é lido por `sessionStub` em `worker/demo.js`; nada o define ainda, ligar é decisão do dono. Cache de leitura na borda por sessão (`worker/edge-cache.js`, ligado em `handleApi`): só `GET /api/personal` e `/api/city`, revalida em segundo plano e é invalidado por toda escrita que passa pelo Worker; detalhes em `docs/BENCHMARKS.md`.
+
 Moedas de teste dos sócios: `POST /api/admin/credits` (`worker/demo.js`), só existe com o segredo `CITYOU_ADMIN_TOKEN`, 50.000 por sessão e uma vez; uso em `docs/API.md`. Não crie outro caminho para dar moedas sem proteção.
 
 No Rio, construir um prédio novo usa `previewBuild` no cliente e no Worker. O jogador confirma o total e o servidor grava o prédio e a rua automática em uma ação. Veja `docs/API.md` e `docs/INTERACTIONS.md`.

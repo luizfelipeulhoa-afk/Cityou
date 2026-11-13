@@ -2,7 +2,8 @@
 // Contrato em docs/API.md.
 import { HttpError, createTiming, errorResponse } from './http.js'
 import { health } from './routes/health.js'
-import { demoApi, sessionCookie, sessionToken } from './demo.js'
+import { accountKey, demoApi, demoKeyOf, sessionCookie, sessionToken } from './demo.js'
+import { cachedRead, invalidate, isCacheableRead } from './edge-cache.js'
 import { accountsEnabled, authApi, sessionTokenOf, sessionUser } from './auth.js'
 export { DemoSession } from './demo.js'
 
@@ -34,7 +35,12 @@ async function handleApi(request, env, ctx, url, timing) {
     const user = await sessionUser(request, env)
     // Com as contas ativas e REQUIRE_LOGIN ligado, não há mais demonstração sem conta: toda rota de dados pede sessão.
     if (!user && loginRequired(env)) throw new HttpError(401, 'Entre na sua conta para continuar.')
-    return demoApi(request, env, url, user, timing)
+    const read = isCacheableRead(request.method, url.pathname)
+    if (!read && !WRITE_METHODS.has(request.method)) return demoApi(request, env, url, user, timing)
+    // Cache de leitura por sessão (worker/edge-cache.js): a chave é o nome do objeto da sessão, nunca o cookie.
+    const key = user ? (user.data_key ?? await accountKey(user.id)) : await demoKeyOf(request, env)
+    if (read) return cachedRead({ key, url, ctx, timing, fresh: () => demoApi(request, env, url, user, timing) })
+    try { return await demoApi(request, env, url, user, timing) } finally { await invalidate(key).catch(() => {}) }
   }
   const route = matches.find(([method]) => method === request.method)
   if (!route) throw new HttpError(405, 'Método não permitido.')
