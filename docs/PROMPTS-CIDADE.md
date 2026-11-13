@@ -20,6 +20,8 @@ Seguem `docs/DESIGN-SYSTEM.md`: bloco de estilo (com a base de grama, ou de arei
 | Delegacia de polícia | `rio-policia` | 2x2 | 4000 |
 | Corpo de bombeiros | `rio-bombeiro` | 2x2 | 4000 |
 | Maracanã (o maior prédio da cidade) | `rio-maracana` | 6x6 | 8000 |
+| Coqueiro | `rio-arvore-coqueiro` | 1x1 | 3000 |
+| Shopping center (o segundo maior, depois do Maracanã) | `rio-shopping` | 5x5 | 7000 |
 
 ## Carrinho de picolé — `rio-picole` (1x1)
 
@@ -187,6 +189,28 @@ O estádio é de propósito o maior volume do Rio: face_limit mais alto (8000) e
 Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, slightly oversized entrances, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The building stands on a thin round 10-sided low-poly base disk, flat grass-green top with brown earth sides, diameter just larger than the building footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
 
 Subject: a large oval stadium, the biggest landmark in the city, clearly bigger and taller than every other building: a deep navy and stone-gray curved outer facade wrapping all the way around, a ring of chunky white support pillars at the base holding up a wide cream cantilevered roof ring that leans up and out, four tall sunny-yellow floodlight towers at the corners each topped with a simple flat panel of light-boxes (no glow), a glimpse of the bright grass-green pitch and a few terracotta-and-cream seating tiers through the open oval center, simple ramps curving up the outside.
+
+Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
+```
+
+## Coqueiro — `rio-arvore-coqueiro` (1x1)
+
+```
+Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The object stands on a thin round 10-sided low-poly base disk, flat sand top with brown earth sides, diameter just larger than the object footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
+
+Subject: a Rio coconut palm tree (coqueiro): a tall, gently leaning warm wood brown trunk with a chunky faceted texture, a crown of six to eight curving fan-like fronds in grass green and dark green fanning out from the top, a small cluster of round coconuts in warm wood brown tucked under the crown.
+
+Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
+```
+
+## Shopping center — `rio-shopping` (5x5, o segundo maior prédio, depois do Maracanã)
+
+Segundo maior volume da cidade: `face_limit: 7000` no Tripo e, na redução, `--tris 6500` (dentro do orçamento de 8000 do teste) — menor que o Maracanã (6x6, 7000 triângulos), maior que tudo o resto.
+
+```
+Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, slightly oversized entrance canopy, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The building stands on a thin round 10-sided low-poly base disk, flat grass-green top with brown earth sides, diameter just larger than the building footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
+
+Subject: a big, wide, low shopping mall, the second-largest building in the city after the stadium: a long low two-story block in cream and sky blue, a huge rounded glass-free atrium bump on the front in deep navy with a wide coral entrance canopy jutting out over rows of chunky parking bollards, a flat roof lined with sunny-yellow skylight domes and a few rooftop air-conditioning box shapes, a strip of terracotta paving and small round trees along the front, the whole building wide and sprawling rather than tall.
 
 Three-quarter isometric view, camera 30 degrees above, front-right corner facing the viewer.
 ```
