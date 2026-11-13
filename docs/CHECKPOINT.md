@@ -11,9 +11,6 @@ Atualizado em 13/11/2026. Para continuar em outra IA ou com outro dev: `node too
 
 Testes ao fechar o PR: `npm test` 67, `npm run test:worker` 30, `npm run test:terrain` ok, `npm run build` ok.
 
-## O que este PR NÃO entrega
-A **etapa 9 (rua automática) ficou fora**: o código parcial está em `docs/wip/etapa-9-rua-automatica.patch`, não no código do app. Todo o resto do plano (etapas 2 a 6, 7b e 8) não foi começado.
-
 ## Decisões do dono (13/11/2026): todas aprovadas
 1. Reembolso de 100% das peças de IA e StuntSync retiradas (recalculado pelo servidor, uma vez).
 2. Biblioteca "Em breve"; Professor, voz e Planilhas saem.
@@ -28,7 +25,7 @@ A **etapa 9 (rua automática) ficou fora**: o código parcial está em `docs/wip
 |---|---|
 | 1 Medição de base | Feita. Falta a base da prévia publicada |
 | 7a Prédio e terreno como uma coisa só | Feita. Entrada animada e fade do terreno foram para a 7b |
-| 9 Rua automática (ocupar todo o terreno) | Parcial, em patch (abaixo) |
+| 9 Rua automática (ocupar todo o terreno) | Implementada: prévia, confirmação, cobrança única e testes |
 | 2 Tarefas reais, cliente único, cidade sem iframe | Não começada |
 | 3 Catálogo e migração | Não começada |
 | 4 Painel sem iframe | Não começada |
@@ -39,15 +36,8 @@ A **etapa 9 (rua automática) ficou fora**: o código parcial está em `docs/wip
 
 ## O que falta, para o próximo developer
 
-### Etapa 9: rua automática (retomar daqui)
-Problema: só 55 dos cerca de 800 lotes liberados do Rio têm frente para rua conectada (`placementProblem`), e a cidade fica presa ao contorno das ruas. Regra decidida: ao construir num lote sem frente para rua, o servidor traça e cobra o trecho de rua mais curto até a rede, numa ação só.
-
-1. `git apply docs/wip/etapa-9-rua-automatica.patch`. Ele traz: `autoRoadPlan(city, placement)` em `shared/game/city-layout.js` (busca em largura, até 30 trechos, `{ tiles, cost }` ou `{ error }`); `placementProblem(city, placement, { autoRoad })` (mover e girar continuam estritos); a construção em `worker/city.js` (valida, soma o custo da rua, `requireCredits` do total, empurra rua e prédio juntos, tudo ou nada). Rodava 67 + 30 testes sem quebrar, **mas a regra nova não tem teste**.
-2. **Cliente:** em `src/fifones/CityWorld.js`, `isValid` passa `{ autoRoad: this.tool.mode === 'build' }`; `refreshPreview` calcula `autoRoadPlan`, desenha os trechos no `roadPreview` (só quando `kind !== 'road'`; o modo rua usa o mesmo mesh), e confere créditos com custo do prédio mais o da rua; um callback `onAutoRoad(plan)`. Em `src/CityApp.vue`: mostrar "+ N trechos de rua (X moedas)" no `toolText` e usar o total na mensagem de sucesso e em `onTile`.
-3. **Testes** em `tests/worker.test.mjs` e `tests/game-rules.test.mjs`: lote a ~10 células da rua cria rua e prédio e cobra o total exato; moedas insuficientes não gravam nada pela metade; reenvio com o mesmo `request_id` não cobra de novo; caminho cruzando área protegida (morro, água) recusa; mais de 30 trechos recusa; mover e girar sem frente continuam recusando; a ilha não ganha rua.
-4. **Docs:** `docs/GAME-DESIGN.md`, `docs/INTERACTIONS.md`, `docs/API.md` e o `CLAUDE.md` (regra nova de construção).
-5. Armadilhas: `findSite` (prédios de atividade) continua estrito de propósito (não cobrar rua de prédio que nasce sozinho); `validateRoadChange` impede demolir rua que mantém prédio conectado; o custo da rua é 2 por trecho (`city-catalog.json`).
-Pronto quando: construir num lote longe da rua cria rua e prédio de uma vez, cobra o total exato uma só vez, e a tela mostra o custo antes do clique.
+### Etapa 9: rua automática (implementada)
+No Rio, escolher o lote de um prédio mostra a ligação mais curta à rede e o custo total. Confirmar grava o prédio e até 30 trechos de rua na mesma ação. Testes cobrem saldo insuficiente, áreas protegidas, caminho bloqueado e reenvio sem cobrança dupla. O teste de navegador é `node tools/auto-road-playtest.mjs <url-do-worker-em-modo-teste>`. A próxima etapa do plano é a 2.
 
 ### Etapa 2: tarefas reais, cliente único, cidade sem iframe
 `GET /api/personal/tasks` e concluir tarefa (apelidos para `/api/workspace/tasks*` por um deploy); saem `connected` e `source`; um `api()` único com 401 → `/?entrar=1&next=…` (copiar o padrão de `reloadPage` em `CityApp.vue`); `goToPanel(aba)`; saem `openWorkspace`, o diálogo, `setActivity`, a sondagem de 10 s e a atividade do `CityApp.vue`. Pronto quando: Missões lista tarefas, nenhum "8765" ou "offline" em `src/CityApp.vue`, os itens do menu chegam a `/app#/<aba>`.

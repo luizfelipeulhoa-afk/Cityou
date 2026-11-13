@@ -87,6 +87,8 @@ O bônus de hoje depende de quantos dos últimos 7 dias (hoje incluído) foram a
 
 ## Mapa: uma cidade por local
 
+No Rio, um prédio novo pode ficar longe das ruas existentes. A prévia traça o caminho mais curto até uma via conectada, por lotes livres e liberados, com limite de 30 trechos. Cada trecho custa o preço da rua no catálogo. Confirmar compra a ligação e o prédio juntos. Mover e girar exigem acesso a uma rua existente. Árvores e as construções da Ilha Inicial dispensam rua.
+
 O globo tem 8 locais: a Ilha Inicial e 7 monumentos (Cristo Redentor, Machu Picchu, Chichén Itzá, Coliseu, Petra, Taj Mahal, Grande Muralha). Cada local é um terreno onde a pessoa constrói uma cidade.
 
 - **Começo.** Toda conta começa na Ilha Inicial.

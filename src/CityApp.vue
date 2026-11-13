@@ -1,6 +1,6 @@
 <script setup>
 import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { previewRoadPath, roadPath } from '../shared/game/city-layout.js'
+import { previewBuild, previewRoadPath, roadPath, usesAutoRoad } from '../shared/game/city-layout.js'
 import { findSpace } from './world/worldSpaces.js'
 import CityWorld from './fifones/CityWorld.js'
 import { progression } from './fifones/progression.js'
@@ -54,6 +54,7 @@ const scenic = computed(() => state.value?.scenic === true)
 // Na ilha (cenário) o catálogo existe, mas só com os prédios que ela aceita.
 const islandBuild = computed(() => scenic.value && (state.value?.catalog?.length ?? 0) > 0)
 const tileCoordinates = ref({ x: 8, y: 8 })
+const buildTile = ref(null)
 const roadStart = ref(null)
 const roadEnd = ref(null)
 const roadCoordinates = ref({ x: 8, y: 9, end_x: 8, end_y: 12 })
@@ -149,7 +150,20 @@ const activeOfficeCount = computed(() => [...new Set((state.value?.placements ||
 const openTasks = computed(() => tasks.value.filter(task => task.status !== 'done' && !task.completed_at))
 const doneTasks = computed(() => tasks.value.length - openTasks.value.length)
 const protectedBuilding = computed(() => ['headquarters', 'plaza'].includes(selected.value?.kind) || selected.value?.id.startsWith('seed-road-'))
-const toolText = computed(() => mode.value === 'build' ? `Toque no terreno para construir ${chosen.value?.label || ''}` : mode.value === 'move' ? 'Escolha o novo terreno para este prédio' : mode.value === 'remove' ? 'Selecione uma construção para demolir' : '')
+const confirmsBuild = computed(() => mode.value === 'build' && chosen.value &&
+  usesAutoRoad(state.value?.location_id, chosen.value.id))
+const buildQuote = computed(() => {
+  if (!confirmsBuild.value || !buildTile.value) return null
+  return previewBuild(state.value, { ...buildTile.value, kind: chosen.value.id, rotation: rotation.value })
+})
+const toolText = computed(() => {
+  if (mode.value === 'build') return confirmsBuild.value
+    ? 'Escolha um terreno para ver o custo.'
+    : `Toque no terreno para construir ${chosen.value?.label || ''}`
+  if (mode.value === 'move') return 'Escolha o novo terreno para este prédio'
+  if (mode.value === 'remove') return 'Selecione uma construção para demolir'
+  return ''
+})
 const upgradeCost = computed(() => Number(selectedCatalog.value?.cost || 0) * Number(selected.value?.level || 1))
 const day = computed(() => {
   const start = Date.parse(state.value?.started_at || '')
@@ -233,9 +247,10 @@ async function refreshAll(manual = false) {
   }
   finally { refreshing.value = false }
 }
-function updateTool() { engine?.setTool({ mode: mode.value, kind: selectedKind.value, rotation: rotation.value, placementId: selectedId.value }) }
+function updateTool() { engine?.setTool({ mode: mode.value, kind: selectedKind.value, rotation: rotation.value, placementId: selectedId.value, buildTile: buildTile.value }) }
 function cancelTool() {
   mode.value = 'select'
+  buildTile.value = null
   selectedKind.value = null
   rotation.value = 0
   roadStart.value = null
@@ -352,12 +367,29 @@ async function onTile({ x, y }) {
   if (mode.value === 'road') { setRoadEndpoint({ x, y }); return }
   historyOpen.value = false
   if (mode.value === 'build' && chosen.value) {
+    if (confirmsBuild.value) {
+      buildTile.value = { x, y }
+      updateTool()
+      return
+    }
     const item = chosen.value
     const result = await performAction({ type: 'build', kind: item.id, x, y, rotation: rotation.value }, `${item.label} construído · −${coins(item.cost)} moedas`)
     if (result && state.value.credits < item.cost) cancelTool()
   }
   else if (mode.value === 'move' && selected.value) {
     if (await performAction({ type: 'move', placement_id: selected.value.id, x, y, rotation: rotation.value }, 'Construção movida.')) cancelTool()
+  }
+}
+async function confirmBuild() {
+  const quote = buildQuote.value
+  if (!quote || quote.error || quote.cost > state.value.credits) return
+  const { x, y } = buildTile.value
+  const item = chosen.value
+  const action = { type: 'build', kind: item.id, x, y, rotation: rotation.value }
+  if (await performAction(action, `${item.label} construído · −${coins(quote.cost)} moedas`)) {
+    buildTile.value = null
+    if (state.value.credits < item.cost) cancelTool()
+    else updateTool()
   }
 }
 function onSelect(placement) {
@@ -618,16 +650,35 @@ onUnmounted(() => {
       </details>
     </section>
 
-    <details v-if="usesRoadEditor && (mode === 'build' || mode === 'move')" class="tile-coordinates panel">
+    <details v-if="usesRoadEditor && !buildQuote && (mode === 'build' || mode === 'move')" class="tile-coordinates panel">
       <summary>Escolher terreno por coordenadas</summary>
       <form class="road-editor-fields" @submit.prevent="onTile(tileCoordinates)">
         <label>Coluna X<input v-model.number="tileCoordinates.x" type="number" :min="state.grid_min" :max="state.grid_max" required /></label>
         <label>Linha Y<input v-model.number="tileCoordinates.y" type="number" :min="state.grid_min" :max="state.grid_max" required /></label>
-        <button type="submit" class="secondary-button" :disabled="saving || refreshing">Usar terreno</button>
+        <button type="submit" class="secondary-button" :disabled="saving || refreshing">{{ confirmsBuild ? 'Ver custo' : 'Usar terreno' }}</button>
       </form>
     </details>
 
-    <div v-if="toolText && !workspace" class="tool-hint" role="status"><span class="hint-dot" /><span>{{ toolText }}</span><kbd>R</kbd><span class="rotation-hint">girar</span><button aria-label="Girar construção" title="Girar construção (R)" @click="rotateSelected"><Icon name="rotate" :size="16" /></button><button aria-label="Cancelar construção" @click="cancelTool"><Icon name="close" :size="16" /></button></div>
+    <section v-if="buildQuote" class="road-editor panel" aria-label="Prévia de construção">
+      <p role="status">
+        <template v-if="buildQuote.error">{{ buildQuote.error }}</template>
+        <template v-else>
+          {{ chosen.label }} · {{ coins(chosen.cost) }} moedas
+          <template v-if="buildQuote.road.tiles.length">
+            + {{ buildQuote.road.tiles.length }} {{ buildQuote.road.tiles.length === 1 ? 'trecho' : 'trechos' }} de rua ({{ coins(buildQuote.road.cost) }} moedas)
+          </template>
+          <br /><strong>Total: {{ coins(buildQuote.cost) }} moedas</strong>
+          <template v-if="buildQuote.cost > state.credits"> · Saldo insuficiente</template>
+        </template>
+      </p>
+      <div class="road-editor-actions">
+        <button class="primary-button" :disabled="saving || refreshing || !!buildQuote.error || buildQuote.cost > state.credits" @click="confirmBuild">Confirmar construção</button>
+        <button class="secondary-button" :disabled="saving" @click="rotateSelected">Girar</button>
+        <button class="secondary-button" :disabled="saving" @click="cancelTool">Cancelar</button>
+      </div>
+    </section>
+
+    <div v-if="toolText && !workspace && !buildQuote" class="tool-hint" role="status"><span class="hint-dot" /><span>{{ toolText }}</span><kbd>R</kbd><span class="rotation-hint">girar</span><button aria-label="Girar construção" title="Girar construção (R)" @click="rotateSelected"><Icon name="rotate" :size="16" /></button><button aria-label="Cancelar construção" @click="cancelTool"><Icon name="close" :size="16" /></button></div>
 
     <section v-if="!scenic || islandBuild" class="catalog panel" :class="{ 'catalog-is-closed': !catalogOpen }" aria-label="Catálogo de construções">
       <div class="catalog-toolbar"><button class="catalog-title" :aria-expanded="catalogOpen" @click="catalogOpen = !catalogOpen"><span class="build-icon"><Icon name="plus" :size="18" /></span>Construir <Icon name="down" :size="14" /></button><div v-if="catalogOpen" class="catalog-filters" role="group" aria-label="Filtrar construções"><button :class="{ selected: activeFilter === 'all' }" @click="activeFilter = 'all'">Tudo</button><button :class="{ selected: activeFilter === 'life' }" @click="activeFilter = 'life'">Bairro</button><button :class="{ selected: activeFilter === 'work' }" @click="activeFilter = 'work'">Seus espaços</button></div><span v-if="catalogOpen" class="catalog-spacer" /><button v-if="catalogOpen" class="select-tool" :class="{ selected: mode === 'select' }" aria-label="Selecionar construção" @click="cancelTool"><Icon name="pointer" :size="16" /><span>Selecionar</span></button></div>
