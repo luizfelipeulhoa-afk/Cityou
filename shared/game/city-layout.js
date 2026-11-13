@@ -194,7 +194,65 @@ function tileIsAvailable(city, x, y) {
     !protection.get(layout)?.has(tileKey(x, y))
 }
 
-export function placementProblem(city, placement) {
+const MAX_AUTO_ROAD = 30
+const neighbors = (x, y) => [{ x: x - 1, y }, { x: x + 1, y }, { x, y: y - 1 }, { x, y: y + 1 }]
+
+/**
+ * Rua automática: o trecho mais curto de rua livre que liga o prédio à rede de ruas conectada à entrada
+ * (busca em largura, só por terreno liberado e sem ocupação). Devolve { tiles, cost }; sem frente para rua
+ * precisa de trechos, com frente devolve tiles vazio. { error } quando não há caminho ou ele passa de 30 trechos.
+ * Só vale nas cidades de rua (não na ilha, onde não há ruas) e nunca para árvore e rua.
+ */
+function autoRoadPlan(city, placement) {
+  const none = { tiles: [], cost: 0 }
+  if (!usesAutoRoad(city.location_id, placement.kind)) return none
+  const others = city.placements.filter(existing => existing.id !== placement.id)
+  const roads = connectedRoads(others)
+  if (hasRoadFrontage(placement, roads)) return none
+  if (!roads.size) return { error: 'Não há caminho livre até a rua. Libere espaço ou desenhe a rua.' }
+  const blocked = new Set(others.flatMap(existing => occupiedTiles(existing).map(({ x, y }) => tileKey(x, y))))
+  const own = occupiedTiles(placement)
+  for (const { x, y } of own) blocked.add(tileKey(x, y))
+  const free = (x, y) => tileIsAvailable(city, x, y) && !blocked.has(tileKey(x, y))
+  const previous = new Map()
+  const queue = []
+  for (const cell of own) for (const next of neighbors(cell.x, cell.y)) {
+    const key = tileKey(next.x, next.y)
+    if (free(next.x, next.y) && !previous.has(key)) { previous.set(key, null); queue.push(next) }
+  }
+  for (let cursor = 0; cursor < queue.length; cursor++) {
+    const tile = queue[cursor]
+    if (neighbors(tile.x, tile.y).some(next => roads.has(tileKey(next.x, next.y)))) {
+      const tiles = []
+      for (let key = tileKey(tile.x, tile.y); key !== null; key = previous.get(key)) {
+        const [x, y] = key.split(',').map(Number)
+        tiles.push({ x, y })
+      }
+      if (tiles.length > MAX_AUTO_ROAD) return { error: 'Está longe demais da rua. Desenhe as ruas até perto do lote.' }
+      return { tiles, cost: tiles.length * getBuilding('road').cost }
+    }
+    for (const next of neighbors(tile.x, tile.y)) {
+      const key = tileKey(next.x, next.y)
+      if (free(next.x, next.y) && !previous.has(key)) { previous.set(key, tileKey(tile.x, tile.y)); queue.push(next) }
+    }
+  }
+  return { error: 'Não há caminho livre até a rua. Libere espaço ou desenhe a rua.' }
+}
+
+export function usesAutoRoad(location, kind) {
+  return location === 'cristo-redentor' && kind !== 'tree' && kind !== 'road'
+}
+
+export function previewBuild(city, placement) {
+  const automatic = usesAutoRoad(city.location_id, placement.kind)
+  const issue = automatic ? lotProblem(city, placement) : placementProblem(city, placement)
+  if (issue) return { error: issue.message, status: issue.status }
+  const road = autoRoadPlan(city, placement)
+  if (road.error) return { error: road.error, status: 422 }
+  return { road, cost: getBuilding(placement.kind).cost + road.cost }
+}
+
+function lotProblem(city, placement) {
   const tiles = occupiedTiles(placement)
   if (tiles.some(({ x, y }) => !tileIsAvailable(city, x, y))) {
     return { status: 422, message: 'A construção precisa caber inteiramente no terreno liberado e fora das áreas protegidas.' }
@@ -206,6 +264,12 @@ export function placementProblem(city, placement) {
       return { status: 409, message: 'Esse espaço já está ocupado.' }
     }
   }
+  return null
+}
+
+export function placementProblem(city, placement) {
+  const issue = lotProblem(city, placement)
+  if (issue) return issue
   // Na ilha não há rua nem entrada: os prédios dela não pedem frente para rua.
   if (isPilotCity(city.location_id) && !isScenicCity(city.location_id) && placement.kind !== 'tree') {
     const roads = connectedRoads(city.placements.filter(existing => existing.id !== placement.id))

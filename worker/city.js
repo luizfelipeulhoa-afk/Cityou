@@ -1,6 +1,6 @@
 import {
   connectedRoads, getBuilding, getCityCatalog, getCityLayout, hasRoadFrontage, isPilotCity, isScenicCity,
-  placementProblem, previewRoadPath, roadPath, scenicBuildKinds, tileKey,
+  placementProblem, previewBuild, previewRoadPath, roadPath, scenicBuildKinds, tileKey,
 } from '../shared/game/city-layout.js'
 import { RULES } from '../shared/game/rules.js'
 import { HttpError } from './http.js'
@@ -150,10 +150,15 @@ function applyPlacement(city, action, context) {
     const site = auto ? findSite(context, kind, rotation ?? 0) : { x, y }
     const placement = { id: crypto.randomUUID(), kind, x: site.x, y: site.y, rotation: rotation ?? 0, level: 1 }
     if (linked) Object.assign(placement, { activity_id: action.activity_id, nome: context.activity_name })
-    validateSite(context, placement)
-    requireCredits(city, item.cost)
-    city.placements.push(placement)
-    return { amount: -item.cost, label: `Construiu ${placement.nome || item.label}` }
+    const { road, cost, error, status } = previewBuild(context, placement)
+    if (error) throw new HttpError(status, error)
+    requireCredits(city, cost)
+    const roads = road.tiles.map(({ x, y }) => ({
+      id: crypto.randomUUID(), kind: 'road', x, y, rotation: 0, level: 1,
+    }))
+    city.placements.push(...roads, placement)
+    const name = placement.nome || item.label
+    return { amount: -cost, label: road.tiles.length ? `Construiu ${name} e ${road.tiles.length} trechos de rua` : `Construiu ${name}` }
   }
 
   if (kind !== null || placement_id === null) throw new HttpError(422, 'Escolha uma construção da cidade.')
