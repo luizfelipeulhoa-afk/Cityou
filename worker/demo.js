@@ -4,7 +4,7 @@ import { DOMAINS, RULES } from '../shared/game/rules.js'
 import { ProofError, parseProof, sha256Hex } from '../shared/game/proof.js'
 import { buildSummary } from '../shared/game/summary.js'
 import { kindForDomain, stageFor } from '../shared/game/buildings.js'
-import { newCity, newTown, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
+import { newCity, newTown, withoutHeadquarters, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
 import { HttpError, json, errorResponse } from './http.js'
 
 const START = SPACE_ORDER[0]
@@ -358,7 +358,7 @@ export class DemoSession {
   regionalCity(location, home) {
     if (location === START) return home
     const { credits, earned, reward_count, history } = home
-    const region = this.read('regional-city', location) ?? newTown(location)
+    const region = withoutHeadquarters(this.read('regional-city', location) ?? newTown(location), location)
     return { ...region, credits, earned, reward_count, history }
   }
 
