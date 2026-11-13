@@ -4,10 +4,13 @@ Organização pessoal gamificada. O repositório tem a página de apresentação
 
 ## Antes de qualquer trabalho (obrigatório)
 
+Este arquivo é o documento principal: é o primeiro que toda IA lê. Tudo o que for guardado como passo, decisão ou memória do projeto (checkpoint, handoff, `docs/memoria/`) tem de ser citado aqui, para a próxima IA ler antes de começar. Ao criar um documento de contexto novo, acrescente-o à lista abaixo no mesmo commit.
+
 Vale para qualquer agente e qualquer pedido sobre este projeto ou o app, por menor que seja:
 
 1. Leia este arquivo inteiro, na versão da `main` (`git fetch origin main && git show origin/main:CLAUDE.md`). O arquivo carregado na sessão é o do seu branch, que pode estar atrás.
 2. Leia `docs/CHECKPOINT.md` (onde estamos, decisões do dono e próximo passo), `docs/PLANO-PROXIMOS-PASSOS.md` (o plano) e `docs/known-issues.md` (tropeços conhecidos e como contornar).
+   Também leia `docs/HANDOFF-CONTEXTO.md` (contexto de passagem entre conversas) e as páginas de `docs/memoria/` (memória compartilhada do time; roteiro em `docs/ai-memory.md`). Se o `ai-memory` estiver ligado, consulte-o sobre o assunto antes de repetir uma investigação.
 3. Só então planeje ou edite. Se o pedido contrariar uma decisão registrada, avise antes de fazer. Ao começar uma etapa, anote o seu branch em "Em andamento por branch" no checkpoint.
 
 O gancho `.claude/hooks/session-start.sh` (registrado em `.claude/settings.json`) repete este aviso no começo de cada sessão, diz quando o `CLAUDE.md` do branch difere do da `main` e, nas sessões na nuvem, instala as dependências do npm quando o `package-lock.json` muda. Outros agentes (Codex e afins) chegam aqui pelo `AGENTS.md`.
