@@ -34,14 +34,14 @@ A decisão original era guardar o wiki em `docs/memoria/`. A leitura do ai-memor
 - O `wiki/` é **um repositório git próprio** (o ai-memory faz commit nele a cada consolidação). Aninhá-lo no repositório do projeto cria um repositório dentro de outro.
 - O ai-memory compartilha com o time por **um servidor único** (todos apontam para ele). O `git remote` do wiki é **backup de um wiki só** (`docs/backup.md` do ai-memory), não sincronização entre pessoas: dois wikis empurrados para o mesmo ramo têm históricos sem relação e o push é recusado.
 
-Arranjo adotado (13/11/2026): **A + B + C**.
+Arranjo adotado (13/11/2026): **A + B + C agora, e D como objetivo.** O dono quer a memória **junta** entre pessoas e IAs, para evitar problemas de comunicação; isso só o servidor único (D) entrega. A, B e C valem enquanto não houver servidor.
 
 | | O que é | O que faz | O que não faz |
 |---|---|---|---|
 | **A. Caderno individual** | O wiki no diretório de dados de cada pessoa, fora do repositório | Memória automática da pessoa: o contexto volta na sessão seguinte, mesmo em outra IA | Ninguém mais vê |
 | **B. Páginas revisadas** | [`docs/memoria/`](memoria/README.md), por PR | Compartilha com quem vê o repositório o que importa, já revisado | É manual: só entra o que alguém copia e revisa |
 | **C. Repositório privado da memória** | Um repositório privado só para os cadernos, **um ramo por pessoa** | Backup do caderno de cada um; os outros podem **ler** | **Não funde** os cadernos numa busca só |
-| **D. Servidor único** | Um servidor do ai-memory que todos usam | Memória realmente fundida e compartilhada | **Adiado** (decisão do dono): exige um computador ligado e conexão com TLS fora do loopback (`SECURITY.md` do ai-memory) |
+| **D. Servidor único** | Um servidor do ai-memory que todos usam | Memória realmente fundida e compartilhada | **Objetivo do dono.** Exige um servidor sempre ligado (Docker), autenticação por token ou contas e TLS fora do loopback (`SECURITY.md` e `docs/deploy.md` do ai-memory). **Falta decidir onde hospedar** |
 
 ### Repositório privado da memória (backup e leitura entre pessoas)
 **O dono cria** (a sessão que escreveu isto só alcança o repositório do projeto): um repositório **privado**, sem README, nome sugerido `CityouApp/cityou-memoria`, com acesso só para quem vai usar. Se o nome for outro, troque a linha do `git remote add`.
