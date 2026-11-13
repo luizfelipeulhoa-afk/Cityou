@@ -172,8 +172,8 @@ Fechadas em 13/11/2026:
 - **flatShading não é forçado** no carregamento: os GLB do Tripo já saem com faces nítidas e forçar mudaria o visual dos sete modelos atuais. Se um GLB novo vier com normais suaves, regerar no Tripo antes de mexer em `SpaceMarker.js`.
 - **Fontes licenciadas.** Fifones é Figtree e FifonesDisplay é Newsreader, ambas OFL, com licença no repositório.
 
-Em aberto:
+Decidida em 13/11/2026, falta implementar:
 
-- [ ] **Prédios da ilha.** Farol, cabana e píer ainda não existem no catálogo da cidade (`shared/game/city-catalog.json`). Falta decidir se viram cenário fixo da ilha ou prédios construíveis.
+- [ ] **Prédios da ilha.** Farol, Cabana e Píer são prédios que o jogador constrói na ilha. Hoje o servidor recusa construção na ilha (`isScenicCity` em `shared/game/city-layout.js`; "A ilha é só para contemplar" em `worker/city.js`), então a decisão muda uma regra do PR #12. Falta: (1) abrir a ilha para construção só desses três tipos, (2) entradas no catálogo (`shared/game/city-catalog.json`) com custo, tamanho (farol 3x3, cabana 2x2, píer 3x3) e etapas, (3) os GLB, gerados pelo guia acima (o farol primeiro).
 
 Mudanças neste sistema: editar este arquivo por pull request. A versão compartilhada no Claude da empresa (Claude Docs, "Design system Cityou") tem o mesmo conteúdo; as duas precisam ser mantidas juntas.

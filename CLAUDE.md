@@ -109,7 +109,7 @@ Código: `worker/` (entrada em `worker/index.js`, uma rota por arquivo em `worke
 
 Painel de progresso (créditos, nível, bônus): `docs/DASHBOARD.md`; o contrato `resumo` está em `shared/game/summary.js`. Comprovação das atividades: `shared/game/proof.js` e a seção "Comprovação" de `docs/GAME-DESIGN.md`. Viagens de produção ficam fechadas por `TRAVEL_OPEN=false` em `wrangler.jsonc`. A prévia tem acesso aos oito destinos e carteira de teste isolada.
 
-Prédios de atividade: `shared/game/buildings.js` (área→tipo `dom-*`, etapas por dias e semanas); a ação `build` aceita `activity_id` sem x/y e o servidor escolhe o lote (`findSite` em `worker/city.js`). Todo o terreno é construível (`buildRadius`). A Ilha Inicial é só cenário (`isScenicCity`); sem `?local`, a cidade é o Rio (`DEFAULT_CITY` em `worker/demo.js`), já aberto.
+Prédios de atividade: `shared/game/buildings.js` (área→tipo `dom-*`, etapas por dias e semanas); a ação `build` aceita `activity_id` sem x/y e o servidor escolhe o lote (`findSite` em `worker/city.js`). Todo o terreno é construível (`buildRadius`). A Ilha Inicial é só cenário (`isScenicCity`); decidido em 13/11/2026 (`docs/DESIGN-SYSTEM.md`): Farol, Cabana e Píer serão prédios que o jogador constrói na ilha, o que muda essa regra e ainda não está implementado (o servidor segue recusando construção lá); sem `?local`, a cidade é o Rio (`DEFAULT_CITY` em `worker/demo.js`), já aberto.
 
 No `shared/game/city-catalog.json`, os itens `island-*` são prédios da Ilha Inicial: `city-layout.js` os tira do catálogo comum e os põe no catálogo regional da ilha, e o FastAPI local os ignora. Farol da Percepção, Cabana do Primeiro Passo e Píer da Jornada estão definidos assim, sem modelo 3D. Como a ilha é só cenário, eles ainda não aparecem no jogo.
 
