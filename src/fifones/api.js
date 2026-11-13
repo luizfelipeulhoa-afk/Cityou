@@ -100,6 +100,11 @@ export const loadPersonal = month => api('/api/personal' + monthQuery(month))
 export const addEvent = (body, month) => api('/api/personal/events' + monthQuery(month), 'POST', body)
 export const editEvent = (id, body, month) => api(`/api/personal/events/${encodeURIComponent(id)}` + monthQuery(month), 'PUT', body)
 export const removeEvent = (id, month) => api(`/api/personal/events/${encodeURIComponent(id)}` + monthQuery(month), 'DELETE')
+// Peso real: uma pesagem por dia, em gramas. A tendência (média de 7 dias) vem pronta do servidor.
+export const loadWeights = () => api('/api/personal/weights')
+export const addWeight = body => api('/api/personal/weights', 'POST', body)
+export const editWeight = (id, body) => api(`/api/personal/weights/${encodeURIComponent(id)}`, 'PUT', body)
+export const removeWeight = id => api(`/api/personal/weights/${encodeURIComponent(id)}`, 'DELETE')
 // Projetos reais: um nome e um próximo passo. `stepDone` só o servidor conta.
 const projectPath = id => `/api/personal/projects/${encodeURIComponent(id)}`
 export const addProject = body => api('/api/personal/projects', 'POST', body)

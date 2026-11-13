@@ -9,6 +9,7 @@ import { HttpError, json, errorResponse, readJsonObject } from './http.js'
 import { dateFormatter, isDate, capOf, capMessage } from './records.js'
 import { agendaMethods } from './agenda.js'
 import { projectMethods } from './projects.js'
+import { weightMethods } from './weights.js'
 
 const START = SPACE_ORDER[0]
 // A ilha é só cenário; a cidade onde se constrói começa aberta no Rio de Janeiro.
@@ -23,8 +24,8 @@ const ADOPTION_HOLD_MS = 5 * 60 * 1000
 const SESSION_SECONDS = 30 * 24 * 60 * 60
 const previewEnabled = env => env?.CITYOU_TEST_OPEN_REGIONS === '1'
 const kinds = ['habit', 'goal', 'note', 'transaction', 'meal']
-// Biblioteca, Memórias e a ficha de Fitness ainda não têm armazenamento próprio: chegam vazias e indisponíveis.
-const sources = Object.fromEntries(['fitness', 'documents', 'memories'].map(key => [key, { connected: false, data: key === 'fitness' ? {} : [] }]))
+// Biblioteca e Memórias ainda não têm armazenamento próprio (etapa 4): chegam vazias e indisponíveis.
+const sources = Object.fromEntries(['documents', 'memories'].map(key => [key, { connected: false, data: [] }]))
 
 export function sessionToken(request) {
   return request.headers.get('Cookie')?.match(/(?:^|;\s*)cityou_demo=([a-f0-9]{64})(?:;|$)/)?.[1]
@@ -45,6 +46,8 @@ const routes = [
   [/^\/api\/personal\/projects$/, { GET: 'projectsList', POST: 'addProject' }],
   [/^\/api\/personal\/projects\/([a-f0-9-]{36})$/, { PUT: 'editProject', DELETE: 'removeProject' }],
   [/^\/api\/personal\/projects\/([a-f0-9-]{36})\/step-done$/, { POST: 'stepDone' }],
+  [/^\/api\/personal\/weights$/, { GET: 'weightsHistory', POST: 'addWeight' }],
+  [/^\/api\/personal\/weights\/([a-f0-9-]{36})$/, { PUT: 'editWeight', DELETE: 'removeWeight' }],
   [/^\/api\/personal\/tasks$/, { GET: 'tasks', POST: 'addTask' }],
   [/^\/api\/personal\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/personal\/proofs\/([a-f0-9-]{36})\/(\d{4}-\d{2}-\d{2})\/photo$/, { GET: 'proofPhoto' }],
@@ -358,7 +361,7 @@ export class DemoSession {
     const entries = this.list('entry')
     return {
       entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), predios: [...this.buildingActivityIds()],
-      tasks: this.list('task'), projects: this.list('project'), ...this.agendaView(), sources,
+      tasks: this.list('task'), projects: this.list('project'), ...this.agendaView(), ...this.weightView(), sources,
     }
   }
 
@@ -658,4 +661,4 @@ export class DemoSession {
   }
 }
 
-Object.assign(DemoSession.prototype, agendaMethods, projectMethods)
+Object.assign(DemoSession.prototype, agendaMethods, projectMethods, weightMethods)

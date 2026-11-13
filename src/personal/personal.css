@@ -90,3 +90,26 @@
 .pj-actions{display:flex;gap:8px}
 .pj-foot{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:6px;border-top:1px solid #ffffff0d}
 .segmented small{margin-left:4px;opacity:.7}
+
+/* Peso real (etapa 5): sem meta, sem cor de bom ou ruim. A média de 7 dias é a linha; as pesagens são pontos. */
+.wt-hero{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.wt-hero>div{flex:1 1 220px;min-width:0}
+.wt-hero h2{margin:4px 0}
+.wt-hero p{color:var(--muted);font-size:.85rem}
+.wt-chart,.wt-list{margin-top:18px}
+.wt-trend{color:var(--text);font-size:.92rem;margin-bottom:12px}
+.wt-figure{margin:0}
+.wt-figure svg{width:100%;height:auto;display:block;overflow:visible}
+.wt-axis{stroke:#ffffff14;stroke-width:1}
+.wt-dot{fill:#8b90a5}
+.wt-avg{fill:none;stroke:var(--accent);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.wt-figure figcaption{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:.74rem;color:var(--muted);margin-top:6px}
+.wt-legend{display:inline-flex;align-items:center;gap:6px}
+.wt-key{display:inline-block}
+.wt-key.dot{width:6px;height:6px;border-radius:50%;background:#8b90a5}
+.wt-key.line{width:14px;height:2px;background:var(--accent);margin-left:8px}
+.wt-list ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.wt-list li{display:grid;grid-template-columns:5.5rem auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:#ffffff06}
+.wt-list time{color:var(--muted);font-size:.8rem}
+.wt-list small{color:var(--muted);font-size:.8rem;overflow-wrap:anywhere}
+@media(max-width:520px){.wt-list li{grid-template-columns:auto minmax(0,1fr) auto}.wt-list time{grid-column:1/-1}.wt-list small{grid-column:1/-1;order:3}.wt-hero .ag-btn{width:100%}}

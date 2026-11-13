@@ -159,11 +159,12 @@ Ação principal: "Registrar peso".
 
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
-| Registrar peso | Fifones | `PUT /api/weights/{dia}` | `weights` | "Última pesagem" e a lista atualizam |
-| Linha de pesagem | Nada | `PUT` ou `DELETE /api/weights/{dia}` | `weights` | Edição e "Apagar" |
-| Continuar avaliação (voz Gemini) | Fifones | | | **Sai** |
+| Registrar peso do dia | `POST /api/personal/weights` (etapa 5) | `PUT /api/weights/{dia}` | `records` (kind `weight`) | "Última pesagem", média de 7 dias, gráfico e lista atualizam; peso em kg com vírgula, convertido para gramas |
+| Editar (linha de pesagem) | `PUT /api/personal/weights/{id}` | `PUT /api/weights/{dia}` | `records` | Só o peso e a nota; o dia não muda |
+| Apagar (pede "Apagar mesmo?") | `DELETE /api/personal/weights/{id}` | `DELETE /api/weights/{dia}` | `records` | A pesagem sai e o dia fica livre de novo |
+| Continuar avaliação (voz Gemini) | saiu | | | **Saiu** |
 
-"Retornos registrados" sai junto com a avaliação. Vazio: "Seu gráfico começa com a primeira pesagem."
+O gráfico mostra as pesagens como pontos e a média de 7 dias como linha, com o texto neutro "Sua média está estável nas últimas 2 semanas." (ou "um pouco mais alta/baixa que há 2 semanas"). Sem meta, sem cor de bom ou ruim, sem moedas. "Retornos registrados" saiu junto com a avaliação. Vazio: "Seu gráfico começa com a primeira pesagem."
 
 ### Alimentação
 
