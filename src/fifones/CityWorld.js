@@ -128,7 +128,9 @@ export default class CityWorld {
     this.controls.enableDamping = !this.reducedMotion
     this.controls.dampingFactor = 0.075
     this.controls.minDistance = 9
-    this.controls.maxDistance = this.pilot ? 73 : 58
+    // No Rio o zoom máximo ficou mais fechado (13/11/2026): a névoa e o orçamento do terreno (rio-cidade.js,
+    // src/terrain/lighting.js) foram cortados para o que dá para ver daqui para dentro.
+    this.controls.maxDistance = this.pilot ? (this.region?.id === 'cristo-redentor' ? 56 : 73) : 58
     this.controls.minPolarAngle = 0.25
     this.controls.maxPolarAngle = Math.PI / 2.5
     this.controls.screenSpacePanning = false
@@ -1012,7 +1014,8 @@ export default class CityWorld {
       const island = this.region.id === 'ilha-inicial'
       // No Rio o alvo fica um pouco acima do chão para o Cristo, no morro do fundo, caber abaixo do cabeçalho.
       this.controls.target.set(island ? 0 : -1, island ? 0.8 : 3.6, island ? 4 : -4)
-      this.camera.position.set(island ? 18 : 23, island ? 31 : 29, island ? 42 : 41)
+      // No Rio a câmera começa mais perto (zoom maior, 13/11/2026): o cenário real dá para ver bem mais de perto.
+      this.camera.position.set(island ? 18 : 21, island ? 31 : 29.5, island ? 42 : 39)
     } else {
       this.controls.target.set(0, 0.8, 0)
       this.camera.position.set(17.5, 17.5, 23)
