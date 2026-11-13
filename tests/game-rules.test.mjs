@@ -185,7 +185,7 @@ test('catálogo: os prédios island-* do JSON são da Ilha Inicial e não aparec
   const sizes = { 'island-lighthouse': [3, 3], 'island-cabin': [2, 2], 'island-pier': [3, 3] }
   for (const [id, [width, depth]] of Object.entries(sizes)) {
     const item = getBuilding(id)
-    assert.deepEqual([item.width, item.depth, item.model, item.destination], [width, depth, null, null])
+    assert.deepEqual([item.width, item.depth, item.model, item.destination], [width, depth, `/models/island/${id}.glb`, null])
     assert.ok(item.cost > 0 && item.height > 0 && /^#[0-9a-f]{6}$/.test(item.color))
   }
   assert.equal(getBuilding('island-lighthouse').label, 'Farol da Percepção')
