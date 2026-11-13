@@ -215,6 +215,10 @@ A fase B7 é de interface (atalhos, paleta, barra inferior, cache local) e não 
 
 Cada fase entra com testes do Worker contra um D1 local e com dois testes fixos: duas contas, uma tentando ler e alterar os dados da outra; e um envio de XP ou créditos pelo navegador, que precisa ser recusado.
 
+### Construir com rua automática no Rio (Worker)
+
+`POST /api/city/actions?local=cristo-redentor` com `type: "build"` mantém os campos existentes (`kind`, `x`, `y`, `rotation` opcional, `expected_revision` e `request_id`). O servidor traça a ligação mais curta por lotes válidos e soma o custo do prédio ao dos trechos de rua. Registra todas as peças, uma revisão e um débito juntos. Sem saldo, com lote protegido, caminho impossível ou acima de 30 trechos, devolve 422. Revisão divergente ou lote ocupado retorna 409. Reenviar a mesma ação com o mesmo `request_id` devolve o estado sem repetir o débito. Mover e girar continuam exigindo rua existente.
+
 ## Velocidade
 
 | Meta | Como se mede |

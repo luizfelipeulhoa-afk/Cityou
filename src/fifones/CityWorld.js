@@ -11,7 +11,7 @@ import { toLambertScene } from '../tres/lambert.js'
 import { applyGroundBlendTo } from '../tres/groundBlend.js'
 import { lightingFor } from '../terrain/lighting.js'
 import { WORLD_MODELS_MANIFEST } from '../world/worldSpaces.js'
-import { getCityLayout, isPilotCity, placementProblem, tileKey } from '../../shared/game/city-layout.js'
+import { getCityLayout, isPilotCity, placementProblem, previewBuild, tileKey } from '../../shared/game/city-layout.js'
 import { createTapGesture } from '../interaction/tapGesture.js'
 import { buildRioFallback, createCoreBuilding, createEnvironment, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT, material } from './sceneEnvironment.js'
 import { CHARACTERS } from './characters.js'
@@ -339,7 +339,7 @@ export default class CityWorld {
     })
     listen(this.canvas, 'pointerleave', () => {
       this.hover = null
-      this.preview.visible = false
+      this.refreshPreview()
       this.canvas.style.cursor = 'grab'
     })
     listen(window, 'pointercancel', event => this.tap.cancel(event), true)
@@ -781,6 +781,7 @@ export default class CityWorld {
   setTool(tool = {}) {
     this.tool = { mode: 'select', kind: null, rotation: 0, placementId: null, ...tool }
     if (this.pilot) this.tiles.visible = !this.interior && this.usesTiles()
+    if (this.tool.mode !== 'road') this.setRoadPreview()
     this.refreshPreview()
   }
 
@@ -809,15 +810,25 @@ export default class CityWorld {
     const placement = moving ? this.state.placements?.find(item => item.id === this.tool.placementId) : null
     const kind = moving ? placement?.kind : this.tool.kind
     const definition = this.definitions.get(kind)
+    const tile = this.tool.buildTile ?? this.hover
     const active = this.tool.mode === 'build' || moving
-    this.preview.visible = Boolean(!this.interior && active && this.hover && definition &&
+    this.preview.visible = Boolean(!this.interior && active && tile && definition &&
       !(this.pilot && kind === 'road' && this.roadPreview.count))
-    if (!this.preview.visible) return
+    if (!this.preview.visible) {
+      if (this.tool.mode === 'build') this.setRoadPreview()
+      return
+    }
     const rotation = this.tool.rotation || 0
     const { width, depth } = dimensions(definition, rotation)
-    const valid = this.isValid(this.hover, definition, rotation) && (moving || (this.state.credits ?? Infinity) >= (definition.cost || 0))
+    const quote = !moving && this.pilot && this.state.location_id === this.region.id
+      ? previewBuild(this.state, { ...tile, kind, rotation })
+      : null
+    const valid = quote
+      ? !quote.error && this.state.credits >= quote.cost
+      : this.isValid(tile, definition, rotation) && (moving || (this.state.credits ?? Infinity) >= (definition.cost || 0))
+    if (!moving) this.setRoadPreview(quote?.road?.tiles.map(point => ({ ...point, valid })) ?? [])
     const color = valid ? 0x8fd64c : 0xf08066
-    this.preview.position.set(this.hover.x - CENTER + (width - 1) / 2, 0.095, this.hover.y - CENTER + (depth - 1) / 2)
+    this.preview.position.set(tile.x - CENTER + (width - 1) / 2, 0.095, tile.y - CENTER + (depth - 1) / 2)
     this.previewFloor.scale.set(width * 0.96, 1, depth * 0.96)
     const height = Math.min(Number(definition.height) || 0.7, 1.7)
     this.previewGhost.position.y = height / 2
@@ -825,7 +836,7 @@ export default class CityWorld {
     this.previewFloor.material.color.setHex(color)
     this.previewGhost.material.color.setHex(color)
     this.preview.userData.valid = valid
-    this.preview.userData.cells = footprint({ ...this.hover, rotation }, definition)
+    this.preview.userData.cells = footprint({ ...tile, rotation }, definition)
   }
 
   setSelected(id) {

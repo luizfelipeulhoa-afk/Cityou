@@ -230,6 +230,8 @@ A tela mostra as três espécies de nota, com um filtro por tipo.
 
 ## Minha cidade (`city.html?local=<id>`)
 
+No Rio, selecione um prédio do catálogo e toque em um lote ou use as coordenadas para ver o custo. A prévia marca o lote e o trajeto da rua e separa o custo do prédio, o da rua e o total. Você pode girar, escolher outro lote ou cancelar. **Confirmar construção** só fica disponível quando o lote e o trajeto são válidos e o saldo cobre a compra.
+
 Uma cidade por local liberado. Sem `local`, abre a cidade do local atual. As regras estão em `GAME-DESIGN.md`.
 
 | Botão | Hoje | Rota | Tabela | Retorno |

@@ -141,6 +141,8 @@ Regras do jogo: `shared/game/rules.js` (puro, sem banco; `npm test`). O estudo d
 
 Moedas de teste dos sócios: `POST /api/admin/credits` (`worker/demo.js`), só existe com o segredo `CITYOU_ADMIN_TOKEN`, 50.000 por sessão e uma vez; uso em `docs/API.md`. Não crie outro caminho para dar moedas sem proteção.
 
+No Rio, construir um prédio novo usa `previewBuild` no cliente e no Worker. O jogador confirma o total e o servidor grava o prédio e a rua automática em uma ação. Veja `docs/API.md` e `docs/INTERACTIONS.md`.
+
 Regras fixas: o navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência.
 
 ## Skills do projeto (`.claude/skills/`)

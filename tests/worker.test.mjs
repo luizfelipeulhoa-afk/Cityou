@@ -134,6 +134,47 @@ const travel = (session, local, request_id, status) => session('/api/world/trave
   method: 'POST', body: { local, request_id }, status,
 })
 
+test('Rio builds ten road tiles and one building in a single idempotent purchase', async () => {
+  const session = newDemoSession()
+  const start = await city(session, RIO)
+  const lot = { kind: 'rio-sobrado', x: -2, y: 15 }
+  const built = await build(session, RIO, 'auto-road', start.revision, lot)
+  const existing = new Set(start.placements.map(item => item.id))
+  const added = built.placements.filter(item => !existing.has(item.id))
+  const roads = added.filter(item => item.kind === 'road')
+  assert.equal(roads.length, 10)
+  assert.deepEqual(added.filter(item => item.kind !== 'road').map(({ kind, x, y }) => ({ kind, x, y })), [lot])
+  const connected = connectedRoads(built.placements)
+  assert.ok(roads.every(({ x, y }) => connected.has(tileKey(x, y))))
+  assert.ok(hasRoadFrontage(added.find(item => item.kind === lot.kind), connected))
+  assert.equal(built.credits, start.credits - 40)
+  assert.equal(built.history[0].amount, -40)
+  assert.equal(built.revision, start.revision + 1)
+  assert.deepEqual(await build(session, RIO, 'auto-road', start.revision, lot), built)
+  assert.deepEqual(await city(session, RIO), built)
+
+  const building = added.find(item => item.kind === lot.kind)
+  await session('/api/city/actions?local=' + RIO, {
+    method: 'POST', status: 422,
+    body: { type: 'move', placement_id: building.id, x: -7, y: 20,
+      expected_revision: built.revision, request_id: 'move-without-frontage' },
+  })
+  assert.deepEqual(await city(session, RIO), built)
+})
+
+test('Rio cannot buy a building if the wallet covers only the building', async () => {
+  const session = newDemoSession()
+  const start = await city(session, RIO)
+  assert.equal(start.credits, 50)
+  await build(session, RIO, 'no-money-for-road', start.revision, {
+    kind: 'rio-fair', x: -2, y: 15, status: 422,
+  })
+  const after = await city(session, RIO)
+  assert.deepEqual(after.placements, start.placements)
+  assert.deepEqual([after.credits, after.revision, after.history.length],
+    [start.credits, start.revision, start.history.length])
+})
+
 test('cidades regionais: construir abre uma escolha de viagem e só o servidor libera destinos', async () => {
   const session = newDemoSession()
   assert.equal((await call('/api/city')).status, 401)

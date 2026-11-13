@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { RULES, applyXp, canMarkDay, dayKey, lastSevenDays, presenceBonus, rewardFor, xpToNext } from '../shared/game/rules.js'
-import { applyCityAction, newCity, normalizeAction } from '../worker/city.js'
+import { getCityLayout, previewBuild, tileKey } from '../shared/game/city-layout.js'
+import { applyCityAction, newCity, normalizeAction, snapshot } from '../worker/city.js'
 
 test('cidade: construção usa o catálogo e respeita ocupação, terreno e saldo', () => {
   const city = newCity()
@@ -197,4 +198,35 @@ test('catálogo: os prédios island-* do JSON são da Ilha Inicial e não aparec
   }
   // A ilha é de cenário (sem ruas nem prédios de atividade), mas oferece só estes prédios e decorações.
   assert.deepEqual(getCityCatalog('ilha-inicial').map(item => item.id).sort(), ['island-boat-large', 'island-boat-small', 'island-bonfire', 'island-cabin', 'island-hammock', 'island-lighthouse', 'island-palms', 'island-pier', 'island-statue'])
+})
+
+test('automatic roads stay on open land and reject protected lots and blocked routes', () => {
+  const location = 'cristo-redentor'
+  const city = snapshot(newCity(location), location)
+  const lot = { kind: 'rio-sobrado', x: -2, y: 15 }
+  const protectedTiles = new Set(getCityLayout(location).protectedTiles.map(([x, y]) => tileKey(x, y)))
+  const quote = previewBuild(city, lot)
+  assert.deepEqual([quote.road.tiles.length, quote.road.cost, quote.cost], [10, 20, 40])
+  assert.ok(quote.road.tiles.every(({ x, y }) => !protectedTiles.has(tileKey(x, y))))
+  assert.equal(previewBuild(city, { ...lot, y: 22 }).status, 422)
+  const wall = Array.from({ length: 27 }, (_, index) => ({
+    id: 'tree-' + index, kind: 'tree', x: 0, y: index - 4,
+  }))
+  const blocked = { ...city, placements: [...city.placements, ...wall] }
+  assert.match(previewBuild(blocked, lot).error, /caminho livre/)
+  const before = structuredClone(blocked)
+  assert.throws(() => applyCityAction(blocked, normalizeAction({
+    type: 'build', ...lot, expected_revision: blocked.revision, request_id: 'blocked-road',
+  }), location), { status: 422 })
+  assert.deepEqual(blocked, before)
+})
+
+test('automatic roads reject routes beyond 30 tiles and leave the island roadless', () => {
+  const location = 'cristo-redentor'
+  const city = snapshot(newCity(location), location)
+  city.placements = [{ id: 'seed-road-test', kind: 'road', x: 20, y: 15 }]
+  assert.match(previewBuild(city, { kind: 'home', x: -7, y: 10 }).error, /longe demais/)
+  const island = snapshot(newCity('ilha-inicial'), 'ilha-inicial')
+  const quote = previewBuild(island, { kind: 'island-cabin', x: 8, y: 8 })
+  assert.deepEqual(quote.road, { tiles: [], cost: 0 })
 })

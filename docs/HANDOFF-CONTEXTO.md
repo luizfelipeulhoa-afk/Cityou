@@ -29,7 +29,7 @@ Você vai continuar o trabalho num repositório que já tem várias sessões de 
 
 **Etapa 7a, feita:** tabela de luz por região em `src/terrain/lighting.js` (o Rio usa a luz do terreno, sem tone mapping), GLB em Lambert (`src/tres/lambert.js`), degradê de base até a cor do chão (`src/tres/groundBlend.js`: o disco bege do Tripo virou grama), sombra de contato num `InstancedMesh`, shadow map e `PointLight` removidos. Medido: +1 draw, +1 programa, CPU de render sem piora (tabela em `docs/WORLD-PERF.md`); fotos com `node tools/city-look.mjs <url> --label x`. Testes: `npm test` 67, `npm run test:worker` 30, `npm run test:terrain` ok. Falta da 7a (vai para a 7b): entrada animada dos prédios e terreno entrando com a névoa abrindo.
 
-**Etapa 9 (rua automática): parcial, fora do código do PR.** O código do servidor está em `docs/wip/etapa-9-rua-automatica.patch` (`git apply` para retomar); falta o cliente (prévia e custo), os testes da regra nova e os docs. Só 55 dos cerca de 800 lotes liberados do Rio têm frente para rua conectada; a regra decidida é: ao construir num lote sem frente para rua, o servidor traça e cobra o trecho mais curto até a rede, numa ação só. **O passo a passo do que falta, etapa por etapa, está em `docs/CHECKPOINT.md`: comece por ele.**
+**Etapa 9 (rua automática): implementada.** No Rio, escolher um lote mostra o prédio, os trechos de rua e o custo total. O servidor recalcula e grava a compra inteira em uma ação. Veja `docs/CHECKPOINT.md` para a próxima etapa.
 
 **Estado da etapa 1 (medição de base).**
 Feito e testado:
