@@ -679,14 +679,43 @@ function pilotSlope(group, layout, slope, water) {
   return [mesh, sceneryTiles(group, 'Copas da encosta', forest, new THREE.IcosahedronGeometry(1, 0))].filter(Boolean)
 }
 
-function createPilotEnvironment(group, region, layout) {
-  const island = region.id === 'ilha-inicial'
-  // No Rio o chão dos lotes tem o verde da mata do terreno (o mesmo de `plateau` em rio-cidade.js), um tom por lote.
-  const floorColor = island ? 0xc2c297 : 0x6fb377
+// Reserva completa do Rio (morros, encosta e calçadão feitos à mão): só entra se o terreno real (src/terrain)
+// falhar ao carregar. CityWorld.loadTerrain chama isto no catch, nunca de saída (13/11/2026): construir isto para
+// jogar fora um instante depois, sempre que o terreno carrega, era o "rastro" que atrasava a abertura da cidade.
+export function buildRioFallback(group, layout) {
   const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
   const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))
+  const land = []
+  for (let y = layout.min; y <= layout.max; y++) for (let x = layout.min; x <= layout.max; x++) {
+    const key = tileKey(x, y)
+    if (water.has(key) || slope.has(key)) continue
+    const tint = new THREE.Color(0x6fb377).multiplyScalar(1 + ((Math.abs(x * 13 + y * 7) % 5) - 2) * 0.03)
+    land.push({ x: x - layout.center, z: y - layout.center, tint })
+  }
+  const floor = pilotLand(group, land)
+  const hillside = pilotSlope(group, layout, slope, water)
+  return [floor, ...hillside, ...pilotRio(group, layout)].filter(Boolean)
+}
+
+function createPilotEnvironment(group, region, layout) {
+  const island = region.id === 'ilha-inicial'
   const sea = pilotWater(island)
   group.add(sea)
+  if (!island) {
+    // No Rio o terreno real (src/terrain) troca este cenário assim que carrega (CityWorld.loadTerrain, chamado já
+    // na construção da cidade, sem esperar o estado do servidor): nenhum morro, encosta ou calçadão feito à mão
+    // entra aqui, só este chão plano e barato (um draw call), para não deixar vão até o terreno chegar.
+    const site = layout.landmarks[0]
+    const placeholder = sceneryTiles(group, 'Chão provisório do Rio', [{
+      position: [0, 0.01, 0], scale: [layout.max - layout.min + 1, 0.02, layout.max - layout.min + 1], tint: 0x6fb377,
+    }])
+    const backdrop = [sea, placeholder].filter(Boolean)
+    const landmarkY = slopeHeight(site.x, site.y, layout.min)
+    const landmark = addLandmark(group, region, site.x - layout.center, landmarkY, site.y - layout.center)
+    return { group, landmark, backdrop, tileColor: 0xe9f5d8, animate: () => {}, lamps: [], setDusk() {} }
+  }
+  const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
+  const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))
   const land = [], shore = []
   for (let y = layout.min; y <= layout.max; y++) for (let x = layout.min; x <= layout.max; x++) {
     const key = tileKey(x, y)
@@ -702,24 +731,16 @@ function createPilotEnvironment(group, region, layout) {
     const coast = around.some(([ax, ay]) => water.has(tileKey(ax, ay)))
     // Na ilha, o miolo é de mata rasteira e a areia aparece perto da água.
     const beach = THREE.MathUtils.smoothstep(Math.hypot((x - 8) / 15, (y - 8) / 14), 0.7, 0.93)
-    const tint = island
-      ? new THREE.Color(0x8fb56a).lerp(new THREE.Color(0xe5d3a5), Math.max(beach, coast ? 1 : 0)).multiplyScalar(1 + (Math.abs(x * 19 + y * 13) % 11 - 5) * 0.002)
-      : new THREE.Color(floorColor).multiplyScalar(1 + ((Math.abs(x * 13 + y * 7) % 5) - 2) * 0.03)
+    const tint = new THREE.Color(0x8fb56a).lerp(new THREE.Color(0xe5d3a5), Math.max(beach, coast ? 1 : 0)).multiplyScalar(1 + (Math.abs(x * 19 + y * 13) % 11 - 5) * 0.002)
     land.push({ x: px, z: pz, tint })
   }
-  const floor = pilotLand(group, land)
-  // A encosta feita à mão (com o Cristo em cima) é só a reserva do Rio: com o terreno, o relevo real continua ali e o
-  // Cristo vai para o topo do morro de rio-cidade.js (CityWorld.loadTerrain).
-  const hillside = pilotSlope(group, layout, slope, water)
-  if (island) sceneryTiles(group, 'Faixa de areia protegida', shore)
-  const animate = island ? pilotIsland(group, layout, shore, land) : () => {}
-  const backdrop = island ? [] : [sea, floor, ...hillside, ...pilotRio(group, layout)].filter(Boolean)
+  pilotLand(group, land)
+  pilotSlope(group, layout, slope, water)
+  sceneryTiles(group, 'Faixa de areia protegida', shore)
+  const animate = pilotIsland(group, layout, shore, land)
   const site = layout.landmarks[0]
-  const landmarkY = island ? -0.42 : slopeHeight(site.x, site.y, layout.min)
-  const landmark = addLandmark(group, region, site.x - layout.center, landmarkY, site.y - layout.center)
-  // `backdrop`: o mar, o chão dos lotes, a encosta e os morros feitos à mão, que o terreno do Rio substitui
-  // (CityWorld.loadTerrain): com ele, o chão dos lotes é o platô do próprio terreno, no verde da mata.
-  return { group, landmark, backdrop, tileColor: island ? 0xdad0a7 : 0xe9f5d8, animate, lamps: [], setDusk(value) { animate.setDusk?.(value) } }
+  const landmark = addLandmark(group, region, site.x - layout.center, -0.42, site.y - layout.center)
+  return { group, landmark, backdrop: [], tileColor: 0xdad0a7, animate, lamps: [], setDusk(value) { animate.setDusk?.(value) } }
 }
 
 export function createEnvironment(scene, region) {

@@ -100,6 +100,24 @@ export function createTerrainData(region, values) {
     }
   }
 
+  // ---- Corte (`region.crop`): além deste raio do centro dado, o relevo real vira mar liso, com uma faixa de mistura.
+  // Mais barato que só apertar `detail.maxTriangles`: tira de vez a praia e os morros reais distantes que a câmera e a
+  // névoa da cidade (CityWorld, src/terrain/lighting.js) nunca mostravam mesmo, e corta os triângulos de lá também.
+  if (region.crop) {
+    const { x: cropX, z: cropZ, radius, blend: cropBlend = 14 } = region.crop
+    for (let j = 0; j < size; j++) {
+      const wz = originZ + j * spacing
+      for (let i = 0; i < size; i++) {
+        const distance = Math.hypot(originX + i * spacing - cropX, wz - cropZ)
+        if (distance <= radius) continue
+        const index = j * size + i
+        const t = smoothstep(radius, radius + cropBlend, distance)
+        heights[index] += (seaY - heights[index]) * t
+        if (t >= 1) values[index] = 0
+      }
+    }
+  }
+
   // ---- Platô: os cantos dos lotes livres e decorativos ficam em y = 0, e os vizinhos se misturam ao relevo ----
   const isPlateau = new Uint8Array(size * size)
   const plateauVertices = []
