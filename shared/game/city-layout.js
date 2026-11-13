@@ -125,8 +125,17 @@ const catalogs = Object.fromEntries(Object.entries(regionalCatalog)
   .map(([location, buildings]) => [location, [...buildings, ...baseCatalog]]))
 const kinds = new Map([...baseCatalog, ...Object.values(regionalCatalog).flat()].map(item => [item.id, item]))
 
+// A Ilha Inicial é de cenário (sem praça, sede, rua nem prédios de atividade), mas o jogador constrói nela o Farol,
+// a Cabana e o Píer (decidido em 13/11/2026). Uma cidade de cenário só aceita os tipos desta lista.
+const scenicBuildable = { 'ilha-inicial': ['island-lighthouse', 'island-cabin', 'island-pier'] }
+
+/** Tipos que o jogador pode construir numa cidade de cenário (vazio se ela é só para contemplar). */
+export function scenicBuildKinds(location) {
+  return isScenicCity(location) ? (scenicBuildable[location] ?? []) : []
+}
+
 export function getCityCatalog(location) {
-  if (isScenicCity(location)) return []
+  if (isScenicCity(location)) return scenicBuildKinds(location).map(id => kinds.get(id)).filter(Boolean)
   return Object.hasOwn(catalogs, location) ? catalogs[location] : baseCatalog
 }
 
@@ -197,7 +206,8 @@ export function placementProblem(city, placement) {
       return { status: 409, message: 'Esse espaço já está ocupado.' }
     }
   }
-  if (isPilotCity(city.location_id) && placement.kind !== 'tree') {
+  // Na ilha não há rua nem entrada: os prédios dela não pedem frente para rua.
+  if (isPilotCity(city.location_id) && !isScenicCity(city.location_id) && placement.kind !== 'tree') {
     const roads = connectedRoads(city.placements.filter(existing => existing.id !== placement.id))
     const plaza = city.placements.find(existing => existing.kind === 'plaza')
     const restoresEntry = placement.kind === 'road' && roads.size === 0 &&

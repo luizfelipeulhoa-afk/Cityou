@@ -195,6 +195,6 @@ test('catálogo: os prédios island-* do JSON são da Ilha Inicial e não aparec
   for (const location of ['cristo-redentor', 'petra']) {
     assert.equal(getCityCatalog(location).some(item => item.id.startsWith('island-')), false)
   }
-  // A ilha continua só de cenário: os prédios estão definidos, mas ela não oferece catálogo.
-  assert.deepEqual(getCityCatalog('ilha-inicial'), [])
+  // A ilha é de cenário (sem ruas nem prédios de atividade), mas oferece só estes três prédios.
+  assert.deepEqual(getCityCatalog('ilha-inicial').map(item => item.id).sort(), ['island-cabin', 'island-lighthouse', 'island-pier'])
 })

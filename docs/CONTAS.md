@@ -35,7 +35,7 @@ As contas só existem com o D1 ligado (`env.DB`):
 | `/` | página de apresentação; os botões dizem "Abrir a demonstração" e levam a `/app` | página de apresentação com Entrar e Criar conta; quem já entrou é levado a `/app` (`/?inicio` mostra a página mesmo assim) |
 | `/app`, `/city`, `/world` | abertos, com o cookie de demonstração | pedem login: sem sessão, redirecionam para `/?entrar=1&next=<caminho>` |
 | `/api/auth/*` | 503 | funcionam |
-| demais rotas `/api/*` | demonstração | dados da conta, se houver sessão; senão, demonstração |
+| demais rotas `/api/*` | demonstração | dados da conta, se houver sessão; senão, demonstração, ou **401** com `REQUIRE_LOGIN="true"` (ligado em `wrangler.jsonc`) |
 
 Se o banco estiver configurado e fora do ar, as páginas do app abrem como demonstração em vez de travar na entrada.
 O Worker cria as tabelas sozinho no primeiro uso (`SCHEMA` em `worker/auth.js`, igual a `migrations/0001` e `0002`).

@@ -1,0 +1,14 @@
+{
+  // Como wrangler.test.jsonc (com banco de contas), mas com o login obrigatório, como em produção.
+  "name": "cityou-test-login",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-11-09",
+  "vars": { "REQUIRE_LOGIN": "true" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "cityou-test-login", "database_id": "00000000-0000-0000-0000-000000000001", "migrations_dir": "migrations" }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
+  },
+  "migrations": [{ "tag": "demo-v1", "new_sqlite_classes": ["DemoSession"] }]
+}

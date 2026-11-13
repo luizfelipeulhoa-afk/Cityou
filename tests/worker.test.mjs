@@ -15,6 +15,7 @@ import { SPACE_ORDER } from '../src/world/worldSpaces.js'
 const ORIGIN = 'https://cityou.test'
 const harness = createTestHarness({ workers: [{ configPath: 'wrangler.test.jsonc' }] })
 const closedHarness = createTestHarness({ workers: [{ configPath: 'wrangler.test-closed.jsonc' }] })
+const loginHarness = createTestHarness({ workers: [{ configPath: 'wrangler.test-login.jsonc' }] })
 const call = (path, init) => harness.fetch(ORIGIN + path, init)
 let env
 
@@ -29,9 +30,10 @@ async function applyMigrations(db) {
 before(async () => {
   await harness.listen()
   await closedHarness.listen()
+  await loginHarness.listen()
   env = await harness.getWorker().getEnv()
 })
-after(async () => { await harness.close(); await closedHarness.close() })
+after(async () => { await harness.close(); await closedHarness.close(); await loginHarness.close() })
 
 test('health: sem banco ligado responde not_configured', async () => {
   const response = await worker.fetch(new Request(ORIGIN + '/api/health'), {})
@@ -553,17 +555,36 @@ test('prédio da atividade: reenviar a mesma ação não cobra de novo', async (
   assert.equal(again.placements.filter(item => item.activity_id === habit).length, 1)
 })
 
-test('ilha: só cenário, sem catálogo, rua nem prédio; o Rio de Janeiro já nasce aberto', async () => {
+test('ilha: cenário sem rua nem prédio de atividade; só Farol, Cabana e Píer se constroem; o Rio já nasce aberto', async () => {
   const session = newDemoSession()
   const island = await city(session, ISLAND)
   assert.equal(island.scenic, true)
   assert.deepEqual(island.placements, [])
-  assert.deepEqual(island.catalog, [])
+  assert.deepEqual(island.catalog.map(item => item.id).sort(), ['island-cabin', 'island-lighthouse', 'island-pier'])
+  // O que não é da ilha é recusado: prédio comum, prédio de atividade e rua.
   await build(session, ISLAND, 'casa-na-ilha', island.revision, { x: 8, y: 8, status: 422 })
+  await build(session, ISLAND, 'dom-na-ilha', island.revision, { kind: 'dom-saude', x: 8, y: 8, status: 422 })
   await session('/api/city/actions?local=' + ISLAND, {
     method: 'POST', status: 422,
     body: { type: 'road_path', x: 8, y: 9, end_x: 9, end_y: 9, expected_revision: island.revision, request_id: 'rua-na-ilha' },
   })
+  // Fora da terra da ilha (água) também não.
+  await build(session, ISLAND, 'farol-na-agua', island.revision, { kind: 'island-lighthouse', x: 22, y: 16, status: 422 })
+  // Quem chega tem 50 moedas: a Cabana (20) assenta sem rua por perto e cobra o custo do catálogo.
+  const cabana = await build(session, ISLAND, 'cabana-na-ilha', island.revision, { kind: 'island-cabin', x: 8, y: 8 })
+  assert.equal(cabana.credits, island.credits - 20)
+  assert.deepEqual(cabana.placements.map(item => item.kind), ['island-cabin'])
+  // Dois prédios não ocupam o mesmo lote.
+  await build(session, ISLAND, 'cabana-sobre-cabana', cabana.revision, { kind: 'island-cabin', x: 9, y: 9, status: 409 })
+  // O Farol (60) tem lote livre, mas faltam moedas: a conta de moedas vem depois da conferência do lote.
+  const poor = await build(session, ISLAND, 'farol-sem-moedas', cabana.revision, { kind: 'island-lighthouse', x: 12, y: 8, status: 422 })
+  assert.match(poor.message, /Moedas insuficientes/)
+  // Remover devolve metade do custo.
+  const removed = await session('/api/city/actions?local=' + ISLAND, {
+    method: 'POST', body: { type: 'remove', placement_id: cabana.placements[0].id, expected_revision: cabana.revision, request_id: 'tira-cabana' },
+  })
+  assert.equal(removed.credits, cabana.credits + 10)
+  assert.deepEqual(removed.placements, [])
   // Sem "local", a cidade é o Rio, e ele está aberto sem viagem nem prévia.
   const home = await session('/api/city')
   assert.equal(home.location_id, RIO)
@@ -675,4 +696,22 @@ test('conta: sem banco, as rotas de conta avisam e o app segue como demonstraç�
   })
   assert.equal(signup.status, 503)
   assert.notEqual((await closedHarness.fetch(`${ORIGIN}/city`, { redirect: 'manual' })).status, 302)
+})
+
+test('login obrigatório: sem sessão a API de dados responde 401; saúde e contas seguem abertas; com conta tudo funciona', async () => {
+  const send = (path, init) => loginHarness.fetch(ORIGIN + path, init)
+  const headers = { Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' }
+  for (const path of ['/api/city', '/api/personal/summary', '/api/world/progress']) {
+    const response = await send(path)
+    assert.equal(response.status, 401, path)
+    assert.match((await response.json()).message, /Entre na sua conta/)
+  }
+  assert.equal((await send('/api/health')).status, 200)
+  assert.deepEqual(await (await send('/api/auth/status')).json(), { accounts: true, user: null })
+  // A conta nova entra e passa a usar a API normalmente.
+  const signup = await send('/api/auth/signup', { method: 'POST', headers, body: JSON.stringify(account()) })
+  assert.equal(signup.status, 201)
+  const cookie = signup.headers.getSetCookie().map(item => item.split(';')[0]).join('; ')
+  const mine = await send('/api/city', { headers: { Cookie: cookie } })
+  assert.equal(mine.status, 200)
 })
