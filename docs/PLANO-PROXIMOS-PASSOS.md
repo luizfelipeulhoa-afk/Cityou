@@ -39,6 +39,16 @@ Regras que valem em todas as etapas (do `CLAUDE.md`): o navegador nunca envia XP
 
 Ordem: 2 a 6 atendem o pedido principal (sair do Fifones). A 7 vem depois da 3 porque não vale medir nem otimizar luzes e modelos que vão ser apagados. A 8 usa a animação de entrada e saída entregue pela 7.
 
+## O que o PR 24 já entregou (e muda a etapa 7)
+
+O [PR 24](https://github.com/CityouApp/Cityou/pull/24) entrou no `main` depois da análise do conselho e já fez parte da ambientação do Rio. A etapa 7 parte dele, não refaz:
+
+- **Já feito:** Cristo no topo de um morro do terreno (`CRISTO_PEAK`, `CRISTO_SCALE`), com o relevo real nas encostas; chão dos lotes no verde da mata, com tom por lote e variação por face (`plateau.tint/contrast/facets`); grade translúcida ao construir; calçadão de Copacabana com coqueiros; `createTerrainData` aceita `relief` e `vegetation.decorativePalms`.
+- **Sai da etapa 7:** "base do prédio na cor do terreno" para o chão dos lotes do Rio (o platô já tem a cor da mata). Continua valendo para o disco de assentamento e para as outras cidades.
+- **Continua na etapa 7:** luz única, Lambert nos GLB, sombra de contato, shadow map desligado, névoa única, `enter`/`leave`, desenho sob demanda, GLB legados reduzidos, vegetação em volta dos prédios (reaproveitar `decorativePalms`).
+- **Refazer antes de começar a 7:** as linhas de `CityWorld.js` e `sceneEnvironment.js` citadas pelo conselho mudaram com o PR 24 (118 linhas em `sceneEnvironment.js`). A base de medida da etapa 1 tem de ser tirada já com ele.
+- **Personagens:** `docs/PROMPTS-PERSONAGENS.md` (Explorador e Tartaruga-marinha) ainda não têm lugar no app. Fora deste plano até haver decisão de onde aparecem.
+
 ## Fita do Tempo (o "Voltar" depois de confirmar)
 
 Hoje construir, mover, girar e evoluir gravam no primeiro clique e nada desfaz. Em vez de perguntar "tem certeza?" antes, cada ação grava na hora e vira um cartão numa fita no canto da cidade ("Construiu Farol −60"). Tocar no cartão do topo desfaz; o cartão desfeito mostra "Refazer". `Ctrl/Cmd+Z` e `Shift+Ctrl/Cmd+Z` também valem.
