@@ -230,3 +230,15 @@ test('automatic roads reject routes beyond 30 tiles and leave the island roadles
   const quote = previewBuild(island, { kind: 'island-cabin', x: 8, y: 8 })
   assert.deepEqual(quote.road, { tiles: [], cost: 0 })
 })
+
+import { newTown, withoutHeadquarters } from '../worker/city.js'
+
+test('Rio sem a Sede Fifones: cidade nova sem sede e cidade salva antes perde a sede na leitura', () => {
+  const rio = newTown('cristo-redentor')
+  assert.equal(rio.placements.some(item => item.kind === 'headquarters'), false)
+  assert.ok(rio.placements.some(item => item.kind === 'plaza'))
+  const saved = { ...rio, placements: [...rio.placements, { id: 'core-headquarters', kind: 'headquarters', x: 8, y: 7, rotation: 0, level: 1 }] }
+  assert.equal(withoutHeadquarters(saved, 'cristo-redentor').placements.some(item => item.kind === 'headquarters'), false)
+  // Cidades antigas (não piloto) mantêm a sede.
+  assert.ok(newTown('petra').placements.some(item => item.kind === 'headquarters'))
+})
