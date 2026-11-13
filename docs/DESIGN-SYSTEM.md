@@ -66,12 +66,27 @@ O Cityou tem dois mundos visuais. Cada um tem os seus tokens em `:root`.
 
 Todo prédio sai de três passos: vista principal, folha de 4 vistas e recorte. Os blocos abaixo ficam iguais em todos os prompts, para o estilo não derivar.
 
-**Paleta das imagens** (cores fixas do bloco de estilo): grama #7BC67E, verde escuro #4E9F5D, areia #F2D7A6, mar-verde #3FB8AF, céu #8FD3F4, creme #FFF4E0, terracota #D9644A, madeira #B07A4F, pedra #A9A9B8, amarelo sol #FFD25A, coral #FF7F6B, azul-marinho #2E3A59.
+**Paleta das imagens** (alinhada às cores do jogo em 13/11/2026; imagens já geradas com a paleta antiga ficam como estão):
+
+| Cor no prompt | Hex | Origem |
+| --- | --- | --- |
+| grass green | #80d06e | `temperate` do mapa |
+| dark green | #4ea477 | `boreal` do mapa |
+| sand | #f7e4ab | `beach` do mapa |
+| sea teal | #56dad4 | `shallow` do mapa |
+| sky blue | #a6dcff | céu do globo (`WorldGlobe.js`) |
+| cream | #f6efdf | `sand` da cidade |
+| coral | #ea7651 | `coral` da cidade |
+| sunny yellow | #ffd166 | destaque do mapa |
+| stone gray | #a99f98 | `rock` do mapa |
+| terracotta | #D9644A | nova, só para objetos |
+| warm wood brown | #B07A4F | nova, só para objetos |
+| deep navy | #2E3A59 | nova, só para objetos |
 
 **Bloco de estilo** (sempre):
 
 ```
-Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, slightly oversized roof and doorway, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #7BC67E, dark green #4E9F5D, sand #F2D7A6, sea teal #3FB8AF, sky blue #8FD3F4, cream #FFF4E0, terracotta #D9644A, warm wood brown #B07A4F, stone gray #A9A9B8, sunny yellow #FFD25A, coral #FF7F6B, deep navy #2E3A59. The building stands on a thin round 10-sided low-poly base disk, [BASE], diameter just larger than the building footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
+Stylized low-poly 3D game asset for a mobile game. Faceted, flat-shaded polygons with visible planar faces, chunky toy-diorama proportions, slightly oversized roof and doorway, simple bold readable silhouette. No text, no letters, no signs, no thin wires, no tiny details. Limited palette only: grass green #80d06e, dark green #4ea477, sand #f7e4ab, sea teal #56dad4, sky blue #a6dcff, cream #f6efdf, terracotta #D9644A, warm wood brown #B07A4F, stone gray #a99f98, sunny yellow #ffd166, coral #ea7651, deep navy #2E3A59. The building stands on a thin round 10-sided low-poly base disk, [BASE], diameter just larger than the building footprint. Soft, even, neutral studio lighting, no cast shadows, no specular highlights, no glow, no ambient occlusion, matte surfaces. Pure white seamless background, single object, fully visible and centered with generous margin.
 ```
 
 [BASE]: `flat grass-green top with brown earth sides` (padrão) ou `flat sand top with brown earth sides` (peças de praia).
@@ -105,7 +120,7 @@ Passos:
 - **Folha de 4 vistas:** anexar a vista aprovada e o template. Proporção 1:1, 4K.
 - **Recorte:** cortar a folha em 4 imagens de cerca de 2048 px (frente, direita, trás e esquerda) e conferir a vista de trás antes de converter.
 
-**3D (Tripo H3.1 Multiview):** texture ligado, pbr ligado (sem efeito no globo, ver Decisões), texture_alignment original_image, geometry_quality standard, quad e auto_size desligados. `face_limit` por prédio: cabana 4.000, farol 5.000, píer 5.000, pirâmides 6.000, Cristo 10.000, Taj Mahal 12.000, Estátua da Liberdade 12.000. Os monumentos já no mapa têm limites próprios em `docs/TRIPO-PROMPTS.md`.
+**3D (Tripo H3.1 Multiview):** texture ligado, **pbr desligado** (o globo só usa a cor difusa; ver `docs/TRIPO-PROMPTS.md`), texture_alignment original_image, geometry_quality standard, quad e auto_size desligados. `face_limit` por prédio: cabana 4.000, farol 5.000, píer 5.000, pirâmides 6.000, Cristo 10.000, Taj Mahal 12.000, Estátua da Liberdade 12.000. Os monumentos já no mapa têm limites próprios em `docs/TRIPO-PROMPTS.md`.
 
 **Compressão:** `npx @gltf-transform/cli optimize entrada.glb saida.glb --compress meshopt --texture-compress webp --texture-size 1024` (512 nos prédios pequenos).
 
@@ -113,9 +128,11 @@ Passos:
 
 Duas famílias de fonte, com fallback de sistema:
 
-- **Fifones** (texto): `/fonts/fifones-body.woff2`, pesos 100 a 900.
-- **FifonesDisplay** (títulos e marca): `/fonts/fifones-display.woff2`, fallback Georgia. O painel pessoal usa itálico na marca.
-- **Figtree** (mapa-mundo, `WorldApp.vue`): fallback de sistema.
+- **Fifones** (texto): `/fonts/fifones-body.woff2`, na verdade Figtree, pesos 100 a 900.
+- **FifonesDisplay** (títulos e marca): `/fonts/fifones-display.woff2`, na verdade Newsreader, fallback Georgia. O painel pessoal usa itálico na marca.
+- **Figtree** (mapa-mundo, `WorldApp.vue`): a mesma fonte do texto, carregada pela página do mapa.
+
+Licença: as duas são SIL Open Font License 1.1, com os avisos em `public-fifones/fonts/licenses/` e a origem em `docs/PROVENANCE.md`.
 
 Forma: cartões com raio de 12 a 15 px, campos com 10 px, botões com raio de 9 a 13 px. Toque mínimo de 44 px nos controles do mapa.
 
@@ -146,12 +163,17 @@ Os limites abaixo valem para qualquer tela nova. Medir antes e depois, alternand
 
 Medidas do PR #13 em render por software (412 x 915): visão geral de 5,0 para 7,0 fps; foco no Taj Mahal de 7,6 para 10,6 fps. Em aparelho real, ainda não medido.
 
-## Decisões em aberto
+## Decisões
 
-- [ ] **Uma paleta ou duas?** As cores das imagens (#7BC67E, #FF7F6B, #FFD25A) são parecidas, mas não iguais, às do jogo (#80d06e, #ea7651, #ffd166). Proposta: alinhar as imagens às cores do jogo na próxima rodada de prompts.
-- [ ] **PBR nos GLB.** O prompt pede pbr ligado, mas o globo ignora mapas de metal e rugosidade. Proposta: desligar pbr e economizar a textura.
-- [ ] **flatShading.** O carregamento não força faces facetadas. Se um GLB novo vier com normais suaves, ajustar `SpaceMarker.js` (e `CityWorld.js` para a cidade).
-- [ ] **Famílias de fonte.** A licença de Fifones e FifonesDisplay não está documentada no repositório.
-- [ ] **Prédios da ilha.** Farol, cabana e píer ainda não existem no catálogo da cidade.
+Fechadas em 13/11/2026:
+
+- **Uma paleta.** As imagens passam a usar as cores do jogo (tabela acima). Só terracota, madeira e azul-marinho ficam como cores novas, por serem de objeto e não existirem no jogo.
+- **PBR desligado** no Tripo, como já dizia `docs/TRIPO-PROMPTS.md`: o globo ignora mapas de metal e rugosidade.
+- **flatShading não é forçado** no carregamento: os GLB do Tripo já saem com faces nítidas e forçar mudaria o visual dos sete modelos atuais. Se um GLB novo vier com normais suaves, regerar no Tripo antes de mexer em `SpaceMarker.js`.
+- **Fontes licenciadas.** Fifones é Figtree e FifonesDisplay é Newsreader, ambas OFL, com licença no repositório.
+
+Em aberto:
+
+- [ ] **Prédios da ilha.** Farol, cabana e píer ainda não existem no catálogo da cidade (`shared/game/city-catalog.json`). Falta decidir se viram cenário fixo da ilha ou prédios construíveis.
 
 Mudanças neste sistema: editar este arquivo por pull request. A versão compartilhada no Claude da empresa (Claude Docs, "Design system Cityou") tem o mesmo conteúdo; as duas precisam ser mantidas juntas.
