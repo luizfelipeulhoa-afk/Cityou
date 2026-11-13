@@ -3,7 +3,7 @@
 import { HttpError, createTiming, errorResponse } from './http.js'
 import { health } from './routes/health.js'
 import { accountKey, demoApi, demoKeyOf, sessionCookie, sessionToken } from './demo.js'
-import { cachedRead, invalidate, isCacheableRead } from './edge-cache.js'
+import { cachedRead, invalidate, isCacheableRead, markWrite, recentWrite } from './edge-cache.js'
 import { accountsEnabled, authApi, sessionTokenOf, sessionUser } from './auth.js'
 export { DemoSession } from './demo.js'
 
@@ -39,8 +39,8 @@ async function handleApi(request, env, ctx, url, timing) {
     if (!read && !WRITE_METHODS.has(request.method)) return demoApi(request, env, url, user, timing)
     // Cache de leitura por sessão (worker/edge-cache.js): a chave é o nome do objeto da sessão, nunca o cookie.
     const key = user ? (user.data_key ?? await accountKey(user.id)) : await demoKeyOf(request, env)
-    if (read) return cachedRead({ key, url, ctx, timing, fresh: () => demoApi(request, env, url, user, timing) })
-    try { return await demoApi(request, env, url, user, timing) } finally { await invalidate(key).catch(() => {}) }
+    if (read) return cachedRead({ key, url, ctx, timing, bypass: recentWrite(request), fresh: () => demoApi(request, env, url, user, timing) })
+    try { return markWrite(await demoApi(request, env, url, user, timing)) } finally { await invalidate(key).catch(() => {}) }
   }
   const route = matches.find(([method]) => method === request.method)
   if (!route) throw new HttpError(405, 'Método não permitido.')

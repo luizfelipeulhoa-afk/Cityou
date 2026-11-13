@@ -9,6 +9,20 @@ const ORIGIN = 'https://cityou.cache'
 export const REFRESH_AFTER_MS = 1_000 // a partir daqui a resposta do cache vem junto com uma revalidação em segundo plano
 export const MAX_AGE_MS = 30_000 // acima disto a resposta do cache não vale: espera o servidor
 
+// Ler o que acabou de escrever: a Cache API não garante que a troca de versão apareça na leitura seguinte (medido na prévia:
+// 12 de 14 leituras logo depois de uma escrita vieram velhas). Por isso toda escrita devolve um cookie curto com a hora, e uma
+// leitura com esse cookie recente ignora o cache e vai ao objeto: o navegador que escreveu sempre lê o que escreveu.
+export const WRITE_COOKIE = 'cityou_w'
+export const recentWrite = (request, now = Date.now()) => {
+  const stamp = Number(request.headers.get('Cookie')?.match(/(?:^|;\s*)cityou_w=(\d+)/)?.[1])
+  return Number.isFinite(stamp) && now - stamp <= MAX_AGE_MS + 5_000
+}
+export function markWrite(response, now = Date.now()) {
+  const marked = new Response(response.body, response)
+  marked.headers.append('Set-Cookie', `${WRITE_COOKIE}=${now}; Path=/api; Max-Age=60; HttpOnly; Secure; SameSite=Lax`)
+  return marked
+}
+
 export const isCacheableRead = (method, pathname) => method === 'GET' && CACHEABLE.has(pathname)
 
 const versionUrl = key => `${ORIGIN}/v/${key}`
@@ -29,7 +43,7 @@ export async function invalidate(key, cache = globalThis.caches?.default) {
  * `fresh()` busca a resposta no Durable Object. Devolve a resposta do cache (com `X-Cityou-Cache: hit`) ou a nova (`miss`).
  * `ctx` é o contexto do Worker (waitUntil). Sem Cache API (ambiente sem `caches`), passa direto.
  */
-export async function cachedRead({ key, url, ctx, fresh, timing, cache = globalThis.caches?.default }) {
+export async function cachedRead({ key, url, ctx, fresh, timing, bypass = false, cache = globalThis.caches?.default }) {
   if (!cache || !key) return fresh()
   const look = () => (async () => {
     const version = await versionOf(cache, key)
@@ -43,7 +57,7 @@ export async function cachedRead({ key, url, ctx, fresh, timing, cache = globalT
     copy.headers.set('X-Cached-At', String(Date.now()))
     await cache.put(entryUrl(key, version, url), copy)
   }
-  if (hit) {
+  if (hit && !bypass) {
     const age = Date.now() - Number(hit.headers.get('X-Cached-At'))
     if (age >= 0 && age <= MAX_AGE_MS) {
       if (age >= REFRESH_AFTER_MS) {

@@ -69,3 +69,17 @@ test('só leituras de /api/personal e /api/city entram no cache, e a revalidaç�
   assert.ok(isCacheableRead('GET', '/api/city') && !isCacheableRead('POST', '/api/city') && !isCacheableRead('GET', '/api/health'))
   assert.ok(REFRESH_AFTER_MS < MAX_AGE_MS)
 })
+
+test('cookie de escrita recente: marca a resposta e faz a leitura seguinte ignorar o cache', async () => {
+  const { markWrite, recentWrite, WRITE_COOKIE, MAX_AGE_MS } = await import('../worker/edge-cache.js')
+  const now = 1_000_000
+  const marked = markWrite(new Response('{}', { status: 201 }), now)
+  assert.equal(marked.status, 201)
+  const cookie = marked.headers.get('Set-Cookie')
+  assert.match(cookie, new RegExp(`^${WRITE_COOKIE}=${now}; Path=/api; Max-Age=60; HttpOnly; Secure; SameSite=Lax$`))
+  const withCookie = stamp => new Request('https://x/api/personal', { headers: { Cookie: `a=b; ${WRITE_COOKIE}=${stamp}` } })
+  assert.equal(recentWrite(withCookie(now), now + 1_000), true)
+  assert.equal(recentWrite(withCookie(now), now + MAX_AGE_MS + 6_000), false)
+  assert.equal(recentWrite(new Request('https://x/api/personal'), now), false)
+  assert.equal(recentWrite(withCookie('abc'), now), false)
+})
