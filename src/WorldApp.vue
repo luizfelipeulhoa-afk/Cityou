@@ -189,6 +189,7 @@ function stateLabel(space) {
         <div>
           <strong>BuildU</strong>
           <small>Mapa-mundo</small>
+          <a class="world-app__back" href="/app#/inicio" target="_top">← Voltar ao Cityou</a>
         </div>
       </div>
       <div class="world-app__progress" role="img" :aria-label="`${done} de ${spaces.length} espaços concluídos. ${syncLabel}`">
@@ -312,6 +313,17 @@ body {
 .world-app__brand div { display: grid; line-height: 1.1; }
 .world-app__brand strong { font-size: 18px; letter-spacing: 0.01em; }
 .world-app__brand small { opacity: 0.75; }
+.world-app__back {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  color: inherit;
+  font-size: 13px;
+  text-underline-offset: 3px;
+  pointer-events: auto;
+}
+.world-app__back:focus-visible { outline: 2px solid #ffd166; outline-offset: 2px; }
 .world-app__logo {
   display: grid;
   place-items: center;

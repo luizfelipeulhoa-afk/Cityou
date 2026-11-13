@@ -13,6 +13,7 @@ const DEFAULT_CITY = 'cristo-redentor'
 // A ilha conta como concluída e o Rio já nasce aberto, para a primeira construção no Rio valer uma viagem.
 const withOpenDefault = progress => normalizeProgress({ ...progress, desbloqueados: [...progress.desbloqueados, DEFAULT_CITY], concluidos: [...progress.concluidos, START] })
 const COOKIE = 'cityou_demo'
+const ACCOUNT_HEADER = 'X-Cityou-Account'
 const SESSION_SECONDS = 30 * 24 * 60 * 60
 const previewEnabled = env => env?.CITYOU_TEST_OPEN_REGIONS === '1'
 const kinds = ['habit', 'goal', 'note', 'transaction', 'meal']
@@ -43,9 +44,31 @@ const routes = [
   [/^\/api\/rewards\/sync$/, { POST: 'syncRewards' }],
   [/^\/api\/world\/progress$/, { GET: 'world', PUT: 'saveWorld' }],
   [/^\/api\/world\/travel$/, { POST: 'travel' }],
+  [/^\/api\/admin\/credits$/, { POST: 'adminCredits' }],
 ]
 
-export async function demoApi(request, env, url) {
+// Moedas de teste para os sócios: só com o segredo CITYOU_ADMIN_TOKEN (wrangler secret), uma vez por sessão.
+// Sem o segredo configurado a rota nem existe (404). O navegador continua sem poder mandar créditos por conta própria.
+const ADMIN_CREDITS = 50_000
+async function requireAdmin(request, env) {
+  const secret = env?.CITYOU_ADMIN_TOKEN
+  if (typeof secret !== 'string' || secret.length < 16) throw new HttpError(404, 'Rota não encontrada.')
+  const [given, expected] = await Promise.all([
+    sha256Hex(new TextEncoder().encode(request.headers.get('X-Cityou-Admin') ?? '')),
+    sha256Hex(new TextEncoder().encode(secret)),
+  ])
+  if (given !== expected) throw new HttpError(403, 'Token de administração inválido.')
+}
+
+/** Nome do Durable Object com os dados da sessão de demonstração deste pedido, ou null sem cookie. */
+export async function demoKeyOf(request, env) {
+  const token = sessionToken(request)
+  if (!token) return null
+  // Local runs may switch the flag while reusing a namespace and cookies.
+  return sha256Hex(new TextEncoder().encode(previewEnabled(env) ? `test:${token}` : token))
+}
+
+export async function demoApi(request, env, url, user = null) {
   if (url.pathname === '/api/workspace/projects' && request.method === 'GET') {
     return json({ connected: false, projects: [] })
   }
@@ -55,12 +78,15 @@ export async function demoApi(request, env, url) {
   const route = routes.find(([pattern]) => pattern.test(url.pathname))
   if (!route) throw new HttpError(404, 'Rota não encontrada.')
   if (!Object.hasOwn(route[1], request.method)) throw new HttpError(405, 'Método não permitido.')
-  const token = sessionToken(request)
-  if (!token) throw new HttpError(401, 'Abra o Cityou novamente com os cookies habilitados.')
-  // Local runs may switch the flag while reusing a namespace and cookies.
-  const session = previewEnabled(env) ? `test:${token}` : token
-  const key = await sha256Hex(new TextEncoder().encode(session))
-  const response = await env.DEMO_SESSIONS.getByName(key).fetch(request)
+  if (route[1].POST === 'adminCredits') await requireAdmin(request, env)
+  // Com conta, os dados são os da conta em qualquer navegador; sem conta, os da demonstração deste navegador.
+  const key = user?.data_key ?? await demoKeyOf(request, env)
+  if (!key) throw new HttpError(401, 'Abra o Cityou novamente com os cookies habilitados.')
+  // O cabeçalho interno é sempre reescrito aqui: o navegador não consegue se passar por conta.
+  const forwarded = new Request(request)
+  if (user) forwarded.headers.set(ACCOUNT_HEADER, user.id)
+  else forwarded.headers.delete(ACCOUNT_HEADER)
+  const response = await env.DEMO_SESSIONS.getByName(key).fetch(forwarded)
   return new Response(response.body, response)
 }
 
@@ -149,7 +175,13 @@ export class DemoSession {
           throw error
         }
       }
-      if (writes && await this.storage.getAlarm() === null) {
+      // Dados de uma conta não vencem: o alarme de 30 dias vale só para a demonstração sem conta.
+      const account = request.headers.get(ACCOUNT_HEADER)
+      if (account && !this.read('account', 'owner')) {
+        this.write('account', 'owner', account)
+        await this.storage.deleteAlarm()
+      }
+      if (writes && !this.read('account', 'owner') && await this.storage.getAlarm() === null) {
         await this.storage.setAlarm(Date.now() + SESSION_SECONDS * 1000)
       }
       return this.storage.transactionSync(() => {
@@ -157,6 +189,7 @@ export class DemoSession {
           this.requireLocation(location)
           return this[handler](body, location)
         }
+        if (handler === 'adminCredits') return this.adminCredits(location)
         if (handler === 'proofPhoto') return this.proofPhoto(id, second)
         return this[handler](body, id, proof)
       })
@@ -170,6 +203,7 @@ export class DemoSession {
   }
 
   alarm() {
+    if (this.read('account', 'owner')) return
     this.sql.exec('DELETE FROM records')
   }
 
@@ -382,6 +416,16 @@ export class DemoSession {
     if (total < entry.target) return
     this.grantReward(RULES.rewards.goalDone.credits, `Meta concluída: ${entry.title}`)
     this.write(key, entry.id, true)
+  }
+
+  // Moedas de teste dos sócios (rota protegida por segredo): uma vez por sessão, sem contar como recompensa nem como ganho.
+  adminCredits(location) {
+    if (this.read('admin-credit', 'granted')) throw new HttpError(409, 'Esta sessão já recebeu as moedas de teste.')
+    const city = this.cityState()
+    recordChange(city, 'Créditos de teste (sócios)', ADMIN_CREDITS)
+    this.write('city', 'state', city)
+    this.write('admin-credit', 'granted', true)
+    return this.city(undefined, location)
   }
 
   // Bônus de comprovação: só créditos. Não conta como recompensa para o nível da cidade.

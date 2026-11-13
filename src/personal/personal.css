@@ -29,3 +29,5 @@
 
 .building-tag{display:inline-flex;align-items:center;gap:6px;margin:8px 0 0 8px;min-height:44px;padding:0 4px;color:var(--muted);font-size:.86rem;text-decoration:none}
 .building-tag:hover{color:var(--text)}
+
+.sign-out{display:block;width:100%;text-align:left;font-size:10px;color:#8b90a5;padding:0 4px 18px;margin-top:-8px}.sign-out:hover{color:#ded8fa;text-decoration:underline}.sidebar-compact .sign-out{display:none}.profile-link small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}

@@ -1,1 +1,161 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><link rel="icon" href="/favicon.svg"><meta name="theme-color" content="#12141c"><meta name="description" content="Cityou. Mais espaço para sua vida."><title>Cityou · Seu espaço pessoal</title></head><body><div id="app"></div><script type="module" src="/src/main.js"></script></body></html>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<link rel="icon" href="/brand/cityou-icon-180.png">
+<link rel="apple-touch-icon" href="/brand/cityou-icon-180.png">
+<link rel="preload" href="/fonts/fifones-body.woff2" as="font" type="font/woff2" crossorigin>
+<meta name="theme-color" content="#0a0a0c">
+<meta name="description" content="Cityou transforma tarefas, hábitos e metas em moedas para construir a sua cidade em 3D, prédio por prédio.">
+<title>Cityou · Sua rotina constrói uma cidade</title>
+</head>
+<body>
+<a class="skip" href="#conteudo">Pular para o conteúdo</a>
+
+<header class="nav" data-nav>
+  <a class="nav-logo" href="/?inicio" aria-label="Cityou, início"><img src="/brand/cityou-wordmark.webp" width="791" height="275" alt="Cityou"></a>
+  <nav class="nav-links" aria-label="Seções">
+    <a href="#como-funciona">Como funciona</a>
+    <a href="#predios">Prédios</a>
+    <a href="#mundo">Mundo</a>
+  </nav>
+  <div class="nav-actions">
+    <button class="btn btn-ghost" type="button" data-auth="login">Entrar</button>
+    <button class="btn btn-primary" type="button" data-auth="signup">Criar conta</button>
+  </div>
+</header>
+
+<main id="conteudo">
+  <section class="hero">
+    <div class="guides" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="hero-copy">
+      <p class="eyebrow" data-reveal>Organização pessoal que vira cidade</p>
+      <h1 data-reveal>Sua rotina constrói uma <em>cidade</em>.</h1>
+      <p class="lede" data-reveal>Cada tarefa, hábito e meta que você conclui vira moeda. Com elas você ergue o seu Rio de Janeiro em 3D, prédio por prédio.</p>
+      <div class="hero-actions" data-reveal>
+        <button class="btn btn-primary btn-large" type="button" data-auth="signup">Criar minha cidade</button>
+        <button class="btn btn-quiet btn-large" type="button" data-auth="login">Já tenho conta</button>
+      </div>
+      <p class="hero-note" data-reveal>Grátis. Você começa com 50 moedas de boas-vindas.</p>
+    </div>
+    <div class="hero-stage" data-reveal data-tilt>
+      <div class="hero-frame">
+        <img src="/brand/cidade-rio.webp" width="1120" height="700" alt="A cidade do Rio no Cityou: prédios coloridos sobre o calçadão, com o Cristo Redentor e os morros ao fundo" fetchpriority="high">
+      </div>
+      <div class="chip chip-a" data-depth="18"><span class="coin" aria-hidden="true"></span><span><strong>+10 moedas</strong><small>Tarefa concluída</small></span></div>
+      <div class="chip chip-b" data-depth="-14"><img src="/previews/rio-edificio-deco.png" width="320" height="288" alt=""><span><strong>Edifício Art Déco</strong><small>60 moedas · 3 × 3 lotes</small></span></div>
+      <div class="chip chip-c" data-depth="10"><span class="tick" aria-hidden="true"></span><span><strong>Hábito do dia</strong><small>+5 moedas</small></span></div>
+    </div>
+  </section>
+
+  <section class="strip" id="predios" aria-label="Prédios que você pode construir">
+    <header class="section-head" data-reveal>
+      <p class="eyebrow">O que dá para construir</p>
+      <h2>Nove prédios do Rio para começar.</h2>
+      <p>Cada um ocupa lotes de verdade na sua cidade e tem um preço em moedas. Você escolhe o lugar.</p>
+    </header>
+    <div class="marquee" data-marquee>
+      <ul class="marquee-track">
+        <li><img src="/previews/rio-feira-barraca.png" width="320" height="288" loading="lazy" alt=""><strong>Barraca de feira</strong><small><span class="coin"></span>20</small></li>
+        <li><img src="/previews/rio-laje.png" width="320" height="288" loading="lazy" alt=""><strong>Casa da laje</strong><small><span class="coin"></span>25</small></li>
+        <li><img src="/previews/rio-quiosque-coco.png" width="320" height="288" loading="lazy" alt=""><strong>Quiosque de coco</strong><small><span class="coin"></span>25</small></li>
+        <li><img src="/previews/rio-academia.png" width="320" height="288" loading="lazy" alt=""><strong>Academia ao ar livre</strong><small><span class="coin"></span>30</small></li>
+        <li><img src="/previews/rio-salva-vidas.png" width="320" height="288" loading="lazy" alt=""><strong>Posto salva-vidas</strong><small><span class="coin"></span>30</small></li>
+        <li><img src="/previews/rio-bonde.png" width="320" height="288" loading="lazy" alt=""><strong>Ponto do bonde</strong><small><span class="coin"></span>35</small></li>
+        <li><img src="/previews/rio-casarao.png" width="320" height="288" loading="lazy" alt=""><strong>Casarão colonial</strong><small><span class="coin"></span>50</small></li>
+        <li><img src="/previews/rio-igreja.png" width="320" height="288" loading="lazy" alt=""><strong>Igrejinha da vila</strong><small><span class="coin"></span>55</small></li>
+        <li><img src="/previews/rio-edificio-deco.png" width="320" height="288" loading="lazy" alt=""><strong>Edifício Art Déco</strong><small><span class="coin"></span>60</small></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="how" id="como-funciona">
+    <header class="section-head" data-reveal>
+      <p class="eyebrow">Como funciona</p>
+      <h2>Do seu dia para o seu bairro.</h2>
+    </header>
+    <div class="how-grid">
+      <ol class="steps">
+        <li data-reveal data-step="0"><span class="step-number">1</span><div><h3>Registre o seu dia</h3><p>Tarefas, hábitos, metas, finanças, alimentação e anotações, num painel só.</p></div></li>
+        <li data-reveal data-step="1"><span class="step-number">2</span><div><h3>Ganhe moedas pelo que fez</h3><p>Tarefa concluída vale 10 moedas, hábito do dia vale 5 e meta alcançada vale 25. Quem decide é o servidor, não o navegador.</p></div></li>
+        <li data-reveal data-step="2"><span class="step-number">3</span><div><h3>Construa a sua cidade</h3><p>Escolha o prédio, o lote e a rua. A cidade cresce no ritmo da sua rotina.</p></div></li>
+      </ol>
+      <div class="demo" data-demo data-reveal aria-hidden="true">
+        <div class="demo-top"><span class="demo-title">Hoje</span><span class="demo-wallet"><span class="coin"></span><b data-demo-coins>5</b></span></div>
+        <ul class="demo-list">
+          <li data-demo-item="10"><i></i><span>Enviar o relatório</span><em>+10</em></li>
+          <li data-demo-item="5"><i></i><span>Caminhar 20 minutos</span><em>+5</em></li>
+          <li data-demo-item="10"><i></i><span>Ligar para a contadora</span><em>+10</em></li>
+        </ul>
+        <div class="demo-lot">
+          <div class="demo-ground"></div>
+          <img class="demo-building" data-demo-building src="/previews/rio-quiosque-coco.png" width="320" height="288" loading="lazy" alt="">
+          <span class="demo-label" data-demo-label>Faltam 20 moedas para o Quiosque de coco</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="world" id="mundo">
+    <div class="world-copy">
+      <p class="eyebrow" data-reveal>Mapa-mundo</p>
+      <h2 data-reveal>Do Rio para o mundo.</h2>
+      <p data-reveal>O globo guarda oito destinos, da Ilha Inicial à Grande Muralha. O Rio de Janeiro já está aberto para construir; as viagens para os outros chegam em seguida.</p>
+      <ul class="world-list" data-reveal>
+        <li>Cristo Redentor</li><li>Machu Picchu</li><li>Chichén Itzá</li><li>Coliseu</li><li>Petra</li><li>Taj Mahal</li><li>Grande Muralha</li>
+      </ul>
+    </div>
+    <div class="world-art" data-reveal><img src="/brand/mapa-mundo.webp" width="900" height="900" loading="lazy" alt="O globo do Cityou, com os marcos de cada destino"></div>
+  </section>
+
+  <section class="values">
+    <article data-reveal><h3>Sem culpa</h3><p>Nenhuma mecânica pune ausência. Ficou uns dias fora? A cidade espera, do jeito que você deixou.</p></article>
+    <article data-reveal><h3>Progresso que se vê</h3><p>O prédio de uma atividade sobe por etapas, conforme os dias e as semanas de prática. Não dá para comprar pronto.</p></article>
+    <article data-reveal><h3>Sua conta, seus dados</h3><p>Com a conta, a sua cidade e os seus registros acompanham você em qualquer aparelho.</p></article>
+  </section>
+
+  <section class="final">
+    <div class="guides" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <img class="final-icon" src="/brand/cityou-icon.webp" width="146" height="146" loading="lazy" alt="" data-reveal>
+    <h2 data-reveal>Comece pelo primeiro lote.</h2>
+    <p data-reveal>Crie a conta, registre uma tarefa de hoje e escolha onde vai o seu primeiro prédio.</p>
+    <button class="btn btn-primary btn-large" type="button" data-auth="signup" data-reveal>Criar minha cidade</button>
+  </section>
+</main>
+
+<footer class="footer">
+  <img src="/brand/cityou-wordmark.webp" width="791" height="275" loading="lazy" alt="Cityou">
+  <p>Mais espaço para a sua vida.</p>
+</footer>
+
+<dialog class="auth" data-auth-dialog aria-labelledby="auth-title">
+  <button class="auth-close" type="button" data-auth-close aria-label="Fechar">×</button>
+  <img class="auth-icon" src="/brand/cityou-icon.webp" width="146" height="146" alt="">
+  <h2 id="auth-title" data-auth-title>Criar conta</h2>
+  <p class="auth-lede" data-auth-lede>Leva um minuto. O que você já fez neste navegador vai junto.</p>
+  <div class="auth-tabs" role="tablist" aria-label="Entrar ou criar conta">
+    <button type="button" role="tab" data-auth-tab="signup" aria-selected="true">Criar conta</button>
+    <button type="button" role="tab" data-auth-tab="login" aria-selected="false">Entrar</button>
+  </div>
+  <form class="auth-form" data-auth-form novalidate>
+    <label data-field="display_name"><span>Como podemos chamar você?</span>
+      <input name="display_name" type="text" autocomplete="name" maxlength="60" required>
+      <small class="field-error" role="alert"></small></label>
+    <label data-field="email"><span>E-mail</span>
+      <input name="email" type="email" autocomplete="email" inputmode="email" maxlength="200" required>
+      <small class="field-error" role="alert"></small></label>
+    <label data-field="password"><span>Senha</span>
+      <span class="password-box"><input name="password" type="password" autocomplete="new-password" minlength="10" maxlength="200" required>
+        <button type="button" data-password-toggle aria-label="Mostrar a senha" aria-pressed="false">Mostrar</button></span>
+      <small class="field-hint" data-password-hint>Use 10 caracteres ou mais.</small>
+      <small class="field-error" role="alert"></small></label>
+    <p class="form-error" data-form-error role="alert" hidden></p>
+    <button class="btn btn-primary btn-large auth-submit" type="submit" data-auth-submit>Criar conta</button>
+  </form>
+  <p class="auth-switch" data-auth-switch></p>
+</dialog>
+
+<script type="module" src="/src/landing/landing.js"></script>
+</body>
+</html>

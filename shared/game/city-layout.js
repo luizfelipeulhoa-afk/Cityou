@@ -1,4 +1,9 @@
-import baseCatalog from './city-catalog.json' with { type: 'json' }
+import catalogFile from './city-catalog.json' with { type: 'json' }
+
+// No city-catalog.json, os itens `island-*` são prédios da Ilha Inicial: saem do catálogo comum
+// às outras cidades e entram só no catálogo regional da ilha (mais abaixo).
+const islandOnly = item => item.id.startsWith('island-')
+const baseCatalog = catalogFile.filter(item => !islandOnly(item))
 
 const center = 8
 const baseRoadSeeds = [6, 7, 8, 9, 10].map(x => [x, 9])
@@ -80,9 +85,14 @@ export function isPilotCity(location) {
   return Object.hasOwn(pilots, location)
 }
 
-function building(id, label, width, depth, height, color, cost, destination = null) {
-  return { id, label, width, depth, height, color, cost, destination, model: null, ...(destination && { interior: id }) }
+function building(id, label, width, depth, height, color, cost, destination = null, art = {}) {
+  return { id, label, width, depth, height, color, cost, destination, model: null, ...(destination && { interior: id }), ...art }
 }
+
+// Prédios do Rio com GLB próprio (Tripo, reduzidos por tools/optimize-city-models.mjs para cerca de 6 a 8 mil
+// triângulos). Cada GLB traz o seu disco de calçadão; a cidade o ajusta a 90% da área. `height` é a altura que o
+// modelo tem ao ocupar 90% da área, para a trava de altura da cidade não encolher o prédio.
+const rioModel = id => ({ model: `/models/rio/${id}.glb`, preview: `/previews/${id}.png` })
 
 const regionalCatalog = {
   'ilha-inicial': [
@@ -91,6 +101,7 @@ const regionalCatalog = {
     building('island-dhoni', 'Oficina de dhoni', 3, 2, 2.1, '#985b43', 40, '/#/projetos'),
     building('island-market', 'Mercado de pescado', 3, 2, 2.5, '#e5ac55', 50, '/#/tarefas'),
     building('island-fiber', 'Ateliê de fibra vegetal', 3, 3, 2.4, '#bc784a', 60),
+    ...catalogFile.filter(islandOnly),
   ],
   'cristo-redentor': [
     building('rio-sobrado', 'Sobrado com comércio', 2, 2, 4.2, '#ddaf77', 20),
@@ -98,6 +109,15 @@ const regionalCatalog = {
     building('rio-kiosk', 'Quiosque esportivo', 3, 2, 2.0, '#75a4af', 35),
     building('rio-fair', 'Pavilhão de feira', 3, 2, 3.0, '#c77955', 50, '/#/tarefas'),
     building('rio-samba', 'Quadra de escola de samba', 3, 3, 3.8, '#588ab1', 60, '/#/agenda'),
+    building('rio-feira-barraca', 'Barraca de feira', 2, 2, 1.4, '#d9553f', 20, null, rioModel('rio-feira-barraca')),
+    building('rio-laje', 'Casa da laje', 2, 2, 1.6, '#4f8fcf', 25, null, rioModel('rio-laje')),
+    building('rio-quiosque-coco', 'Quiosque de coco', 2, 2, 1.2, '#d9a14f', 25, null, rioModel('rio-quiosque-coco')),
+    building('rio-academia', 'Academia ao ar livre', 2, 2, 1.3, '#f0d27a', 30, null, rioModel('rio-academia')),
+    building('rio-salva-vidas', 'Posto salva-vidas', 2, 2, 1.7, '#efe8d8', 30, null, rioModel('rio-salva-vidas')),
+    building('rio-bonde', 'Ponto do bonde', 2, 2, 1.2, '#e8b930', 35, null, rioModel('rio-bonde')),
+    building('rio-casarao', 'Casarão colonial', 3, 3, 2.1, '#e2b73f', 50, null, rioModel('rio-casarao')),
+    building('rio-igreja', 'Igrejinha da vila', 3, 3, 2.4, '#e6dcc0', 55, null, rioModel('rio-igreja')),
+    building('rio-edificio-deco', 'Edifício Art Déco', 3, 3, 2.4, '#6fa3cf', 60, null, rioModel('rio-edificio-deco')),
   ],
 }
 

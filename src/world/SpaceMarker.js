@@ -3,6 +3,7 @@ import { gsap } from 'gsap'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { latLonToVector3, surfaceFrame, surfaceQuaternion } from './geo.js'
 import { buildPlaceholder } from './monuments.js'
+import { applyGlbStyle } from '../tres/glbMaterial.js'
 
 const GOLD = new THREE.Color('#ffd166')
 const LOCK_TINT = new THREE.Color('#c9d4ec')
@@ -96,6 +97,8 @@ export function measureBase(fitted) {
 // Os GLB do Tripo chegam como MeshStandardMaterial com rugosidade 0,9 e sem metal: na prática, só difuso.
 // O Lambert desenha esse mesmo difuso com uma fração do custo por pixel e dispensa o mapa de ambiente
 // (PMREM) que o PBR exigia. A luz de céu local e o contorno aceso entram em patchMaterial().
+// Quando chega aqui, o material já passou por applyGlbStyle(): o Lambert herda as faces planas
+// (metal e rugosidade não existem nele).
 function toLambert(material) {
   if (!material.isMeshStandardMaterial) return material.clone()
   return new THREE.MeshLambertMaterial({
@@ -331,7 +334,7 @@ totalEmissiveRadiance += diffuseColor.rgb * (${SKY_FILL} * buSky)
       return false
     }
     if (this.disposed) { disposeObject(gltf.scene, { textures: true }); return false }
-    const model = this.patchModel(gltf.scene, true)
+    const model = this.patchModel(applyGlbStyle(gltf.scene), true)
     model.rotation.y += (this.space.rotacaoY || 0) * Math.PI / 180 // corrige GLB exportado de costas
     this.setModel(fitModel(model, this.size, this.size * 1.05), 'glb')
     // A troca aparece como um pulso curto, a não ser que uma animação de estado esteja tocando.

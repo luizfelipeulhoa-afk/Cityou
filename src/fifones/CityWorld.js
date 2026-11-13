@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import SimObject from '@/js/components/tiles/sim-object.js'
 import { getIntersectedTile } from '@/js/tools/interactor/utils.js'
 import { fitModel } from '../world/SpaceMarker.js'
+import { applyGlbStyle } from '../tres/glbMaterial.js'
 import { WORLD_MODELS_MANIFEST } from '../world/worldSpaces.js'
 import { getCityLayout, isPilotCity, placementProblem, tileKey } from '../../shared/game/city-layout.js'
 import { createTapGesture } from '../interaction/tapGesture.js'
@@ -596,6 +597,7 @@ export default class CityWorld {
         disposeOwned(scene, true, true)
         return
       }
+      applyGlbStyle(scene)
       scene.rotation.y += region.rotacaoY * Math.PI / 180
       const model = fitModel(scene, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT)
       if (model.userData.fittedHeight <= 0) {
@@ -619,12 +621,36 @@ export default class CityWorld {
     }
   }
 
+  // O terreno real do Rio (src/terrain) no lugar do mar e dos morros feitos à mão. Se não carregar, o cenário à mão fica.
+  async loadTerrain() {
+    try {
+      const { loadCityTerrain } = await import('../terrain/cityTerrain.js')
+      const terrain = await loadCityTerrain()
+      if (this.destroyed) {
+        terrain.dispose()
+        return
+      }
+      for (const object of this.environment.backdrop) {
+        object.removeFromParent()
+        disposeOwned(object)
+      }
+      this.environment.backdrop = []
+      this.environment.group.add(terrain.group)
+      this.refreshShadows()
+    } catch {
+      // A cidade mantém o cenário feito à mão quando o terreno está indisponível.
+    }
+  }
+
   async loadModel(record, definition) {
     const url = definition.model
     this.pendingModels++
     this.callbacks.onModelStatus({ kind: record.placement.kind, status: 'loading' })
     try {
-      if (!this.modelCache.has(url)) this.modelCache.set(url, this.loader.loadAsync(url))
+      // Faces planas e material fosco uma vez por arquivo; os clones de cada construção herdam.
+      if (!this.modelCache.has(url)) {
+        this.modelCache.set(url, this.loader.loadAsync(url).then((resource) => { applyGlbStyle(resource.scene); return resource }))
+      }
       const resource = await this.modelCache.get(url)
       if (this.destroyed || this.records.get(record.placement.id) !== record) return
       const hasArrays = (() => { let found = false; resource.scene.traverse(child => { if (Array.isArray(child.material)) found = true }); return found })()
@@ -916,7 +942,11 @@ export default class CityWorld {
   }
 
   startArrival() {
-    const loadLandmark = () => { if (!this.destroyed) void this.loadLandmark(this.region) }
+    const loadLandmark = () => {
+      if (this.destroyed) return
+      void this.loadLandmark(this.region)
+      if (this.environment.backdrop?.length) void this.loadTerrain()
+    }
     const idle = typeof window.requestIdleCallback === 'function'
     const timer = idle ? window.requestIdleCallback(loadLandmark, { timeout: 1500 }) : setTimeout(loadLandmark, 300)
     this.disposers.push(() => idle ? window.cancelIdleCallback(timer) : clearTimeout(timer))

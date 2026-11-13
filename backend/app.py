@@ -69,7 +69,11 @@ def local_url(value: str) -> str:
     return value.rstrip('/')
 
 
-CATALOG = json.loads((ROOT / 'shared/game/city-catalog.json').read_text(encoding='utf-8'))
+# Os itens `island-*` são prédios da Ilha Inicial; este servidor local não oferece cidades regionais.
+CATALOG = [
+    entry for entry in json.loads((ROOT / 'shared/game/city-catalog.json').read_text(encoding='utf-8'))
+    if not entry['id'].startswith('island-')
+]
 KINDS = {entry['id']: entry for entry in CATALOG}
 
 
@@ -562,7 +566,10 @@ def create_app(*, data_dir: str | Path | None = None, upstream_url: str | None =
     # Keep APIs above mounts. A missing build never falls back to the old app.
     @application.get('/')
     async def index():
-        page = dist / 'index.html'
+        # O backend local não tem contas: abre direto o painel (app.html), não a página de apresentação.
+        page = dist / 'app.html'
+        if not page.is_file():
+            page = dist / 'index.html'
         if page.is_file():
             return FileResponse(page)
         return JSONResponse({'message': 'Fifones City: execute npm run build para gerar a interface.'}, status_code=503)
