@@ -7,7 +7,7 @@ Na cidade do Rio (Cristo Redentor), o terreno é o **cenário**: só o que fica 
 Desde 13/11/2026, com o terreno carregado:
 
 Desempenho (13/11/2026, continuado): a cidade fecha a névoa bem mais perto (`TERRAIN.fog` em `src/terrain/lighting.js`,
-40 a 80 unidades, era 48 a 105) e a câmera inicial do Rio começa mais perto (`CityWorld.home`, zoom maior; o teto
+55 a 125 unidades; era 48 a 105, e 40 a 80 no #27, que escondia a serra atrás do Cristo) e a câmera inicial do Rio começa mais perto (`CityWorld.home`, zoom maior; o teto
 do zoom, `controls.maxDistance`, caiu de 73 para 56 e depois para 46: girar a câmera dava para ver a praia e os
 morros reais de verdade, bem longe da cidade, que a névoa radial (distância até a câmera, não até a cidade) não
 cobre de todo lado). Por isso a região ganhou um corte de verdade (`region.crop` em `rio-cidade.js`, aplicado em
@@ -15,7 +15,12 @@ cobre de todo lado). Por isso a região ganhou um corte de verdade (`region.crop
 (com uma faixa de mistura). Não é só esconder com névoa: o relevo distante nem entra na malha, e o orçamento de
 triângulos que antes se perdia nele (grama e rocha de verdade, fora de vista) vai para o que a câmera realmente
 mostra — por isso deu para cortar `detail.maxTriangles` de 60 mil (o de `rio.js`, usado em `/terrain.html`) para
-6 mil sem perder nitidez perto da grade e do morro (o algoritmo de erro já prioriza isso, `detail.landmark`).
+16 mil (o #28 baixou para 6 mil, que deixava a montanha grossa demais).
+**Montanha cortada (corrigido em 13/11/2026):** o círculo do corte zerava o relevo a partir de ~47 unidades do centro, e o
+maciço real atrás do Cristo (z = −48 para o norte, até 24 de altura) sumia: a montanha aparecia cortada no meio. A região
+ganhou `crop.keep` (círculos onde o corte não vale): o maciço fica inteiro e o resto (praia e morros distantes a leste) segue
+removido. `tests/terrain.test.mjs` compara a cidade com o terreno sem corte nesses pontos; confira o visual com
+`node tools/city-look.mjs` (quatro ângulos), porque a vista de frente sozinha não mostra o corte.
 Vegetação (`treeRange`/`palmRange`) acompanha a nova distância. Medido com `node tools/city-frame-bench.mjs`
 (Worker local, CPU 4× mais lenta, rede 4G, mediana de 2 rodadas): a cidade vazia fica pronta em 5,6 s em vez de
 8,4 s (e com cache, 2,4 s em vez de 3,1 s) — a maior parte veio de não montar mais a reserva feita à mão

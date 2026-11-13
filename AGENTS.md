@@ -7,3 +7,8 @@ Antes de qualquer trabalho neste projeto, leia o `CLAUDE.md` inteiro, na versão
 
 As regras do `CLAUDE.md` valem para qualquer agente (Claude, Codex ou outro). Este arquivo existe só para
 levar até lá quem não lê o `CLAUDE.md` por conta própria. Não repita as regras aqui.
+
+Memória de longo prazo: o projeto usa o `ai-memory` (veja `docs/ai-memory.md`). O wiki de cada pessoa fica fora do
+repositório; o que o time compartilha vai em `docs/memoria/` (por PR e revisado) ou no repositório privado `cityou-memoria`,
+via `ai-memory-wikisync`. Nunca grave segredo, `.env` ou dado
+pessoal ou de usuário na memória. O `docs/CHECKPOINT.md` continua sendo o estado oficial.

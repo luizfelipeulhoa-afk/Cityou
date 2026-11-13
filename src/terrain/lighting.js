@@ -14,7 +14,7 @@ const mix = (a, b, t) => {
 // o degradê de base dos prédios leva a base do modelo até ela.
 export const TERRAIN = Object.freeze({
   sky: hex(PALETTE.sky),
-  fog: Object.freeze({ near: 40, far: 80 }), // mais curta que antes (105): corta o relevo que a câmera da cidade não alcança (13/11/2026)
+  fog: Object.freeze({ near: 55, far: 125 }), // com o corte, 40–80 (#27) escondia o maciço atrás do Cristo; câmera far = 180 (CityWorld)
   toneMapping: 'none',
   exposure: 1,
   hemisphere: Object.freeze({ sky: 0xffffff, ground: 0x70828f, intensity: 1.35 }),

@@ -1,6 +1,6 @@
 # Contexto para continuar em outro chat
 
-Última atualização: 13/11/2026, depois da PR #32 e do pacote de organização. Para ter o texto pronto para colar, com o estado do git de agora: `node tools/handoff.mjs` (ou `node tools/handoff.mjs --copy`). O texto abaixo da linha é o que a outra IA precisa ler.
+Última atualização: 13/11/2026, depois do PR #34 (etapa 2, já na `main`). Para ter o texto pronto para colar, com o estado do git de agora: `node tools/handoff.mjs` (ou `node tools/handoff.mjs --copy`). O texto abaixo da linha é o que a outra IA precisa ler.
 
 ---
 
@@ -14,10 +14,10 @@ Você vai continuar o trabalho num repositório que já tem várias sessões de 
 
 **Regras que valem sempre (do `CLAUDE.md`).** O navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência. Toda mudança que outro Claude precisa saber entra no `CLAUDE.md` no mesmo commit (e `docs/API.md` / `docs/INTERACTIONS.md` quando mexer em rota ou tela). Meça antes e depois, não estime. Não use `npx --yes` nem atualize three/TresJS. Limites 3D: uma luz direcional + hemisfério, sem sombras, sem mapa de ambiente, modelos opacos, 60 fps em celular médio. Página nova do app entra em `APP_PAGES` e `run_worker_first`.
 
-**Plano (um PR por etapa; ordem 1 ✔ → 7a ✔ → 9 ✔ → 2 a 6 → 7b → 8). Detalhe e estado de cada etapa: `docs/CHECKPOINT.md`.**
+**Plano (um PR por etapa; ordem 1 ✔ → 7a ✔ → 9 ✔ → 2 ✔ no código (PR #34; falta conferir no navegador) → 3 a 6 → 7b → 8). Detalhe e estado de cada etapa: `docs/CHECKPOINT.md`.**
 1. Medição de base (feita; falta a base da prévia publicada, ver abaixo).
 7a. Unificar visualmente prédio e terreno: tabela de luz única, sem tone mapping na cidade, GLB e chão em `MeshLambertMaterial`, sombra de contato (+1 draw) com shadow map desligado, remoção das `PointLight` por prédio, base do prédio na cor do terreno, névoa única, entrada animada dos prédios.
-2. Tarefas reais, cliente `api()` único com tratamento de 401, cidade sem iframe.
+2. Tarefas reais, cliente `api()` único com tratamento de 401, cidade sem iframe (feita no código, PR #34; falta conferir no navegador).
 3. Catálogo: sai IA/StuntSync com migração e reembolso recalculado pelo servidor.
 4. Painel sem iframe (aba Conta, Biblioteca "Em breve", Sair corrigido, miniaturas da ilha).
 5. Agenda, Projetos e Peso reais no Durable Object.
@@ -29,13 +29,13 @@ Você vai continuar o trabalho num repositório que já tem várias sessões de 
 
 **Contas (PR #32) e revisão de 13/11/2026.** As contas estão no código e desligadas em produção: não existe banco D1 na conta do Cloudflare. A PR #32 fechou os problemas mais sérios (o objeto de dados confere o dono, o cadastro troca o cookie da demonstração, o login reserva tentativas de forma atômica, o esquema vem só de `migrations/`). Uma revisão por especialistas (backend, frontend, produto e lei) achou o que ainda falta antes de abrir contas reais: limite por IP e cadastro com convite, exportar e apagar conta, aviso de privacidade, termos e idade, custo do hash de senha nunca medido, sessão sem renovação. O estado de cada achado está em `council/COUNCIL_SINTESE.md` e as propostas, com etapa sugerida, em "Itens sem dono no plano" do `docs/CHECKPOINT.md`. Os dados ficam na América do Norte (Durable Objects e D1 não rodam na América do Sul).
 
-**Etapa 7a, feita:** tabela de luz por região em `src/terrain/lighting.js` (o Rio usa a luz do terreno, sem tone mapping), GLB em Lambert (`src/tres/lambert.js`), degradê de base até a cor do chão (`src/tres/groundBlend.js`: o disco bege do Tripo virou grama), sombra de contato num `InstancedMesh`, shadow map e `PointLight` removidos. Medido: +1 draw, +1 programa, CPU de render sem piora (tabela em `docs/WORLD-PERF.md`); fotos com `node tools/city-look.mjs <url> --label x`. Testes: `npm test` 67, `npm run test:worker` 30, `npm run test:terrain` ok. Falta da 7a (vai para a 7b): entrada animada dos prédios e terreno entrando com a névoa abrindo.
+**Etapa 7a, feita:** tabela de luz por região em `src/terrain/lighting.js` (o Rio usa a luz do terreno, sem tone mapping), GLB em Lambert (`src/tres/lambert.js`), degradê de base até a cor do chão (`src/tres/groundBlend.js`: o disco bege do Tripo virou grama), sombra de contato num `InstancedMesh`, shadow map e `PointLight` removidos. Medido: +1 draw, +1 programa, CPU de render sem piora (tabela em `docs/WORLD-PERF.md`); fotos com `node tools/city-look.mjs <url> --label x`. Testes da época: 67 e 30 (os atuais estão em `docs/CHECKPOINT.md`). Falta da 7a (vai para a 7b): entrada animada dos prédios e terreno entrando com a névoa abrindo.
 
 **Etapa 9 (rua automática): implementada.** No Rio, escolher um lote mostra o prédio, os trechos de rua e o custo total. O servidor recalcula e grava a compra inteira em uma ação. Veja `docs/CHECKPOINT.md` para a próxima etapa.
 
 **Estado da etapa 1 (medição de base).**
 Feito e testado:
-- `worker/demo.js` e `worker/index.js`: o `Server-Timing` das rotas de dados agora traz `do;dur=` (tempo do Durable Object) além de `total`. Teste novo em `tests/worker.test.mjs`; `npm run test:worker` = 30 passam, `npm test` = 60 passam.
+- `worker/demo.js` e `worker/index.js`: o `Server-Timing` das rotas de dados agora traz `do;dur=` (tempo do Durable Object) além de `total`. Teste novo em `tests/worker.test.mjs`; os números de teste atuais estão em `docs/CHECKPOINT.md`.
 - `tools/api-perf.mjs` reescrito: cookie da demonstração obtido sozinho, métodos e corpo (`--method`, `--body` com `{uuid}`, `{n}`, `{day}`), erros contados sem abortar, `--json`, e `--suite` (GET `/api/personal`, GET `/api/city` e uma escrita de cidade que gira uma peça). Uso: `node tools/api-perf.mjs http://127.0.0.1:8787 --suite 50`.
 - `tools/city-frame-bench.mjs` novo: abre `city.html` no Chromium com CPU 4× mais lenta e rede 4G, semeia a cidade do Rio por API (ruas + prédios com GLB) e mede 1º quadro, tempo até GLB e terreno prontos (frio e com cache), CPU de cada `renderer.render`, intervalo de rAF, draws, triângulos, programas e texturas. Precisa do Worker em modo teste (5.000 moedas): `npx wrangler dev --port 8787 --ip 127.0.0.1 --var CITYOU_TEST_OPEN_REGIONS:1` e depois `CITYOU_CHROME=/opt/pw-browsers/chromium node tools/city-frame-bench.mjs http://127.0.0.1:8787 --runs 3`.
 
@@ -53,4 +53,4 @@ Medidas locais (Worker local e renderização por software, **não** são de pro
 
 **Ambiente.** `npm ci` já resolve as dependências (`node_modules` não vai para o git). Testes: `npm test`, `npm run test:worker`, `npm run build`. Navegador de teste: `CITYOU_CHROME=/opt/pw-browsers/chromium`.
 
-**Como trabalhar a partir daqui.** Confirme com `git status` e `git log` o que está commitado. Comece pelo "Próximo passo" de `docs/CHECKPOINT.md` (em 13/11/2026, a etapa 2) e anote o seu branch em "Em andamento por branch". Em cada etapa: ler `CLAUDE.md`, medir antes e depois, rodar os testes, atualizar `CLAUDE.md` e docs no mesmo commit, e dizer o que não foi verificado.
+**Como trabalhar a partir daqui.** Confirme com `git status` e `git log` o que está commitado. Comece pelo "Próximo passo" de `docs/CHECKPOINT.md` (em 13/11/2026: conferir a etapa 2 no navegador, entrar o PR da montanha e do ai-memory, e então a etapa 3) e anote o seu branch em "Em andamento por branch". Em cada etapa: ler `CLAUDE.md`, medir antes e depois, rodar os testes, atualizar `CLAUDE.md` e docs no mesmo commit, e dizer o que não foi verificado.
