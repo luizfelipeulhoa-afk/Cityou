@@ -1,77 +1,113 @@
-# Plano: conectar botões sem destino e criar o "Voltar" universal
+# Plano: Cityou sem Fifones, com conexões reais, desfazer e 3D ambientado
 
-## Context
-O último PR ([#23](https://github.com/CityouApp/Cityou/pull/23), decorações da Ilha Inicial; antes o [#22](https://github.com/CityouApp/Cityou/pull/22), prédios da ilha, design system e login obrigatório) fechou o conteúdo da ilha, mas deixou a interface com becos sem saída e com ações que gravam no primeiro clique sem desfazer. Este plano liga o que está solto e acrescenta um jeito criativo de voltar/refazer. Segue o `CLAUDE.md`: tudo que outro Claude precisa saber entra no `CLAUDE.md` e em `docs/INTERACTIONS.md` no mesmo commit; o navegador nunca envia XP/créditos; nenhuma mecânica pune ausência.
+Versão 2 (13/11/2026). Substitui a versão 1, que ainda mantinha o iframe do Fifones em alguns casos. Montado por um conselho de três especialistas (arquitetura e segurança, produto e motion, gráficos 3D) e revisado por um crítico que conferiu as propostas no código. Nada aqui foi executado nem medido: os números de desempenho são metas, e a etapa 1 existe para criar a base de medida.
 
-Skills já instaladas (não precisa baixar de novo): `find-skills` (vercel-labs/skills, `e781cb4`) e `prompt-master` (nidhinjs/prompt-master, `49b3a72`), em `.claude/skills/`, fixadas e documentadas em `.claude/skills/SOURCES.md`. Falta só o passo B abaixo (usar `find-skills` para buscar o que ainda falta).
+## Contexto
 
-## Análise do último PR (o que ficou em aberto)
-- Miniaturas do menu da ilha ausentes (`tools/catalog-previews.mjs` não renderiza a ilha).
-- `docs/INTERACTIONS.md` desatualizado (diz que "Voltar ao globo" não existe; existe em `CityApp.vue:547`).
-- Login obrigatório só vale com o D1 ligado (`database_id` em `wrangler.jsonc`): decisão de infraestrutura, fora deste plano.
+O app nasceu de uma cópia de exemplo do Fifones (app local na porta 8765). Sobraram botões que abrem um iframe para essa porta, rotas que fingem a ligação (`connected:false`) e prédios de IA que não pertencem ao Cityou. Em produção nada disso funciona. O objetivo é **tirar toda ligação com o Fifones, manter a ideia e a estrutura das telas e ligá-las a dados reais do próprio app** (Worker + Durable Object), com latência baixa, segurança, transições fluidas e prédios 3D ambientados à paisagem.
 
-## Parte 1 — Botões e funções sem destino (por prioridade)
-Fonte: leitura de `src/CityApp.vue`, `src/fifones/api.js`, `worker/demo.js`, `catalog`.
+Regras que valem em todas as etapas (do `CLAUDE.md`): o navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência; limites de desempenho do 3D; `three` 0.172 e TresJS fixados; `CLAUDE.md`, `docs/API.md` e `docs/INTERACTIONS.md` mudam no mesmo commit; `npm test` e `npm run test:worker` verdes em cada PR.
 
-| # | Problema | Onde | Correção |
-|---|---|---|---|
-| 1 | Painel "Missões" mostra "Fifones offline" na demonstração (`tasks()` devolve `connected:false`) | `worker/demo.js:320`, `CityApp.vue:121,576-583` | Fazer o Worker devolver as tarefas do painel pessoal (já existe `/api/personal`), ou trocar o painel por atalho para `/app#/tarefas`. Remover o texto "porta 8765" fora do `?local`. |
-| 2 | Seis atalhos do menu (`/#/tarefas`, `agenda`, `projetos`, `documentos`, `fitness`, `configuracoes`) só abrem "Desconectado" | `CityApp.vue:41-46,408` | Apontar para `/app#/...` quando não houver o Fifones; manter o iframe só com `?local`. |
-| 3 | Catálogo aponta para rotas que o painel não tem: `/#/hoje`, `/#/memoria`, `/#/cidade/chatgpt\|claude\|gemini\|grok` | `shared/game/city-catalog.json:2,9,12-15` | Mapear para `inicio`, `memorias`, `cidade`; tirar os quatro de IA do "Entrar neste espaço". Testar com `npm test`. |
-| 4 | "Evoluir" desabilitado sem motivo; Demolir/Evoluir somem na praça/sede/ruas | `CityApp.vue:594,151` | Mostrar o motivo no botão ("Faltam 12 moedas", "Prédio inicial, não pode ser demolido"). |
-| 5 | "Confirmar via" desabilitado só explica no erro | `CityApp.vue:604-606` | Texto de status em todos os casos desabilitados. |
-| 6 | Código morto: `mode === 'remove'` nunca é atribuído | `CityApp.vue:152,366` | Remover. |
-| 7 | Histórico de moedas mostra 5 linhas sem "ver mais" | `CityApp.vue:554` | Botão "Ver extrato" (rota atual `/api/world` ou `/api/personal`; não criar as rotas do doc). |
-| 8 | FastAPI local sem `road_path` e `/api/world/travel` | `backend/app.py:82` | Só documentar (o destino é o Worker). |
-| 9 | Viagem sem confirmação nem custo visível | `WorldApp.vue:136-146,256` | Confirmação com "Voltar" (ver Parte 2); modelo é "viagem disponível", não créditos. |
-| 10 | Miniaturas da ilha | `tools/catalog-previews.mjs` | Fazer o script renderizar `island-*`. |
-| 11 | `docs/INTERACTIONS.md` desatualizado | `:10,34,244,250-254,276` | Atualizar no mesmo commit de cada correção. |
+## O que cada tela vira
 
-### Achados do painel `/app`, do mapa e da página de apresentação
+| Tela ou botão de hoje | Vira |
+|---|---|
+| Perfil → Configurações | Aba **Conta**: nome, e-mail, Sair. Na demonstração: "Criar conta para guardar". |
+| "Conectado ao Fifones" | **Salvo / Salvando… / Sem conexão** |
+| Agenda, Projetos, Peso (Fitness) | **Reais**, guardados no Durable Object (`event`, `project`, `weight`) |
+| Memórias e Obsidian | Memórias são as notas do painel; o botão do Obsidian sai |
+| Biblioteca e documentos | **Em breve** (estado vazio dentro da aba, sem botão morto) |
+| Professor, voz, "Falar sobre isso", "Conversar", Planilhas | **Saem** |
+| Menu lateral da cidade (6 itens) | Links para `/app#/<aba>`; "Conexões" sai |
+| Missões na cidade | Sempre visíveis, com as tarefas reais e "Ver tarefas" |
+| "Entrar neste espaço" dos prédios | Abre a aba certa do painel (`goToPanel(aba)`) |
+| Sede Fifones | **Sede Cityou** |
+| Prédios de IA (ChatGPT, Claude, Gemini, Grok) e StuntSync | Saem do catálogo; quem já construiu recebe o valor de volta, creditado pelo servidor uma única vez |
 
-| # | Problema | Onde | Correção | Grav. |
-|---|---|---|---|---|
-| 12 | 12+ botões do painel abrem iframe do Fifones (porta 8765), que o usuário não tem em produção (Configurações, Agenda, Fitness, Projetos, Biblioteca, Professor, Memórias, Planilhas) | `src/App.vue:120,134-188`, `worker/demo.js` (`connected:false`) | Decisão por tela: página própria no painel, ou botão desabilitado com "Em breve" (padrão B8 do doc). Nunca mostrar "porta 8765" fora do `?local`. | Alta |
-| 13 | 401 (sessão vencida) vira "Não foi possível carregar" e "Tentar novamente" repete o 401; polling de 60 s repete | `src/App.vue:60-101,138`; `src/WorldApp.vue:44-50,210` | Tratar 401 em um `api()` comum: ir para `/?entrar=1&next=...` (padrão do `reloadPage` da cidade, `CityApp.vue:431`). | Alta |
-| 14 | "Esqueci a senha" não existe: com login obrigatório, quem perde a senha fica trancado | `index.html:134-156`, `worker/auth.js:26` (tabela `password_resets`) | Só entra depois do e-mail com domínio (skill `cloudflare-email-service`); até lá, link "Falar com o suporte". Fica como decisão do Luix. | Alta |
-| 15 | Sair da conta: o `finally` redireciona mesmo se o logout falhar (a sessão continua e volta para `/app`); fonte 10 px; some com o menu recolhido; não existe em cidade e mapa | `src/App.vue:25,33,134`, `personal.css:33` | Redirecionar só em sucesso, mostrar erro; botão acessível e também no cabeçalho de cidade e mapa. | Média |
-| 16 | Miniaturas dos 9 itens `island-*` ausentes (cai no SVG genérico); `tools/catalog-previews.mjs` não abre `?local=ilha-inicial`; teste só confere o Rio | `CityApp.vue:470-492,589,634`, `tools/catalog-previews.mjs:9-13`, `tests/city-models.test.mjs:24-30` | Script aceita a cidade e o prefixo `island-`; gerar PNGs; estender o teste. | Média |
-| 17 | Mapa em `offline`/`loading`: tocar num espaço não faz nada nem avisa | `src/WorldApp.vue:121-127,155-165` | Aviso e botão de tentar de novo. | Média |
-| 18 | Voltar entre páginas sem caminho certo: cidade avulsa sem volta ao painel; mapa só volta ao painel (não à cidade de origem); "Voltar ao Cityou" dentro do iframe cai em `inicio`, não na aba da cidade | `CityApp.vue:541,547`, `WorldApp.vue:192,258` | Resolvido pelo "Voltar" universal (Parte 2). | Média |
-| 19 | Iframes de Mapa e Cidade sem carregando/erro; sessão vencida mostra a landing dentro do iframe | `src/App.vue:139-140` | Estado de carga e erro; detectar a landing. | Média |
-| 20 | Hash perdido após o login (`/app#/habitos` → `/app`) | `worker/index.js:~70` | Guardar o hash em `next` no cliente. | Baixa |
-| 21 | "Novo registro" e atualizar sempre visíveis nas abas Mapa e Cidade (abrem formulário de tarefa; atualizar não recarrega o iframe) | `src/App.vue:137` | Esconder nessas abas. | Baixa |
-| 22 | `openDocument` abre sempre `/#/documentos`; capa chama rota que só existe no FastAPI; tarefa concluída desabilitada sem explicação nem reabrir | `src/App.vue:122,156,182` | Abrir o documento certo; `title` no botão; rota "reabrir" (modelo: `toggleHabit`, `App.vue:112`). | Baixa |
-| 23 | Debug do mapa (tecla D, `?debug=1`, "Concluir fase (simulação)") visível a qualquer usuário | `WorldMap.vue:137,248-278`, `WorldApp.vue:257` | Esconder fora do dev ou do `?debug=1` explícito. | Baixa |
-| 24 | Texto da landing "o que você já fez neste navegador vai junto" fica enganoso com login obrigatório | `index.html:~136`, `landing.js` | Ajustar o texto. | Baixa |
+## Etapas (um PR cada)
 
-## Ordem de entrega (um PR por etapa, `CLAUDE.md` e docs no mesmo commit)
-1. **Becos sem saída** (itens 1-3, 12, 13, 15, 17, 19): sem mudança de regra do jogo; a maior parte é front.
-2. **Voltar/Desfazer** (Parte 2): `rules.js` + `worker/city.js` + fita no `CityApp.vue`; depois a viagem no mapa.
-3. **Miniaturas, textos e acabamento** (itens 4-7, 10, 16, 20-24) e atualização do `docs/INTERACTIONS.md`.
-4. **Esqueci a senha** (item 14), só com e-mail e domínio definidos.
+| # | Etapa | Pronto quando |
+|---|---|---|
+| 1 | **Medição de base.** `tools/api-perf.mjs` com cookie, método e corpo; `Server-Timing` separando o tempo do Durable Object; `tools/city-frame-bench.mjs` (tempo por quadro, draws, triângulos, tempo até o último GLB). | Mediana e p95 de `GET /api/personal`, `GET /api/city` e `POST /api/city/actions` na prévia e tempo por quadro da cidade (CPU 4×) gravados nos docs; duas execuções diferem menos de 10%. |
+| 2 | **Tarefas reais, cliente único e cidade sem iframe.** `GET /api/personal/tasks` e concluir tarefa; os caminhos `/api/workspace/tasks*` ficam como apelido por um deploy; saem `connected`/`source`; um `api()` único que trata 401 (vai para `/?entrar=1&next=…`); `goToPanel(aba)`; saem `openWorkspace`, o diálogo, `setActivity`, as `PointLight` e a sondagem de 10 s. | Missões lista tarefas na prévia; nenhum "8765" ou "offline" em `src/CityApp.vue`; os itens do menu chegam à aba certa, na página avulsa e embutida; nenhum pedido repetido depois de um 401. |
+| 3 | **Catálogo e migração.** Destino de prédio vira nome de aba de uma lista fechada; Sede Cityou; saem IA e StuntSync (o custo deles fica numa tabela só do servidor); o estado guardado é regravado ao carregar, com reembolso recalculado (custo + melhorias) e marca "já migrado"; GLB apagados. | Cidade guardada com `stunt` nível 3 carrega, credita o valor exato uma só vez e aceita nova construção sem erro 500; nenhum `/#/` no catálogo; cerca de 61 MB de GLB a menos. |
+| 4 | **Painel sem iframe.** Saem `openBridge` e `openDocument`; aba Conta; indicador Salvo/Salvando; Biblioteca "Em breve"; Sair só redireciona em sucesso e aparece também na cidade e no mapa; hash preservado no login, com `next` validado contra `APP_PAGES`; miniaturas da ilha (`tools/catalog-previews.mjs` com `?local=ilha-inicial`). | Nenhum `<iframe>` além de mapa e cidade; nenhum "Fifones" em texto visível; 390 px sem rolagem horizontal; `/app#/habitos` volta à mesma aba depois de entrar. |
+| 5 | **Conexões reais.** Agenda, Projetos e Peso, em três commits; `GET /api/personal` traz tudo que o painel precisa (uma leitura por tela); toda escrita devolve o estado novo; teto de registros por conta definido. | Criar, editar e apagar com 1 pedido cada e persistência após recarregar; 422 para campo extra; isolamento entre duas sessões; latência comparada com a base da etapa 1. |
+| 6 | **Segurança e corte do legado.** CSP e cabeçalhos de segurança pelo Worker, primeiro em `Report-Only`; cabeçalho `X-Cityou-Request` aceito junto do antigo e, um deploy depois, só ele; saem os apelidos; `backend/` (FastAPI), pytest e scripts Python apagados; proxy do Vite na porta 8787. | Uma semana sem violação de CSP com GLB e worker carregando; rotas antigas respondem 404; nenhum script do `package.json` chama Python. |
+| 7 | **Luz e ambientação da cidade.** Uma tabela de luz por região (`src/terrain/lighting.js`, com tone mapping incluso) lida pelas cenas; GLB e chão em `MeshLambertMaterial`; sombra de contato barata (um `InstancedMesh`, +1 draw) e shadow map desligado; névoa única; base do prédio na cor do terreno; `enter`/`leave` animados (0,25 s); desenho sob demanda; GLB legados reduzidos a 6 mil triângulos e publicados com hash; vegetação instanciada em volta dos prédios (sem draw a mais). | `shadowMap.enabled === false`; nenhum `MeshStandardMaterial`; no máximo +1 draw; tempo por quadro menor ou igual à base; 0 quadros desenhados com a cena parada; todo GLB da cidade com até 500 KB e 8 mil triângulos; imagens antes e depois em `.verification/`. |
+| 8 | **Fita do Tempo e transições.** Desfazer/refazer (abaixo); cortina na cor do céu do destino, pré-busca da próxima página e View Transition como melhoria progressiva; Voltar hierárquico; por último, renome `src/fifones` → `src/city` num PR só de `git mv`. | Testes por tipo de ação (créditos e peças idênticos depois de desfazer); 409 fora da janela ou com revisão diferente; `request_id` repetido não credita duas vezes; nenhum quadro branco entre telas; `perf:world-frame` e o bench da cidade sem piora. |
 
-Decisões para o Luix antes de começar: (a) o que fazer com as telas que dependem do Fifones: página própria, "Em breve" ou esconder; (b) janela do desfazer (sugestão: 60 s, reembolso integral).
+Ordem: 2 a 6 atendem o pedido principal (sair do Fifones). A 7 vem depois da 3 porque não vale medir nem otimizar luzes e modelos que vão ser apagados. A 8 usa a animação de entrada e saída entregue pela 7.
 
-## Parte 2 — "Voltar" criativo: **Fita do Tempo** (desfazer/refazer de cidade)
-Problema: construir, mover, girar e evoluir gravam no clique; só demolir confirma e nada desfaz. O doc já prevê "desfazer, não confirmar".
+## Fita do Tempo (o "Voltar" depois de confirmar)
 
-Ideia: em vez de pedir "tem certeza?" antes (atrito), cada ação **grava na hora e vira um cartão numa fita** no canto da cidade. Cada cartão é uma ação (ícone do prédio + "Construiu Farol −60"). Tocar no cartão recente = **Desfazer** (devolve as moedas e o estado, com a animação do prédio "recolhendo"); depois do desfazer o cartão fica esmaecido com **Refazer**. Também vale `Ctrl/Cmd+Z` e `Shift+Ctrl/Cmd+Z`; no celular, só o toque no cartão (gestos conflitam com a câmera).
-- Desfazer é uma **ação inversa enviada ao servidor**, nunca o navegador mexendo em créditos: `build`→`remove` com reembolso integral só se desfeito na janela (ex.: 60 s) ou 100% do custo registrado na ação; `move`→`move` de volta; `rotate`→`rotate`; `remove`→recriar com os dados do cartão; `upgrade`→ rebaixar com reembolso. O servidor valida (`expected_revision`, janela, dono) em `worker/city.js` (`applyCityAction`); nova ação `undo` com `action_id` do registro.
-- Fora da janela, o cartão some da fita (não há punição por ausência).
-- Mesma fita no mapa-mundo: **viajar** vira cartão "Viajou para X" com "Voltar" (volta à cidade anterior sem custo extra se ainda não executou nada na nova).
-- "Voltar" de navegação: botão fixo `‹ Voltar` no cabeçalho de cada página (painel ↔ cidade ↔ mapa) usando `history.back()` com fallback para `/app#/inicio`; o link "Voltar ao globo" e "Voltar ao Cityou" já existem, unificar o estilo.
-- Confirmação só onde é irreversível (cobrar fora da janela, demolir prédio com melhorias): mantém o diálogo atual.
+Hoje construir, mover, girar e evoluir gravam no primeiro clique e nada desfaz. Em vez de perguntar "tem certeza?" antes, cada ação grava na hora e vira um cartão numa fita no canto da cidade ("Construiu Farol −60"). Tocar no cartão do topo desfaz; o cartão desfeito mostra "Refazer". `Ctrl/Cmd+Z` e `Shift+Ctrl/Cmd+Z` também valem.
 
-Arquivos: `shared/game/rules.js` (regra pura de desfazer + testes), `worker/city.js` e `worker/demo.js` (ação `undo`, registro de ações com janela), `src/CityApp.vue` (fita, atalhos, estados), `src/WorldApp.vue` (viagem), componente novo `src/components/ActionTape.vue` (sem nome começando com `Tres`), `docs/INTERACTIONS.md`, `docs/API.md`, `docs/GAME-DESIGN.md`, `CLAUDE.md`. Reutilizar `saving`/`refreshing`/`expected_revision` já existentes.
+- **Pilha estrita no servidor:** só a ação do topo pode ser desfeita, e só se a revisão da cidade for a gravada depois dela. O servidor guarda o estado anterior e o restaura; o navegador envia só o `action_id`. Reaproveita `request_id` e `expected_revision`, que já existem (`worker/demo.js`, `worker/city.js`).
+- **Janela:** últimas 10 ações, 120 segundos, reembolso integral, sem contador na tela (contador cria pressa). Depois disso o cartão vira histórico e vale a regra de hoje: demolir com diálogo e 50%. Sem a janela, desfazer viraria demolição grátis.
+- **Fora da primeira versão:** prédios de atividade (nascem de regra do jogo) e viagens.
+- **Voltar de navegação:** hierárquico e com o destino no rótulo ("‹ Mapa", "‹ Painel"): cidade → mapa → painel. `history.back()` foi descartado porque falha em entrada direta, depois do login e dentro de iframe.
+- **Movimento reduzido:** troca direta, sem escala nem voo de câmera.
 
-## Parte 3 — Skills, plugins e modos (qualidade daqui para frente)
-- Já instalados: `find-skills`, `prompt-master`.
-- Usar `find-skills` (precisa de acesso a `skills.sh`; pode ser bloqueado na nuvem, cair para GitHub) para buscar: testes E2E/visuais de Vue, acessibilidade de diálogos, ferramentas de undo/redo, Cloudflare D1/auth.
-- Buscar plugins do catálogo da organização com `SearchPlugins`/`SuggestPluginInstall` (deploy, revisão, testes) quando a tarefa pedir.
-- Cada skill nova: cópia fixada por commit, só `.md`, registrada em `.claude/skills/SOURCES.md`, com a varredura de segurança feita antes (padrão do repositório).
+## Riscos que o crítico apontou
 
-## Verificação
-- `npm test`, `npm run test:worker` (testes novos: desfazer/refazer por tipo de ação, janela expirada, `expected_revision`, reembolso exato, não dá crédito além do gasto), `pytest tests -q`, `npm run build`.
-- Navegador (`CITYOU_CHROME=/opt/pw-browsers/chromium`, `tools/runtime.mjs`): construir → desfazer → refazer; atalhos; atalhos do menu levam a `/app#/...`; sem rolagem horizontal em 390 px; foco e leitor de tela na fita.
-- `npm run perf:world-frame` não deve piorar.
+- **Peça de tipo desconhecido derruba a validação** (`getBuilding` devolve `undefined`, `shared/game/city-layout.js:142-147`): a migração da etapa 3 tem de regravar o estado antes de qualquer ação, com teste.
+- **Não existe custo registrado por peça:** o reembolso é recalculado pelo servidor (custo + melhorias).
+- **Tone mapping:** o terreno foi calibrado sem tone mapping e o globo usa Neutral. Na cidade fica sem; o globo só muda depois de medir.
+- **CSP:** `connect-src` precisa aceitar `blob:` e `data:` (texturas dos GLB); validar em `Report-Only`. Só cobre páginas em `run_worker_first`.
+- **Teto de 100 registros por tipo** vale também para contas: o peso diário travaria em cerca de 3 meses. Definir teto ou paginação na etapa 5.
+- **Abas abertas com o bundle antigo:** por isso os apelidos de rota e o cabeçalho duplo por um deploy.
+- **Visual muda de uma vez na etapa 7** (sem sombra projetada, menos contraste): imagens antes e depois em cada PR.
+- Não conferido por ninguém: limite de tentativas em `worker/auth.js`, `tools/*-playtest.mjs` que citam o Fifones, APIs do three 0.172 (`node_modules` não estava instalado).
+
+## Decisões do dono (antes da etapa 3)
+
+1. Reembolso de 100% das peças de IA e StuntSync retiradas. Recomendado: sim.
+2. Biblioteca fica "Em breve"; Professor, voz e Planilhas saem. Recomendado: sim.
+3. Cidade sem sombra projetada, com sombra de contato. Recomendado: sim, é o que os limites do `CLAUDE.md` já pedem.
+4. Apagar o backend FastAPI local. Recomendado: sim, na etapa 6.
+5. Janela do desfazer: 120 s sem contador. Recomendado: sim.
+6. "Esqueci a senha": depende de e-mail com domínio; fica fora deste plano até lá.
+
+## Skills
+
+Instaladas nesta rodada (cópia só de `.md`, fixadas por commit, varredura de segurança feita; registro em `.claude/skills/SOURCES.md`):
+
+| Skill | Para quê | Etapas |
+|---|---|---|
+| `council-review` | Conselho de 5 conselheiros com revisão entre pares e síntese, para decisões e PRs de risco | 3, 6, 8 |
+| `owasp-security` | Checklist OWASP de autenticação, sessão, cabeçalhos e CSP | 2, 5, 6 |
+| `threejs-lighting`, `threejs-materials`, `threejs-textures`, `threejs-postprocessing` | Luz, materiais e ambientação (miram a r186: conferir a API no three 0.172) | 7 |
+
+Avaliadas e não instaladas:
+
+- **Agent Reach** (Panniantong/Agent-Reach): a skill é só o manual de um programa Python que instala um navegador próprio e guarda sessões de login. Não funciona só com `.md` e não serve a esta demanda. Reavaliar se houver pedido de pesquisa em redes sociais, na máquina do dono, depois de ler o código.
+- **llm-council** (aiwithremy): mesmo método do `council-review`, mas o repositório não tem licença.
+- **Deep-Research-skills**, **agent-council**, **threejs-aaa-graphics-builder**, **security-review** da Sentry, **playwright-best-practices**: dependem de script, binário ou dependência nova, ou repetem o que já temos.
+
+`find-skills` não funciona na sessão de nuvem: o proxy bloqueia `skills.sh` e `npx skills find` devolve vazio. A busca foi feita pela pesquisa do GitHub e por `git clone` dos repositórios públicos.
+
+## Pedido reescrito (prompt-master, para o Claude Code)
+
+```
+<context>
+Repositório Cityou (Vue 3, Three.js 0.172, Worker do Cloudflare com Durable Object). O app nasceu de uma cópia do Fifones (app local na porta 8765). Siga o CLAUDE.md e execute docs/PLANO-PROXIMOS-PASSOS.md, uma etapa por PR, na ordem.
+</context>
+<task>
+Execute a etapa [N] do plano. Remova as ligações com o Fifones dessa etapa e ligue as telas a rotas reais do Worker, mantendo a estrutura das telas.
+</task>
+<constraints>
+- O navegador NUNCA envia XP, créditos, nível ou desbloqueio. Nenhuma mecânica pune ausência.
+- Altere apenas os arquivos da etapa. Não atualize three, TresJS nem adicione dependência.
+- Atualize CLAUDE.md, docs/API.md e docs/INTERACTIONS.md no mesmo commit.
+- Pare e pergunte antes de: apagar backend/, mudar o formato dos dados guardados, mexer em wrangler.jsonc de produção.
+</constraints>
+<done>
+O critério "Pronto quando" da etapa foi cumprido e demonstrado com saída real de: npm test, npm run test:worker, npm run build e o teste de navegador da etapa. Meça antes e depois quando a etapa tocar em latência ou em quadro; informe os números, não estimativas.
+</done>
+<output_format>
+Resumo do que mudou, resultado de cada comando, o que não foi verificado e as decisões que ficaram para o dono.
+</output_format>
+```
+
+Este prompt é para uma ferramenta com acesso real ao sistema. Confira os limites, as ações proibidas e os critérios de parada antes de colar.

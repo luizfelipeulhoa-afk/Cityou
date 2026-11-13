@@ -27,6 +27,10 @@ Vários Claude trabalham neste repositório em branches e sessões diferentes, e
 
 A página de apresentação e a de teste do terreno são construídas à parte (`vite.landing.config.js`, `vite.terrain.config.js`). Não as ponha nas entradas do `vite.config.js`: isso redistribui os pacotes compartilhados e cada página de produção passa a pedir de 1 a 3 arquivos a mais (medido).
 
+## Plano em andamento: sair do Fifones
+
+O app nasceu de uma cópia do Fifones e ainda tem botões, rotas e prédios que dependem dele (iframe para a porta 8765, `connected:false`, prédios de IA). Decisão do dono (13/11/2026): tirar toda ligação com o Fifones e ligar as telas a dados reais do Worker. O plano, em 8 etapas com critério de pronto, o destino de cada tela, a Fita do Tempo (desfazer/refazer) e a ambientação do 3D estão em `docs/PLANO-PROXIMOS-PASSOS.md`. Leia antes de mexer em `src/App.vue`, `src/CityApp.vue`, `worker/demo.js` ou no catálogo. Não crie botão novo que abra o Fifones.
+
 ## Design system
 
 Cores, tipografia, forma, topografia do globo e os prompts de imagem e 3D dos prédios estão em `docs/DESIGN-SYSTEM.md`. Antes de criar uma cor, fonte ou prompt novo, leia esse arquivo; se a cor já existe em `:root` ou em `PALETTE`, use a existente. A mesma versão está no Claude Docs da empresa ("Design system Cityou"): mudanças entram pelos dois lados.
@@ -125,14 +129,15 @@ Procedência e revisão em `.claude/skills/SOURCES.md`. Use por assunto:
 
 - Animação: `gsap-core`, `gsap-timeline`, `gsap-performance`, `gsap-frameworks`, `gsap-plugins`, `gsap-utils`, `gsap-scrolltrigger`, `animation-performance`, `emil-design-eng`.
 - Visual e UI: `frontend-design` (direção estética), `impeccable` (crítica e polimento), `ui-ux-pro-max` (regras de UX e checklist), `design-system` (tokens e componentes), `ui-styling` (Tailwind/shadcn, só como referência: o app usa Vue), `design` (logo, ícones e identidade).
-- 3D: `threejs-performance`, `threejs-shaders`, `threejs-loaders`, `threejs-asset-pipeline`, `threejs-interaction`, `threejs-geometry`, `threejs-game-ui-designer`, `threejs-debug-profiler`, `threejs-qa-release`.
+- 3D: `threejs-performance`, `threejs-shaders`, `threejs-loaders`, `threejs-asset-pipeline`, `threejs-interaction`, `threejs-geometry`, `threejs-game-ui-designer`, `threejs-debug-profiler`, `threejs-qa-release`, `threejs-lighting`, `threejs-materials`, `threejs-textures`, `threejs-postprocessing`.
 - Mecânicas de jogo em Three.js: `threejs-gameplay-systems`. Usabilidade e formulários: `ux-heuristics`, `form-design`.
 - Vue: `vue-best-practices`.
 - Web: `performance`, `core-web-vitals`, `accessibility`, `web-quality-audit`, `web-perf`.
 - Backend: `fastapi`, `async-python-patterns`, `api-design-principles`.
 - Deploy (Cloudflare Workers, `wrangler.jsonc`): `workers-best-practices`, `wrangler`. E-mail (recuperação de senha): `cloudflare-email-service`. Alternativa ao D1 para latência: `durable-objects`.
 - Prompts para outras ferramentas de IA (Tripo, por exemplo): `prompt-master`.
-- Procurar skills novas: `find-skills` (usa `npx skills find`, que precisa de acesso a `skills.sh`).
+- Procurar skills novas: `find-skills` (usa `npx skills find`, que precisa de acesso a `skills.sh`; na sessão de nuvem o proxy bloqueia e a busca volta vazia: use a pesquisa do GitHub e `git clone`).
+- Segurança (sessão, cabeçalhos, CSP): `owasp-security`. Decisão de risco ou revisão de plano e PR por um conselho de conselheiros: `council-review` (11 a 14 subagentes por rodada).
 
 As skills de design da nextlevelbuilder vieram só com os `.md`: os scripts de busca e os CSVs citados nelas não estão no repositório, então use-as como referência. A `design` cita chaves de API externas: não configure nenhuma sem pedido.
 
