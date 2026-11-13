@@ -134,3 +134,15 @@ Só 25 de 30 prédios cabem no Rio com as quatro ruas que o bench traça (o serv
 **Quais medidas são confiáveis** (diferença entre as duas execuções): draws, triângulos, programas e texturas, 0%; primeiro quadro, até 2,3%; pronto com cache vazio, até 8,8%; CPU de `render` com 25 prédios, 7,4%. **Ruins:** CPU de `render` sem prédios (11,4%, valores de 4 a 5 ms), abertura com cache (12 a 27%) e o intervalo de rAF por software (múltiplos de 16,7 ms, até 25%). Para decidir se uma mudança piorou ou melhorou, exija uma diferença maior que essas margens nas medidas ruins e use as confiáveis como juiz.
 
 API local (50 chamadas, mediana / p95, ida e volta): `GET /api/personal` 8,6 / 11,6 ms; `GET /api/city` 7,6 / 10,8 ms; girar uma peça 9,8 / 15,4 ms. O servidor responde em 1 a 3 ms (os temporizadores do Worker têm resolução de 1 ms). **Não há base de produção ou prévia ainda:** falta rodar `--suite` contra o site publicado, com cookie de sessão.
+
+### Depois da etapa 7a (luz única, Lambert, sombra de contato, degradê de base), 13/11/2026
+
+Mesma máquina, mesmos comandos, 3 rodadas (a base acima é a de antes). Nenhum `dist` foi reconstruído durante a medida.
+
+| Cenário | Draws | Triângulos | Programas | CPU de `render` p50 / p95 | Pronto (frio) |
+|---|---|---|---|---|---|
+| Partida: antes → depois | 51 → 52 | 57.752 → 57.756 | 10 → 11 | 4,4–4,9 / 10,4–11,5 → 3,9 / 7,2 ms | 6,1–6,7 → 6,1 s |
+| + 25 prédios: antes → depois | 74 → 75 | 203.433 → 203.487 | 10 → 12 | 6,8–7,3 / 15,1–15,8 → 6,3 / 11,9 ms | 10,1–10,6 → 9,9 s |
+
++1 draw (a sombra de contato), +1 programa (o Lambert com o degradê de base) e nenhum triângulo relevante a mais. A CPU de `render` não piorou: o p95 caiu uns 22 a 30%, acima da margem de ruído; o p50 caiu 7 a 20%, perto da margem (7 a 11%), então vale como "sem piora", não como ganho certo. Cena (`tools/city-look.mjs`): shadow map desligado, sem tone mapping no Rio, 134 materiais Lambert e 1 Standard (era 132 Standard), sem `PointLight`. Fotos antes e depois em `.verification/city-antes-*.png` e `city-depois3-*.png` (fora do git).
+

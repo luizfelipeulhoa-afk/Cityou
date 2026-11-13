@@ -1,6 +1,6 @@
 # Contexto para continuar em outro chat
 
-Última atualização: 13/11/2026. Para ter o texto pronto para colar, com o estado do git de agora: `node tools/handoff.mjs` (ou `node tools/handoff.mjs --copy`). O texto abaixo da linha é o que a outra IA precisa ler.
+Última atualização: 13/11/2026, depois da etapa 7a. Para ter o texto pronto para colar, com o estado do git de agora: `node tools/handoff.mjs` (ou `node tools/handoff.mjs --copy`). O texto abaixo da linha é o que a outra IA precisa ler.
 
 ---
 
@@ -14,7 +14,7 @@ Você vai continuar o trabalho num repositório que já tem várias sessões de 
 
 **Regras que valem sempre (do `CLAUDE.md`).** O navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência. Toda mudança que outro Claude precisa saber entra no `CLAUDE.md` no mesmo commit (e `docs/API.md` / `docs/INTERACTIONS.md` quando mexer em rota ou tela). Meça antes e depois, não estime. Não use `npx --yes` nem atualize three/TresJS. Limites 3D: uma luz direcional + hemisfério, sem sombras, sem mapa de ambiente, modelos opacos, 60 fps em celular médio. Página nova do app entra em `APP_PAGES` e `run_worker_first`.
 
-**Plano (8 etapas, um PR cada; ordem 1 → 7a → 2 a 6 → 7b → 8):**
+**Plano (um PR por etapa; ordem 1 ✔ → 7a ✔ → 9 → 2 a 6 → 7b → 8). Detalhe e estado de cada etapa: `docs/CHECKPOINT.md`.**
 1. Medição de base (em andamento, ver abaixo).
 7a. Unificar visualmente prédio e terreno: tabela de luz única, sem tone mapping na cidade, GLB e chão em `MeshLambertMaterial`, sombra de contato (+1 draw) com shadow map desligado, remoção das `PointLight` por prédio, base do prédio na cor do terreno, névoa única, entrada animada dos prédios.
 2. Tarefas reais, cliente `api()` único com tratamento de 401, cidade sem iframe.
@@ -25,7 +25,11 @@ Você vai continuar o trabalho num repositório que já tem várias sessões de 
 7b. Desenho sob demanda, GLB legados reduzidos, vegetação em volta dos prédios.
 8. Fita do Tempo (desfazer/refazer com pilha estrita no servidor, janela de 120 s, sem contador) e transições sem quadro branco; renome `src/fifones` → `src/city` por último.
 
-**Decisões do dono ainda sem resposta** (recomendação entre parênteses): reembolso de 100% das peças de IA/StuntSync retiradas (sim); Biblioteca "Em breve" e Professor/voz/Planilhas saem (sim); cidade sem sombra projetada, só sombra de contato (sim); apagar o FastAPI (sim); janela do desfazer de 120 s sem contador (sim). "Esqueci a senha" fica fora até haver e-mail com domínio.
+**Decisões do dono: todas aprovadas em 13/11/2026** (reembolso de 100% das peças de IA/StuntSync; Biblioteca "Em breve" e Professor/voz/Planilhas saem; sem sombra projetada, só de contato; apagar o FastAPI; desfazer de 120 s sem contador) e, na etapa 9, **rua automática**. "Esqueci a senha" fica fora até haver e-mail com domínio.
+
+**Etapa 7a, feita:** tabela de luz por região em `src/terrain/lighting.js` (o Rio usa a luz do terreno, sem tone mapping), GLB em Lambert (`src/tres/lambert.js`), degradê de base até a cor do chão (`src/tres/groundBlend.js`: o disco bege do Tripo virou grama), sombra de contato num `InstancedMesh`, shadow map e `PointLight` removidos. Medido: +1 draw, +1 programa, CPU de render sem piora (tabela em `docs/WORLD-PERF.md`); fotos com `node tools/city-look.mjs <url> --label x`. Testes: `npm test` 67, `npm run test:worker` 30, `npm run test:terrain` ok. Falta da 7a (vai para a 7b): entrada animada dos prédios e terreno entrando com a névoa abrindo.
+
+**Etapa 9, próxima (rua automática):** só 55 dos cerca de 800 lotes liberados do Rio têm frente para rua conectada, então a cidade fica presa ao contorno das ruas iniciais. Ao construir num lote sem frente para rua, o servidor traça e cobra o trecho de rua mais curto até a rede, numa ação só, e o cliente mostra o custo total antes de confirmar. Detalhes e critério de pronto no plano.
 
 **Estado da etapa 1 (medição de base).**
 Feito e testado:

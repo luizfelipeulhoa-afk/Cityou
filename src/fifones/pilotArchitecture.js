@@ -191,7 +191,7 @@ export function createPilotBuilding(kind, definition) {
   if (!Object.hasOwn(designs, kind)) return null
   const pieces = kit(Number(definition.width) || 1, Number(definition.depth) || 1)
   const height = design(pieces)
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.87 })
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true })
   const model = new THREE.LOD()
   model.name = definition.label || kind
   model.userData.height = height

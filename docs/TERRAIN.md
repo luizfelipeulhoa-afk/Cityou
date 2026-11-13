@@ -192,3 +192,7 @@ Não medido: nenhum aparelho com GPU de verdade.
 - **Aparelho real.** A fluidez no celular não foi medida. A página de teste publicada serve para isso.
 - **Navegadores antigos.** O leitor de PNG usa `DecompressionStream` (Chrome 80, Firefox 113, Safari 16.4). Abaixo disso o terreno não carrega.
 - **Sombras.** O terreno não projeta nem recebe sombra. A cidade de hoje usa sombras nos prédios.
+
+## Luz compartilhada (13/11/2026)
+
+A luz, o céu e a névoa do Rio ficam em `src/terrain/lighting.js` (`TERRAIN`): a página de teste e a cidade leem a mesma tabela, sem tone mapping. Na cidade os prédios (GLB em Lambert) ganham sombra de contato e um degradê de base até a cor do platô (`ground`, a mesma conta de `terrainData.js` com `plateau.tint = -0,3`); se mudar o `tint` do platô, mude `ground` junto (há teste). Antes a cidade usava ACES, sombras projetadas, `MeshStandardMaterial` e uma `PointLight` por prédio ativo, o que deixava o terreno e os prédios com cara de duas peças.
