@@ -4,6 +4,7 @@
 //
 //   npx wrangler dev --port 8787 --ip 127.0.0.1 --var CITYOU_TEST_OPEN_REGIONS:1
 //   CITYOU_CHROME=/opt/pw-browsers/chromium node tools/city-look.mjs http://127.0.0.1:8787 --label antes [--buildings 14]
+//   Gera city-<label>-vista.png, -vista-90, -vista-180, -vista-270 e -perto.
 import fs from 'node:fs'
 import { chromium, browserOptions } from './runtime.mjs'
 import { createSeeder, LOCATION } from './lib/city-seed.mjs'
@@ -45,9 +46,13 @@ try {
   }), expectedIds)
   await page.waitForTimeout(1500)
   const shot = async name => { await page.waitForTimeout(700); await page.screenshot({ path: `.verification/city-${label}-${name}.png` }) }
+  // Quatro ângulos (0°, 90°, 180°, 270°): o relevo de fundo muda muito de um lado para o outro, e foi assim que um corte do
+  // terreno que decapitava a montanha passou despercebido (só a vista de frente tinha sido conferida).
   await shot('vista')
-  await page.evaluate(() => { const e = window.__fifonesCity.engine; e.rotateCamera(); e.rotateCamera() })
-  await shot('vista-girada')
+  for (const angle of [90, 180, 270]) {
+    await page.evaluate(() => { const e = window.__fifonesCity.engine; e.rotateCamera(); e.rotateCamera() }) // 2 × 45°
+    await shot(`vista-${angle}`)
+  }
   const target = expectedIds[Math.floor(expectedIds.length / 2)]
   if (target) { await page.evaluate(id => { const e = window.__fifonesCity.engine; e.focus(id); e.setSelected(null); e.controls.object.position.sub(e.controls.target).multiplyScalar(0.45).add(e.controls.target); e.controls.update() }, target); await shot('perto') }
   const report = await page.evaluate(() => {

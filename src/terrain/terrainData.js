@@ -108,14 +108,25 @@ export function createTerrainData(region, values) {
   // névoa da cidade (CityWorld, src/terrain/lighting.js) nunca mostravam mesmo, e corta os triângulos de lá também.
   if (region.crop) {
     values = values.slice()
-    const { x: cropX, z: cropZ, radius, blend: cropBlend = 14 } = region.crop
+    const { x: cropX, z: cropZ, radius, blend: cropBlend = 14, keep = [] } = region.crop
+    // `keep`: círculos { x, z, radius, blend } onde o corte NÃO vale (a borda se mistura de volta ao corte). Serve para o corte
+    // não decapitar uma montanha que a cena precisa mostrar inteira (o maciço atrás do morro do Cristo, no Rio).
+    const kept = (x, z) => {
+      let weight = 0
+      for (const circle of keep) {
+        weight = Math.max(weight, 1 - smoothstep(circle.radius, circle.radius + (circle.blend ?? 20), Math.hypot(x - circle.x, z - circle.z)))
+      }
+      return weight
+    }
     for (let j = 0; j < size; j++) {
       const wz = originZ + j * spacing
       for (let i = 0; i < size; i++) {
-        const distance = Math.hypot(originX + i * spacing - cropX, wz - cropZ)
+        const wx = originX + i * spacing
+        const distance = Math.hypot(wx - cropX, wz - cropZ)
         if (distance <= radius) continue
         const index = j * size + i
-        const t = smoothstep(radius, radius + cropBlend, distance)
+        const t = smoothstep(radius, radius + cropBlend, distance) * (1 - kept(wx, wz))
+        if (t <= 0) continue
         heights[index] += (seaY - heights[index]) * t
         if (t >= 1) values[index] = 0
       }

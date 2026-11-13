@@ -61,11 +61,16 @@ export default {
     x: (cropBounds.minX + cropBounds.maxX) / 2, z: (cropBounds.minZ + cropBounds.maxZ) / 2,
     radius: Math.hypot((cropBounds.maxX - cropBounds.minX) / 2, (cropBounds.maxZ - cropBounds.minZ) / 2) + 4,
     blend: 14,
+    // O maciço real atrás do morro do Cristo (z de −48 para o norte, x de −80 a +10, até 24 de altura) fica de fora do corte:
+    // o círculo acima o decapitava (13/11/2026, #28), e a montanha aparecia cortada no meio. O resto (praia e morros
+    // distantes a leste) segue removido.
+    keep: [{ x: -32, z: -85, radius: 55, blend: 25 }],
   },
   // A névoa da cidade fecha bem mais perto que a da faixa de Copacabana (13/11/2026, src/terrain/lighting.js:
   // TERRAIN.fog, 80 unidades): com o corte acima, o mar aberto já cobre o resto, então o orçamento de malha da
   // cidade cai bem abaixo do da faixa de Copacabana. A vegetação acompanha a névoa.
-  detail: { maxTriangles: 6000 },
+  // 6000 (#28) deixava a montanha grossa demais: com o maciço de volta, 16 mil (o mapa satura em ~18 mil), contra 60 mil de rio.js.
+  detail: { maxTriangles: 16000 },
   // A borda da grade (o platô fica a uns 12 m de altitude) até o mar é areia, sem faixa verde no meio da praia.
   beach: { range: 300, elevation: 16 },
   // Palmeiras na areia (13/11/2026): a faixa de areia cresceu (acima) e ficou sem o coqueiro fixo que o calçadão

@@ -102,6 +102,7 @@ A revisão em `council/COUNCIL_SINTESE.md` achou problemas que nenhuma etapa cob
 | Diagramas no draw.io (`docs/diagrams/`): roteiro, arquitetura, fluxos de conta, ameaças | a qualquer momento | Abrem no draw.io |
 
 ### Pendências soltas
+- **Montanha cortada (corrigida em 13/11/2026, aguarda PR):** o corte do terreno (#28) apagava o maciço atrás do Cristo e a névoa curta (#27) o escondia; conserto com `crop.keep`, névoa 55–125 e malha de 16 mil (`docs/TERRAIN.md`). Confira em quatro ângulos com `tools/city-look.mjs`.
 - **Botão Voltar em camadas e troca de mapa ilha/Rio** (pedido do responsável, feito no commit `2802b41` e nunca incorporado): o patch está em `docs/research/pendencias/2802b41-voltar-e-troca-de-mapa.patch`. Não foi reaplicado porque a etapa 8 desenha o Voltar hierárquico e a etapa 2 reescreve o menu da cidade. Só a correção da tela de partida presa entrou.
 - O desenho detalhado das correções de contas (um agente de arquitetura) não foi entregue: caiu por limite de uso.
 - **Base da prévia publicada** (etapa 1): `node tools/api-perf.mjs <url> --suite 50 --cookie '<sessão>'`; precisa de URL e cookie.
