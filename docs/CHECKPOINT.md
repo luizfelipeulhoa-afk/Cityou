@@ -49,7 +49,7 @@ Testes (13/11/2026): `main` depois do #33: `npm test` 74, `npm run test:worker` 
 | 1 Medição de base | Feita. Falta a base da prévia publicada |
 | 7a Prédio e terreno como uma coisa só | Feita. Entrada animada e fade do terreno foram para a 7b |
 | 9 Rua automática (ocupar todo o terreno) | Implementada: prévia, confirmação, cobrança única e testes |
-| 2 Tarefas reais, cliente único, cidade sem iframe | Feita no código (PR #34, na `main`). Falta conferir no navegador: Missões, menu da cidade e sessão vencida |
+| 2 Tarefas reais, cliente único, cidade sem iframe | Feita e conferida no navegador (13/11/2026, Worker local em modo de teste, Chromium): Missões lista a tarefa real e concluir dá +10; os cinco itens do menu chegam a `/app#/<aba>`; 401 leva a `/?entrar=1&next=%2Fcity` sem repetir pedido. Não conferido: a cidade embutida no painel (iframe) e celular |
 | 3 Catálogo e migração | Não começada |
 | 4 Painel sem iframe | Não começada |
 | 5 Agenda, Projetos e Peso reais | Não começada |
