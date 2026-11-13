@@ -9,7 +9,7 @@ Atualizado em 13/11/2026. Para continuar em outra IA ou com outro dev: `node too
 - **Próximo passo:** executar a etapa 2. Está pronta quando Missões lista tarefas reais do Worker, o menu da cidade abre as abas corretas do painel e o redirecionamento por sessão expirada funciona sem repetir a requisição. Conferir esses fluxos na prévia ou em Worker local, com testes do Worker e de navegador.
 
 ## O que este PR entrega
-- **Integração pós-PR #28:** usa a `main` com carregamento antecipado e recorte do terreno do Rio, preserva os 17 GLB do catálogo e incorpora as correções locais de contas, dependências, benchmarks e documentação. Restaura o monumento da Ilha, a baía na reserva do Rio e preserva as amostras originais do relevo.
+- **Integração pós-PR #28:** incorpora a `main` até o #31, com os 23 GLB do Rio, o Fifo, o calçadão e as ondas. Preserva as correções locais de contas, dependências e benchmarks, além do monumento da Ilha, da baía de reserva e das amostras originais do relevo.
 - **Plano v2** (`docs/PLANO-PROXIMOS-PASSOS.md`): sair do Fifones com conexões reais, Fita do Tempo (desfazer/refazer), 3D ambientado; feito por um conselho de especialistas e revisado por um crítico.
 - **Etapa 1, medição de base:** `Server-Timing` com o tempo do Durable Object (`do`), `tools/api-perf.mjs` (cookie, escrita, `--suite`), `tools/city-frame-bench.mjs` (`npm run perf:city`), tabela de base em `docs/WORLD-PERF.md`.
 - **Etapa 7a, prédio e terreno como uma coisa só:** `src/terrain/lighting.js` (luz e céu por região), `src/tres/lambert.js`, `src/tres/groundBlend.js` (o disco bege do Tripo vira grama), sombra de contato, sem shadow map nem `PointLight`; `tools/city-look.mjs` (fotos antes e depois). Números em `docs/WORLD-PERF.md`.

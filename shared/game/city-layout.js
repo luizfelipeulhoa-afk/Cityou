@@ -7,7 +7,7 @@ const baseCatalog = catalogFile.filter(item => !islandOnly(item))
 
 const center = 8
 const baseRoadSeeds = [6, 7, 8, 9, 10].map(x => [x, 9])
-const legacy = { min: 0, max: 16, center, roadSeeds: baseRoadSeeds, waterTiles: [], slopeTiles: [], protectedTiles: [] }
+const legacy = { min: 0, max: 16, center, roadSeeds: baseRoadSeeds, waterTiles: [], slopeTiles: [], hillTiles: [], protectedTiles: [] }
 const insideLegacy = (x, y) => x >= 0 && x <= 16 && y >= 0 && y <= 16
 
 export const tileKey = (x, y) => `${x},${y}`
@@ -29,18 +29,21 @@ export function roadPath(x, y, endX, endY) {
 function pilot({ terrain, extraRoad, scenic = false, ...details }) {
   const waterTiles = []
   const slopeTiles = []
+  const hillTiles = []
   for (let y = -8; y <= 24; y++) {
     for (let x = -8; x <= 24; x++) {
       if (insideLegacy(x, y)) continue
       const zone = terrain(x, y)
       if (zone === 'water') waterTiles.push([x, y])
       if (zone === 'slope') slopeTiles.push([x, y])
+      // Encosta com patamares onde se constrói (a comunidade): `hill-N` é o patamar N, N × HILL_STEP acima do chão.
+      if (typeof zone === 'string' && zone.startsWith('hill-')) hillTiles.push([x, y, Number(zone.slice(5))])
     }
   }
   const protectedTiles = [...waterTiles, ...slopeTiles]
   const roadSeeds = scenic ? [] : [...baseRoadSeeds, ...extraRoad.map(({ x, y }) => [x, y])]
   return {
-    min: -8, max: 24, center, waterTiles, slopeTiles, protectedTiles, roadSeeds, scenic, ...details,
+    min: -8, max: 24, center, waterTiles, slopeTiles, hillTiles, protectedTiles, roadSeeds, scenic, ...details,
   }
 }
 
@@ -59,7 +62,13 @@ const pilots = {
   'cristo-redentor': pilot({
     terrain(x, y) {
       if (y > 22 - Math.floor((x + 8) / 14)) return 'water'
-      if (y < -4 + Math.floor((x + 8) / 10) || (x <= -5 && y < 2)) return 'slope'
+      if (y < -4 + Math.floor((x + 8) / 10) || (x <= -5 && y < 2)) {
+        // O morro da comunidade, em patamares, na faixa protegida: ao fundo à direita e na ponta da esquerda, 2
+        // patamares de 3 ou 4 fileiras cada, subindo para o fundo (cabem até os prédios 3 × 3).
+        if (x >= 12) return `hill-${y <= -6 ? 2 : 1}`
+        if (x <= -5) return `hill-${y <= -5 ? 2 : 1}`
+        return 'slope'
+      }
       return 'land'
     },
     extraRoad: [
@@ -104,28 +113,37 @@ const regionalCatalog = {
     ...catalogFile.filter(islandOnly),
   ],
   'cristo-redentor': [
-    building('rio-sobrado', 'Sobrado com comércio', 2, 2, 4.2, '#ddaf77', 20),
-    building('rio-botequim', 'Botequim de esquina', 2, 2, 2.8, '#5e9784', 30),
+    building('rio-sobrado', 'Sobrado com comércio', 2, 2, 4.2, '#ddaf77', 20, null, { hill: true }),
+    building('rio-botequim', 'Botequim de esquina', 2, 2, 2.8, '#5e9784', 30, null, { hill: true }),
     building('rio-kiosk', 'Quiosque esportivo', 3, 2, 2.0, '#75a4af', 35),
     building('rio-fair', 'Pavilhão de feira', 3, 2, 3.0, '#c77955', 50, '/#/tarefas'),
     building('rio-samba', 'Quadra de escola de samba', 3, 3, 3.8, '#588ab1', 60, '/#/agenda'),
-    building('rio-feira-barraca', 'Barraca de feira', 2, 2, 1.4, '#d9553f', 20, null, rioModel('rio-feira-barraca')),
-    building('rio-laje', 'Casa da laje', 2, 2, 1.6, '#4f8fcf', 25, null, rioModel('rio-laje')),
+    building('rio-feira-barraca', 'Barraca de feira', 2, 2, 1.4, '#d9553f', 20, null, { ...rioModel('rio-feira-barraca'), hill: true }),
+    building('rio-laje', 'Casa da laje', 2, 2, 1.6, '#4f8fcf', 25, null, { ...rioModel('rio-laje'), hill: true }),
     building('rio-quiosque-coco', 'Quiosque de coco', 2, 2, 1.2, '#d9a14f', 25, null, rioModel('rio-quiosque-coco')),
     building('rio-academia', 'Academia ao ar livre', 2, 2, 1.3, '#f0d27a', 30, null, rioModel('rio-academia')),
     building('rio-salva-vidas', 'Posto salva-vidas', 2, 2, 1.7, '#efe8d8', 30, null, rioModel('rio-salva-vidas')),
     building('rio-bonde', 'Ponto do bonde', 2, 2, 1.2, '#e8b930', 35, null, rioModel('rio-bonde')),
     building('rio-casarao', 'Casarão colonial', 3, 3, 2.1, '#e2b73f', 50, null, rioModel('rio-casarao')),
-    building('rio-igreja', 'Igrejinha da vila', 3, 3, 2.4, '#e6dcc0', 55, null, rioModel('rio-igreja')),
+    building('rio-igreja', 'Igrejinha da vila', 3, 3, 2.4, '#e6dcc0', 55, null, { ...rioModel('rio-igreja'), hill: true }),
     building('rio-edificio-deco', 'Edifício Art Déco', 3, 3, 2.4, '#6fa3cf', 60, null, rioModel('rio-edificio-deco')),
     building('rio-prefeitura', 'Prefeitura', 3, 3, 2.4, '#e9d28a', 70, null, rioModel('rio-prefeitura')),
-    building('rio-casa', 'Casa térrea', 2, 2, 1.1, '#e0603f', 20, null, rioModel('rio-casa')),
-    building('rio-picole', 'Carrinho de picolé', 1, 1, 1.1, '#f0d27a', 15, null, rioModel('rio-picole')),
-    building('rio-sobradinho', 'Sobrado colorido', 2, 2, 2.2, '#ffd166', 30, null, rioModel('rio-sobradinho')),
+    building('rio-casa', 'Casa térrea', 2, 2, 1.1, '#e0603f', 20, null, { ...rioModel('rio-casa'), hill: true }),
+    building('rio-picole', 'Carrinho de picolé', 1, 1, 1.1, '#f0d27a', 15, null, { ...rioModel('rio-picole'), hill: true }),
+    building('rio-sobradinho', 'Sobrado colorido', 2, 2, 2.2, '#ffd166', 30, null, { ...rioModel('rio-sobradinho'), hill: true }),
     building('rio-predio-comercial', 'Prédio comercial', 2, 2, 2.0, '#2e3a59', 55, null, rioModel('rio-predio-comercial')),
-    building('rio-milho', 'Carrinho de milho', 1, 1, 0.9, '#b07a4f', 15, null, rioModel('rio-milho')),
+    building('rio-milho', 'Carrinho de milho', 1, 1, 0.9, '#b07a4f', 15, null, { ...rioModel('rio-milho'), hill: true }),
     building('rio-hospital', 'Hospital', 3, 3, 1.7, '#a6dcff', 75, null, rioModel('rio-hospital')),
     building('rio-academia-grande', 'Academia grande', 3, 3, 1.5, '#2e3a59', 65, null, rioModel('rio-academia-grande')),
+    building('rio-policia', 'Delegacia de polícia', 2, 2, 1.22, '#2e3a59', 55, null, rioModel('rio-policia')),
+    building('rio-bombeiro', 'Corpo de bombeiros', 2, 2, 1.37, '#ea7651', 60, null, rioModel('rio-bombeiro')),
+    building('rio-arvore-coqueiro', 'Coqueiro', 1, 1, 1.15, '#b07a4f', 12, null, { ...rioModel('rio-arvore-coqueiro'), decoration: true, beach: true, hill: true }),
+    building('rio-arvore-flamboyant', 'Flamboyant', 1, 1, 0.71, '#ea7651', 12, null, { ...rioModel('rio-arvore-flamboyant'), decoration: true, hill: true }),
+    building('rio-arvore-mangueira', 'Mangueira', 1, 1, 0.91, '#4ea477', 12, null, { ...rioModel('rio-arvore-mangueira'), decoration: true, hill: true }),
+    building('rio-comunidade', 'Comunidade do morro', 3, 3, 2.14, '#ffd166', 45, null, { ...rioModel('rio-comunidade'), hill: true }),
+    // O calçadão de Copacabana, agora decoração: o módulo de duas fileiras vem na orla ao começar, e a pessoa tira e
+    // põe onde quiser (na areia ou em terra firme), sem rua.
+    building('rio-calcadao', 'Calçadão de Copacabana', 2, 2, 0.06, '#f4ecdb', 4, null, { preview: '/previews/rio-calcadao.png', decoration: true, beach: true }),
   ],
 }
 
@@ -193,6 +211,21 @@ export function hasRoadFrontage(placement, roads) {
 }
 
 const protection = new Map(Object.values(pilots).map(layout => [layout, new Set(layout.protectedTiles.map(([x, y]) => tileKey(x, y)))]))
+const hills = new Map(Object.values(pilots).map(layout => [layout, new Map(layout.hillTiles.map(([x, y, level]) => [tileKey(x, y), level]))]))
+const beaches = new Map(Object.values(pilots).map(layout => [layout, new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))]))
+
+/** Altura de cada patamar do morro da comunidade, em unidades da cena. */
+export const HILL_STEP = 0.7
+
+/** Patamar do tile no morro da comunidade (0 fora dele). */
+export function hillLevelAt(location, x, y) {
+  return hills.get(getCityLayout(location))?.get(tileKey(x, y)) ?? 0
+}
+
+/** Altura do chão do tile acima do platô da cidade: o patamar do morro × HILL_STEP, ou 0. */
+export function tileHeight(location, x, y) {
+  return hillLevelAt(location, x, y) * HILL_STEP
+}
 
 function tileIsAvailable(city, x, y) {
   const layout = getCityLayout(city.location_id)
@@ -200,6 +233,43 @@ function tileIsAvailable(city, x, y) {
   return x >= layout.center - radius && y >= layout.center - radius &&
     x <= layout.center + radius && y <= layout.center + radius &&
     !protection.get(layout)?.has(tileKey(x, y))
+}
+
+// A faixa de areia (a água dentro da grade, lisa no terreno) aceita decorações da praia, como o calçadão e o coqueiro.
+function tileIsBeach(city, x, y) {
+  const layout = getCityLayout(city.location_id)
+  const radius = city.unlock_radius
+  return x >= layout.center - radius && y >= layout.center - radius &&
+    x <= layout.center + radius && y <= layout.center + radius &&
+    Boolean(beaches.get(layout)?.has(tileKey(x, y)))
+}
+
+/** Os módulos do calçadão com que a cidade do Rio já começa: 2 × 2 nas duas primeiras fileiras da orla. */
+export function startingPromenade(location) {
+  if (location !== 'cristo-redentor') return []
+  const layout = getCityLayout(location)
+  const water = beaches.get(layout)
+  const first = x => {
+    for (let y = layout.min; y <= layout.max; y++) if (water.has(tileKey(x, y))) return y
+    return null
+  }
+  const modules = []
+  for (let x = layout.min; x + 1 <= layout.max; x += 2) {
+    const a = first(x), b = first(x + 1)
+    if (a === null || b === null) continue
+    const y = Math.max(a, b)
+    if ([[x, y], [x + 1, y], [x, y + 1], [x + 1, y + 1]].every(([tx, ty]) => water.has(tileKey(tx, ty)))) modules.push({ x, y })
+  }
+  return modules
+}
+
+// Rua só em terra firme: nada de rua no morro (a comunidade sobe por escadas, não por rua).
+const roadTileIsAvailable = (city, x, y) => tileIsAvailable(city, x, y) && !hillLevelAt(city.location_id, x, y)
+
+// Decoração e prédio no morro não pedem frente para rua nem rua automática.
+function isRoadless(city, placement) {
+  const item = getBuilding(placement.kind)
+  return Boolean(item?.decoration) || occupiedTiles(placement).some(({ x, y }) => hillLevelAt(city.location_id, x, y) > 0)
 }
 
 const MAX_AUTO_ROAD = 30
@@ -213,7 +283,7 @@ const neighbors = (x, y) => [{ x: x - 1, y }, { x: x + 1, y }, { x, y: y - 1 }, 
  */
 function autoRoadPlan(city, placement) {
   const none = { tiles: [], cost: 0 }
-  if (!usesAutoRoad(city.location_id, placement.kind)) return none
+  if (!usesAutoRoad(city.location_id, placement.kind) || isRoadless(city, placement)) return none
   const others = city.placements.filter(existing => existing.id !== placement.id)
   const roads = connectedRoads(others)
   if (hasRoadFrontage(placement, roads)) return none
@@ -221,7 +291,7 @@ function autoRoadPlan(city, placement) {
   const blocked = new Set(others.flatMap(existing => occupiedTiles(existing).map(({ x, y }) => tileKey(x, y))))
   const own = occupiedTiles(placement)
   for (const { x, y } of own) blocked.add(tileKey(x, y))
-  const free = (x, y) => tileIsAvailable(city, x, y) && !blocked.has(tileKey(x, y))
+  const free = (x, y) => roadTileIsAvailable(city, x, y) && !blocked.has(tileKey(x, y))
   const previous = new Map()
   const queue = []
   for (const cell of own) for (const next of neighbors(cell.x, cell.y)) {
@@ -248,11 +318,11 @@ function autoRoadPlan(city, placement) {
 }
 
 export function usesAutoRoad(location, kind) {
-  return location === 'cristo-redentor' && kind !== 'tree' && kind !== 'road'
+  return location === 'cristo-redentor' && kind !== 'tree' && kind !== 'road' && !getBuilding(kind)?.decoration
 }
 
 export function previewBuild(city, placement) {
-  const automatic = usesAutoRoad(city.location_id, placement.kind)
+  const automatic = usesAutoRoad(city.location_id, placement.kind) && !isRoadless(city, placement)
   const issue = automatic ? lotProblem(city, placement) : placementProblem(city, placement)
   if (issue) return { error: issue.message, status: issue.status }
   const road = autoRoadPlan(city, placement)
@@ -261,9 +331,15 @@ export function previewBuild(city, placement) {
 }
 
 function lotProblem(city, placement) {
+  const item = getBuilding(placement.kind)
   const tiles = occupiedTiles(placement)
-  if (tiles.some(({ x, y }) => !tileIsAvailable(city, x, y))) {
+  if (tiles.some(({ x, y }) => !tileIsAvailable(city, x, y) && !(item?.beach && tileIsBeach(city, x, y)))) {
     return { status: 422, message: 'A construção precisa caber inteiramente no terreno liberado e fora das áreas protegidas.' }
+  }
+  const levels = tiles.map(({ x, y }) => hillLevelAt(city.location_id, x, y))
+  if (levels.some(level => level > 0)) {
+    if (!item?.hill) return { status: 422, message: 'No morro só cabem as casas, o comércio e as decorações da comunidade.' }
+    if (new Set(levels).size > 1) return { status: 422, message: 'A construção precisa ficar inteira num mesmo patamar do morro.' }
   }
   const target = new Set(tiles.map(({ x, y }) => tileKey(x, y)))
   for (const existing of city.placements) {
@@ -279,7 +355,7 @@ export function placementProblem(city, placement) {
   const issue = lotProblem(city, placement)
   if (issue) return issue
   // Na ilha não há rua nem entrada: os prédios dela não pedem frente para rua.
-  if (isPilotCity(city.location_id) && !isScenicCity(city.location_id) && placement.kind !== 'tree') {
+  if (isPilotCity(city.location_id) && !isScenicCity(city.location_id) && placement.kind !== 'tree' && !isRoadless(city, placement)) {
     const roads = connectedRoads(city.placements.filter(existing => existing.id !== placement.id))
     const plaza = city.placements.find(existing => existing.kind === 'plaza')
     const restoresEntry = placement.kind === 'road' && roads.size === 0 &&
@@ -298,7 +374,7 @@ export function previewRoadPath(city, points) {
   const checked = points.map(({ x, y }) => {
     const type = occupied.get(tileKey(x, y))
     const existing = type === 'road'
-    return { x, y, existing, valid: existing || (!type && tileIsAvailable(city, x, y)) }
+    return { x, y, existing, valid: existing || (!type && roadTileIsAvailable(city, x, y)) }
   })
   const newTiles = checked.filter(tile => !tile.existing)
   const plaza = city.placements.find(placement => placement.kind === 'plaza')

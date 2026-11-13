@@ -1,6 +1,6 @@
 import {
   connectedRoads, getBuilding, getCityCatalog, getCityLayout, hasRoadFrontage, isPilotCity, isScenicCity,
-  placementProblem, previewBuild, previewRoadPath, roadPath, scenicBuildKinds, tileKey,
+  placementProblem, previewBuild, previewRoadPath, roadPath, scenicBuildKinds, startingPromenade, tileKey,
 } from '../shared/game/city-layout.js'
 import { RULES } from '../shared/game/rules.js'
 import { HttpError } from './http.js'
@@ -15,10 +15,19 @@ export function newTown(location) {
   if (isScenicCity(location)) return { revision: 0, started_at, placements: [] }
   const placements = [
     { id: 'core-plaza', kind: 'plaza', x: 8, y: 8 },
-    { id: 'core-headquarters', kind: 'headquarters', x: 8, y: 7 },
+    ...(isPilotCity(location) ? [] : [{ id: 'core-headquarters', kind: 'headquarters', x: 8, y: 7 }]),
     ...roadSeeds.map(([x, y]) => ({ id: y === 9 ? `seed-road-${x}` : `seed-road-${x}-${y}`, kind: 'road', x, y })),
+    // O calçadão da orla já vem posto, mas é decoração: a pessoa o tira e o põe onde quiser.
+    ...startingPromenade(location).map(({ x, y }, index) => ({ id: `orla-${index}`, kind: 'rio-calcadao', x, y })),
   ].map(item => ({ ...item, rotation: 0, level: 1 }))
   return { revision: 0, started_at, placements }
+}
+
+// As cidades piloto (o Rio) não têm mais a Sede Fifones (plano "sair do Fifones"): cidades salvas antes perdem a
+// sede na leitura, e o lote dela volta a ser livre na próxima gravação.
+export function withoutHeadquarters(town, location) {
+  if (!isPilotCity(location) || !town.placements.some(item => item.kind === 'headquarters')) return town
+  return { ...town, placements: town.placements.filter(item => item.kind !== 'headquarters') }
 }
 
 export function newCity(location, testMode = false) {
@@ -66,7 +75,7 @@ export function validRequestId(id) {
 }
 
 export function countsForTravel(placement) {
-  return Boolean(getBuilding(placement.kind)) && !core.has(placement.kind) && placement.kind !== 'road' && placement.kind !== 'tree'
+  return Boolean(getBuilding(placement.kind)) && !getBuilding(placement.kind).decoration && !core.has(placement.kind) && placement.kind !== 'road' && placement.kind !== 'tree'
 }
 
 export function normalizeAction(input) {
