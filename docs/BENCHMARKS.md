@@ -62,3 +62,26 @@ Use `npm run perf:world`, `npm run perf:world-frame`, `npm run perf:city`, `npm 
 Anote data, commit, máquina e navegador, perfil de rede/CPU, rota, seed, autenticação, cache, número de amostras e caminho do relatório. Alterne antes/depois na mesma máquina e mantenha o build fixo durante cada rodada. Registre p50/p95 ou mediana e faixa, junto do resultado funcional. A base histórica vem dos documentos do projeto. As verificações funcionais anteriores estão em [VERIFICATION](VERIFICATION.md) e no [checkpoint](CHECKPOINT.md).
 
 Ferramentas adicionais para as próximas rodadas: [Lighthouse](https://github.com/GoogleChrome/lighthouse) para a abertura da landing e do painel, e [k6](https://github.com/grafana/k6) para carga controlada na API de uma prévia isolada.
+
+## Piso de ~120 ms da API na prévia (13/11/2026)
+
+Prévia `claude-etapa-4-painel-sem-iframe-cityou.cityouapp.workers.dev`, demonstração sem login, `node tools/api-perf.mjs <url> <rota> N --json` (no Git Bash, `export MSYS_NO_PATHCONV=1`, senão `/api/city` vira caminho do Windows).
+
+| Rota | Ida e volta p50 / p95 | `Server-Timing` |
+|---|---|---|
+| `/api/health` (só o Worker, 20 chamadas) | 62,3 / 94,1 ms | total 0 ms |
+| `/api/city`, 4 sessões novas (12 chamadas cada) | 198 / 290, 187 / 236, 187 / 206, 189 / 216 ms | `do` 119, 122, 119, 119 ms (p95 122 a 130) |
+
+**Causa provável: distância de rede entre o Worker (atende em GRU/GIG) e o Durable Object.** Quatro sessões criadas em momentos diferentes dão o mesmo `do` (119 a 122 ms, p95 até 130), então não é cold start, construtor (`migrateCatalog` só roda uma vez e é leitura de uma linha), SQLite nem tamanho do JSON: o mesmo código local leva 3 a 8 ms. Um tempo constante e alto, igual em objetos diferentes, é viagem de ida e volta a outro continente. A rota do Worker sem objeto custa 0 ms.
+
+**Mudança aplicada (inerte por padrão):** `sessionStub` em `worker/demo.js` abre o objeto com `getByName(key, { locationHint })` quando existe a variável `DO_LOCATION_HINT`. Sem a variável nada muda. A dica só vale para objetos ainda não criados (sessões e contas já existentes ficam onde estão), então o ganho aparece em sessões novas.
+
+**Proposta, não aplicada (mexe em `wrangler.jsonc` da prévia/produção, decisão do dono):**
+
+```jsonc
+"previews": { "vars": { "DO_LOCATION_HINT": "sam", ... } }
+```
+
+Depois, medir de novo com sessões novas: o `do` esperado cai para algo na faixa de 5 a 30 ms se o objeto passar a viver em São Paulo (a meta de 60 ms de servidor fecha). A dica é só uma sugestão; se o `do` não cair, o próximo passo é um ponto de diagnóstico temporário na prévia que devolva a região do objeto (`cdn-cgi/trace` de dentro dele). **Não medido:** o efeito da dica, porque medir exige publicar a prévia; e a região real do objeto, que não é exposta ao Worker.
+
+Outras opções, se a dica não bastar: reduzir idas ao objeto por tela (o painel faz várias chamadas em sequência; juntá-las em `GET /api/personal`, que já traz tarefas, agenda e peso) e ler o resumo do painel de um cache por sessão, que não passa por regra de moedas.
