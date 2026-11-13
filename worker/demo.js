@@ -4,7 +4,7 @@ import { DOMAINS, RULES } from '../shared/game/rules.js'
 import { ProofError, parseProof, sha256Hex } from '../shared/game/proof.js'
 import { buildSummary } from '../shared/game/summary.js'
 import { kindForDomain, stageFor } from '../shared/game/buildings.js'
-import { newCity, newTown, withoutHeadquarters, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
+import { newCity, newTown, withoutHeadquarters, withoutRetired, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
 import { HttpError, json, errorResponse, readJsonObject } from './http.js'
 
 const START = SPACE_ORDER[0]
@@ -173,6 +173,38 @@ export class DemoSession {
     this.name = ctx.id.name
     this.db = env?.DB
     this.sql.exec('CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT, value TEXT NOT NULL, PRIMARY KEY (kind, id))')
+    this.migrateCatalog()
+  }
+
+  // Etapa 3: antes de qualquer ação, tira das cidades guardadas as peças que saíram do catálogo (uma peça de tipo
+  // desconhecido derruba `occupiedTiles`) e credita o reembolso uma só vez. A marca `migration:catalog-3` impede repetir.
+  migrateCatalog() {
+    if (this.read('migration', 'catalog-3')) return
+    let refund = 0
+    const writes = []
+    for (const { id, value } of this.sql.exec("SELECT id, value FROM records WHERE kind = 'regional-city'").toArray()) {
+      const region = JSON.parse(value)
+      const result = withoutRetired(region.placements ?? [])
+      if (!result.removed) continue
+      refund += result.refund
+      writes.push(['regional-city', id, { ...region, placements: result.placements, revision: (region.revision ?? 0) + 1 }])
+    }
+    let home = this.read('city', 'state')
+    if (home) {
+      const result = withoutRetired(home.placements ?? [])
+      if (result.removed) {
+        refund += result.refund
+        home = { ...home, placements: result.placements }
+        writes.push(['city', 'state', home])
+      }
+    }
+    if (refund > 0) {
+      home ??= newCity(START, this.testMode)
+      recordChange(home, 'Reembolso: prédios retirados do catálogo', refund)
+      writes.push(['city', 'state', home])
+    }
+    for (const [kind, id, value] of writes) this.write(kind, id, value)
+    this.write('migration', 'catalog-3', { at: new Date().toISOString(), refund })
   }
 
   ownerFor(account) {

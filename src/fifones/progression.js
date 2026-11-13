@@ -1,8 +1,8 @@
 // Progress is derived from the server ledger; UI goals never grant currency.
-export function progression(city = {}, goalId = 'stunt') {
+export function progression(city = {}, goalId = 'tasks') {
   const count = Math.max(0, Math.floor(Number(city.reward_count) || 0))
   const catalog = city.catalog || []
-  const goal = catalog.find(item => item.id === goalId && item.cost > 0) || catalog.find(item => item.id === 'stunt') || catalog.find(item => item.cost > 0)
+  const goal = catalog.find(item => item.id === goalId && item.cost > 0) || catalog.find(item => item.id === 'tasks') || catalog.find(item => item.cost > 0)
   const credits = Math.max(0, Number(city.credits) || 0)
   const missing = goal ? Math.max(0, goal.cost - credits) : 0
   const spaces = (city.placements || []).filter(item => catalog.find(def => def.id === item.kind)?.destination && item.kind !== 'headquarters')

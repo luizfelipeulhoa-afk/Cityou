@@ -27,7 +27,7 @@ const SELECTION_EMISSION = new THREE.Color(0xf2944f)
 const ACTIVE_EMISSION = new THREE.Color(0x84cfab)
 const WAITING_EMISSION = new THREE.Color(0xe7aa56)
 const IN_USE_EMISSION = new THREE.Color(0xffb86b)
-const heightCaps = { stuntsync: 4.5, stunt: 4.5, chatgpt: 3.8, gpt: 3.8, claude: 3.3 }
+const heightCaps = {}
 const coreKinds = new Set(['plaza', 'headquarters', 'hq', 'road', 'tree', 'park', 'home', 'house'])
 
 function dimensions(definition = {}, rotation = 0) {
