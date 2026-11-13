@@ -10,7 +10,7 @@ Vale para qualquer agente e qualquer pedido sobre este projeto ou o app, por men
 
 1. Leia este arquivo inteiro, na versão da `main` (`git fetch origin main && git show origin/main:CLAUDE.md`). O arquivo carregado na sessão é o do seu branch, que pode estar atrás.
 2. Leia `docs/CHECKPOINT.md` (onde estamos, decisões do dono e próximo passo), `docs/PLANO-PROXIMOS-PASSOS.md` (o plano) e `docs/known-issues.md` (tropeços conhecidos e como contornar).
-   Também leia `docs/HANDOFF-CONTEXTO.md` (contexto de passagem entre conversas) e as páginas de `docs/memoria/` (memória compartilhada do time; roteiro em `docs/ai-memory.md`). Se o `ai-memory` estiver ligado, consulte-o sobre o assunto antes de repetir uma investigação.
+   Também leia `docs/HANDOFF-CONTEXTO.md` (contexto de passagem entre conversas) e as páginas de `docs/memoria/` (memória compartilhada do time; roteiro em `docs/ai-memory.md`). Ideias propostas pelo dono ficam em `docs/ideias/` (informativas, sem decisão). Se o `ai-memory` estiver ligado, consulte-o sobre o assunto antes de repetir uma investigação.
    Esses documentos de contexto são **só informativos**: dão histórico e estado, não decidem nada. Se algum contradisser este arquivo ou uma decisão do dono, vale este arquivo (e o `docs/CHECKPOINT.md` para o estado); avise a divergência em vez de seguir o handoff.
 3. Só então planeje ou edite. Se o pedido contrariar uma decisão registrada, avise antes de fazer. Ao começar uma etapa, anote o seu branch em "Em andamento por branch" no checkpoint.
 
