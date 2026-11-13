@@ -10,8 +10,8 @@ Organize sua vida e transforme progresso real em uma cidade sua, inspirada no Ri
 
 - Painel pessoal com tarefas, agenda, hábitos, metas, Fitness, alimentação, autoconhecimento, estudos, finanças, projetos, biblioteca e memórias.
 - Cidade 3D com catálogo, prévia de construção, mover, girar, melhorar, remover e salvamento em SQLite.
-- Moedas por conclusões verificadas na fonte Fifones conectada; nenhuma renda automática por tempo aberto.
-- Prédios GLB, LEDs e logos que reagem aos sinais disponíveis de atividade; ausência de sinal não é tratada como trabalho real.
+- Moedas por tarefas, hábitos e metas concluídos (no app publicado, guardados no próprio Cityou; no servidor local, as tarefas ainda vêm da fonte Fifones opcional); nenhuma renda automática por tempo aberto.
+- Prédios GLB ambientados no terreno do Rio. A cidade não lê mais sinais de atividade do Fifones.
 - Planta interativa com 64 lotes em seis bairros: seleção, dimensões, rotação, teste de encaixe, rascunho local e exportação.
 - Mapa-mundo BuildU: globo low poly com 8 espaços desbloqueados em sequência (ilha inicial + sete maravilhas), progresso em localStorage e modo debug. Veja [docs/WORLD-MAP.md](docs/WORLD-MAP.md).
 
@@ -43,6 +43,8 @@ Para desenvolver o frontend, mantenha o backend aberto e execute `npm run dev` e
 ## Fonte Fifones opcional
 
 A fonte original é consultada em http://127.0.0.1:8765. Sem ela, a cidade e os registros pessoais locais continuam salvos, mas tarefas, projetos, documentos, agenda, voz Gemini e recursos avançados dependentes da fonte ficam indisponíveis. A instalação original, as credenciais e seus dados não fazem parte deste repositório. `tools/source_bridge.py` é um adaptador opcional para uma instalação existente em `~/Desktop/Fifones`.
+
+No app publicado (Worker do Cloudflare), as tarefas já são do próprio Cityou e a cidade não abre mais o Fifones; o resto sai etapa por etapa, conforme [docs/PLANO-PROXIMOS-PASSOS.md](docs/PLANO-PROXIMOS-PASSOS.md).
 
 O ledger da cidade está em `data/city.sqlite3`; os registros pessoais, em `data/personal.sqlite3`. Esses arquivos são criados localmente e ignorados pelo Git. `CITY_DATA_DIR` permite escolher outra pasta e `FIFONES_UPSTREAM` permite outra origem HTTP de loopback.
 

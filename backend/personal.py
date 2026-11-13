@@ -125,3 +125,12 @@ def register(application, root: Path, clock):
             return result.json()
         except Exception:
             raise HTTPException(503, 'Não foi possível salvar no Fifones original. Tente novamente; sua tarefa não foi confirmada.')
+
+    # Etapa 2 de docs/PLANO-PROXIMOS-PASSOS.md: o cliente único (src/fifones/api.js) lista e conclui tarefas em
+    # /api/personal/tasks. Neste servidor local as tarefas continuam vindo da fonte Fifones opcional (README), então os
+    # caminhos novos usam as mesmas funções de /api/workspace/tasks, registradas antes em backend/app.py.
+    workspace = {(route.path, method): route.endpoint for route in application.router.routes
+                 if hasattr(route, 'methods') for method in route.methods}
+    application.add_api_route('/api/personal/tasks', workspace[('/api/workspace/tasks', 'GET')], methods=['GET'])
+    application.add_api_route('/api/personal/tasks/{task_id}/complete',
+                              workspace[('/api/workspace/tasks/{task_id}/complete', 'POST')], methods=['POST'])

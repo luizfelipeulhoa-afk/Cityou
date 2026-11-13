@@ -4,7 +4,7 @@ import { previewBuild, previewRoadPath, roadPath, usesAutoRoad } from '../shared
 import { findSpace } from './world/worldSpaces.js'
 import CityWorld from './fifones/CityWorld.js'
 import { progression } from './fifones/progression.js'
-import { cityAction, completeTask, loadActivity, loadCity, loadProjects, loadTasks, syncRewards } from './fifones/api.js'
+import { PANEL_TABS, cityAction, completeTask, goToPanel, loadCity, loadTasks, syncRewards } from './fifones/api.js'
 
 const paths = {
   city: 'M3 21V9l6-3v15M9 21V3l7 3v15M16 12l5-3v12M1 21h22M12 8h1m-1 4h1m-1 4h1M5 12h1m-1 4h1m13-2h1m-1 3h1',
@@ -36,15 +36,23 @@ const paths = {
   help: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M9 9a3 3 0 1 1 4 3c-1 .5-1 1-1 2m0 3h.01',
 }
 const Icon = defineComponent({ props: { name: String, size: { default: 20 } }, setup: props => () => h('svg', { width: props.size, height: props.size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': true }, [h('path', { d: paths[props.name] || paths.city })]) })
+// Menu lateral: cada item abre a aba do painel (`/app#/<aba>`), na página avulsa ou dentro do painel (etapa 2).
 const nav = [
   { id: 'city', icon: 'city', label: 'Minha cidade' },
-  { id: 'tasks', icon: 'tasks', label: 'Tarefas', path: '/#/tarefas' },
-  { id: 'calendar', icon: 'calendar', label: 'Agenda', path: '/#/agenda' },
-  { id: 'projects', icon: 'projects', label: 'Projetos', path: '/#/projetos' },
-  { id: 'library', icon: 'library', label: 'Biblioteca', path: '/#/documentos' },
-  { id: 'fitness', icon: 'fitness', label: 'Fitness', path: '/#/fitness' },
-  { id: 'settings', icon: 'settings', label: 'Conexões', path: '/#/configuracoes' },
+  { id: 'tasks', icon: 'tasks', label: 'Tarefas', tab: 'tarefas' },
+  { id: 'calendar', icon: 'calendar', label: 'Agenda', tab: 'agenda' },
+  { id: 'projects', icon: 'projects', label: 'Projetos', tab: 'projetos' },
+  { id: 'library', icon: 'library', label: 'Biblioteca', tab: 'biblioteca' },
+  { id: 'fitness', icon: 'fitness', label: 'Fitness', tab: 'fitness' },
 ]
+// Destinos antigos do catálogo (`/#/...`) para a aba do painel. A etapa 3 troca o catálogo por nomes de aba;
+// destino sem aba (prédios de IA, que saem na etapa 3) só avisa.
+const LEGACY_DESTINATIONS = { '#/tarefas': 'tarefas', '#/hoje': 'inicio', '#/agenda': 'agenda', '#/projetos': 'projetos', '#/documentos': 'biblioteca', '#/fitness': 'fitness', '#/memoria': 'memorias' }
+function panelTabOf(destination) {
+  if (PANEL_TABS.includes(destination)) return destination
+  const hash = String(destination || '').replace(/^\//, '').split('/').slice(0, 2).join('/')
+  return LEGACY_DESTINATIONS[hash] ?? null
+}
 const canvas = ref(null)
 const requestedRegion = findSpace(new URLSearchParams(window.location.search).get('local'))
 const state = ref(null)
@@ -63,9 +71,8 @@ const interiorPending = ref(false)
 let interiorSequence = 0
 let interiorReturnFocus
 const tasks = ref([])
-const projects = ref([])
-const tasksConnected = ref(null)
-const activity = ref(null)
+// null enquanto carrega; '' carregadas; texto quando a lista não veio.
+const tasksError = ref(null)
 const loading = ref(true)
 const bootError = ref('')
 const sceneError = ref('')
@@ -80,8 +87,6 @@ const selectedId = ref(null)
 const selectedKind = ref(null)
 const mode = ref('select')
 const rotation = ref(0)
-const workspace = ref(null)
-const iframeLoading = ref(false)
 const confirmation = ref(null)
 const toast = ref(null)
 const helpOpen = ref(false)
@@ -111,15 +116,10 @@ function celebrate(amount, levelUp) {
 
 let engine = null
 let poll = null
-let activityPoll = null
-let activityLoading = false
 let toastTimer = null
-let iframeTimer = null
 let disposed = false
-let returnFocus = null
 let responsiveMedia = null
 function onCompactViewport(event) { if (event.matches) tasksOpen.value = false }
-const sourceConnected = computed(() => Boolean(state.value?.source?.connected) && tasksConnected.value !== false)
 // Prédios de atividade (dom-*) nascem da atividade da pessoa, na aba de organização do dia; não saem do catálogo.
 const availableCatalog = computed(() => (state.value?.catalog || []).filter(item => Number(item.cost) > 0 && !item.id.startsWith('dom-')))
 const filteredCatalog = computed(() => availableCatalog.value.filter(item => activeFilter.value === 'all' || (activeFilter.value === 'life' ? ['home', 'tree', 'road'].includes(item.id) : !['home', 'tree', 'road'].includes(item.id))))
@@ -135,18 +135,6 @@ const roadPreview = computed(() => {
 })
 watch(roadPreview, value => engine?.setRoadPreview(value?.points ?? []))
 
-const activityStates = new Set(['working', 'observed', 'focus', 'waiting', 'idle', 'unknown'])
-function placeActivity(kind) {
-  const signal = activity.value?.places?.[kind]
-  const known = activityStates.has(signal?.state)
-  return { state: known ? signal.state : 'unknown', label: known && typeof signal.label === 'string' ? signal.label : 'Sem sinal recente' }
-}
-const selectedActivity = computed(() => selectedCatalog.value?.destination ? placeActivity(selected.value?.kind) : null)
-const workspaceActivity = computed(() => workspace.value?.kind ? placeActivity(workspace.value.kind) : null)
-const activeOfficeCount = computed(() => [...new Set((state.value?.placements || []).map(item => item.kind))].filter(kind => {
-  const definition = state.value?.catalog?.find(item => item.id === kind)
-  return definition?.destination && ['working', 'observed'].includes(placeActivity(kind).state)
-}).length)
 const openTasks = computed(() => tasks.value.filter(task => task.status !== 'done' && !task.completed_at))
 const doneTasks = computed(() => tasks.value.length - openTasks.value.length)
 const protectedBuilding = computed(() => ['headquarters', 'plaza'].includes(selected.value?.kind) || selected.value?.id.startsWith('seed-road-'))
@@ -184,7 +172,6 @@ function applySnapshot(value) {
   const previous = state.value
   state.value = snapshot
   if (previous && snapshot.earned > previous.earned) celebrate(snapshot.earned - previous.earned, snapshot.level > previous.level)
-  if (!snapshot.source?.connected) engine?.setInUse?.(null)
   if (selectedId.value && !snapshot.placements.some(item => item.id === selectedId.value)) {
     if (activeInterior.value || interiorPending.value) closeInterior()
     selectedId.value = null
@@ -192,40 +179,21 @@ function applySnapshot(value) {
   engine?.setState(snapshot)
   return true
 }
-async function refreshActivity() {
-  if (disposed || document.hidden || activityLoading) return
-  activityLoading = true
-  try {
-    const result = await loadActivity()
-    if (disposed || document.hidden) return
-    const snapshot = result?.activity
-    activity.value = snapshot?.places && typeof snapshot.places === 'object' && !Array.isArray(snapshot.places) ? snapshot : null
-    engine?.setActivity?.(activity.value)
-  }
-  catch {
-    if (disposed) return
-    activity.value = null
-    engine?.setActivity?.(null)
-  }
-  finally { activityLoading = false }
-}
 function startPolling() {
   clearInterval(poll)
-  clearInterval(activityPoll)
   if (disposed || document.hidden) return
   poll = setInterval(() => refreshAll(), 30000)
-  activityPoll = setInterval(() => refreshActivity(), 10000)
 }
-async function reloadWorkspace() {
-  const results = await Promise.allSettled([loadTasks(), loadProjects()])
-  if (disposed) return
-  if (results[0].status === 'fulfilled') {
-    tasks.value = results[0].value.tasks || []
-    tasksConnected.value = Boolean(results[0].value.connected)
+async function reloadTasks() {
+  try {
+    const result = await loadTasks()
+    if (disposed) return
+    tasks.value = result.tasks || []
+    tasksError.value = ''
   }
-  else tasksConnected.value = false
-  if (!tasksConnected.value) engine?.setInUse?.(null)
-  if (results[1].status === 'fulfilled') projects.value = results[1].value.projects || []
+  catch (error) {
+    if (!disposed) tasksError.value = error.message
+  }
 }
 async function refreshAll(manual = false) {
   if (refreshing.value || saving.value) return
@@ -234,16 +202,16 @@ async function refreshAll(manual = false) {
     const before = Number(state.value?.earned || 0)
     const snapshot = await syncRewards()
     applySnapshot(snapshot)
-    await reloadWorkspace()
+    await reloadTasks()
     const earned = Number(state.value?.earned || 0) - before
     if (earned > 0) notify(`+${coins(earned)} moedas · progresso sincronizado`)
-    else if (manual) notify(sourceConnected.value ? 'Seu progresso está atualizado.' : 'Cidade salva. O app original está offline.', sourceConnected.value ? 'success' : 'info')
+    else if (manual) notify(tasksError.value ? tasksError.value : 'Seu progresso está atualizado.', tasksError.value ? 'error' : 'success')
   }
   catch (error) {
     if (error.details?.city) applySnapshot(error.details.city)
-    const results = await Promise.allSettled([loadCity(), reloadWorkspace()])
+    const results = await Promise.allSettled([loadCity(), reloadTasks()])
     if (results[0].status === 'fulfilled') applySnapshot(results[0].value)
-    if (manual) notify(sourceConnected.value ? 'Conexão restabelecida. Atualize para sincronizar seu progresso.' : error.message, sourceConnected.value ? 'info' : 'error')
+    if (manual) notify(error.message, 'error')
   }
   finally { refreshing.value = false }
 }
@@ -363,7 +331,7 @@ function closeInterior() {
 }
 
 async function onTile({ x, y }) {
-  if (saving.value || refreshing.value || workspace.value || activeInterior.value) return
+  if (saving.value || refreshing.value || activeInterior.value) return
   if (mode.value === 'road') { setRoadEndpoint({ x, y }); return }
   historyOpen.value = false
   if (mode.value === 'build' && chosen.value) {
@@ -393,7 +361,7 @@ async function confirmBuild() {
   }
 }
 function onSelect(placement) {
-  if (saving.value || refreshing.value || workspace.value || activeInterior.value) return
+  if (saving.value || refreshing.value || activeInterior.value) return
   selectedId.value = placement?.id || null
   if (mode.value === 'remove' && placement) { askRemove(); return }
   if (mode.value !== 'build' && mode.value !== 'move') cancelTool()
@@ -425,48 +393,26 @@ async function finishTask(task) {
   try {
     const result = await completeTask(task.id)
     if (!applySnapshot(result)) applySnapshot(await loadCity())
-    await reloadWorkspace()
+    await reloadTasks()
     const earned = Number(state.value?.earned || 0) - before
     notify(earned > 0 ? `Tarefa concluída · +${coins(earned)} moedas` : 'Tarefa concluída. Progresso sincronizado.')
   }
-  catch (error) { notify(error.message, 'error'); await reloadWorkspace() }
+  catch (error) { notify(error.message, 'error'); await reloadTasks() }
   finally { taskSaving.value = null; saving.value = false }
 }
-function openWorkspace(label, destination) {
+// Abre a aba do painel ligada a um item do menu ou a um prédio (`goToPanel`). Sem aba, só avisa.
+function openPanel(label, destination) {
   cancelTool()
-  returnFocus = document.activeElement
-  let url
-  try {
-    url = new URL(destination || '/#/tarefas', 'http://127.0.0.1:8765')
-    if (!['127.0.0.1', 'localhost'].includes(url.hostname) || url.port !== '8765' || !url.hash.startsWith('#/')) throw new Error('Destino inválido.')
-  }
-  catch { notify('Este espaço ainda não possui um destino disponível.', 'error'); return }
-  const activePlacement = sourceConnected.value && state.value?.placements?.find(placement => {
-    const definition = state.value.catalog.find(item => item.id === placement.kind)
-    const destination = placement.target || definition?.destination
-    if (!destination) return false
-    try { return new URL(destination, 'http://127.0.0.1:8765').hash === url.hash } catch { return false }
-  })
-  const definition = state.value?.catalog?.find(item => {
-    if (!item.destination) return false
-    try { return new URL(item.destination, 'http://127.0.0.1:8765').hash === url.hash } catch { return false }
-  })
-  workspace.value = { label, url: url.toString(), kind: activePlacement?.kind || definition?.id || null }
-  engine?.setInUse?.(activePlacement?.id || null)
   historyOpen.value = false
-  iframeLoading.value = true
-  clearTimeout(iframeTimer)
-  iframeTimer = setTimeout(() => { iframeLoading.value = false }, 12000)
-  nextTick(() => document.querySelector('.workspace-close')?.focus())
+  const tab = panelTabOf(destination)
+  if (!tab || !goToPanel(tab)) notify(`${label} ainda não tem uma aba no painel.`, 'info')
 }
-function closeWorkspace() { const wasOpen = Boolean(workspace.value); workspace.value = null; engine?.setInUse?.(null); clearTimeout(iframeTimer); returnFocus?.focus?.(); if (wasOpen) refreshAll() }
 function reloadPage() { window.location.reload() }
-function iframeLoaded() { iframeLoading.value = false; clearTimeout(iframeTimer) }
 function useNav(item) {
   historyOpen.value = false
   if (activeInterior.value) closeInterior()
-  if (item.id === 'city') { closeWorkspace(); cancelTool(); selectedId.value = null; engine?.home() }
-  else openWorkspace(item.label, item.path)
+  if (item.id === 'city') { cancelTool(); selectedId.value = null; engine?.home() }
+  else openPanel(item.label, item.tab)
 }
 function setLighting(value) { lighting.value = value; engine?.setLighting(value) }
 function onKeydown(event) {
@@ -474,28 +420,21 @@ function onKeydown(event) {
   if (editable) return
   if (event.key === 'Escape') {
     if (confirmation.value) confirmation.value = null
-    else if (workspace.value) closeWorkspace()
     else if (activeInterior.value || interiorPending.value) closeInterior()
     else { cancelTool(); selectedId.value = null; helpOpen.value = false; historyOpen.value = false }
   }
-  if (event.key.toLowerCase() === 'r' && !workspace.value && !confirmation.value && !activeInterior.value && mode.value !== 'road') { event.preventDefault(); rotateSelected() }
-  if (event.key === 'Tab' && (workspace.value || confirmation.value)) {
-    const dialog = document.querySelector(confirmation.value ? '.confirmation' : '.workspace')
-    const items = dialog?.querySelectorAll('button:not(:disabled), iframe, a[href]')
+  if (event.key.toLowerCase() === 'r' && !confirmation.value && !activeInterior.value && mode.value !== 'road') { event.preventDefault(); rotateSelected() }
+  if (event.key === 'Tab' && confirmation.value) {
+    const dialog = document.querySelector('.confirmation')
+    const items = dialog?.querySelectorAll('button:not(:disabled), a[href]')
     if (items?.length && event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus() }
     else if (items?.length && !event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus() }
   }
 }
 function onVisibility() {
   clearInterval(poll)
-  clearInterval(activityPoll)
-  if (document.hidden) {
-    activity.value = null
-    engine?.setActivity?.(null)
-  }
-  else {
+  if (!document.hidden) {
     refreshAll()
-    refreshActivity()
     startPolling()
   }
 }
@@ -532,10 +471,9 @@ onMounted(async () => {
         onError: error => { sceneError.value = error?.message || String(error) },
         onReady: () => {
           if (state.value) engine?.setState(state.value)
-          engine?.setActivity?.(activity.value)
         },
       })
-      window.__fifonesCity = { get state() { return state.value }, get activity() { return activity.value }, get engine() { return engine } }
+      window.__fifonesCity = { get state() { return state.value }, get engine() { return engine } }
     } catch (error) { sceneError.value = error.message }
   }
   const initializeCity = async () => {
@@ -546,15 +484,13 @@ onMounted(async () => {
     finally { if (!disposed) loading.value = false }
   }
   if (requestedRegion) initializeScene()
-  await Promise.allSettled([initializeCity(), reloadWorkspace(), refreshActivity()])
+  await Promise.allSettled([initializeCity(), reloadTasks()])
   startPolling()
 })
 onUnmounted(() => {
   disposed = true
   clearInterval(poll)
-  clearInterval(activityPoll)
   clearTimeout(toastTimer)
-  clearTimeout(iframeTimer)
   clearTimeout(celebrationTimer)
   responsiveMedia?.removeEventListener('change', onCompactViewport)
   document.removeEventListener('keydown', onKeydown)
@@ -576,7 +512,7 @@ onUnmounted(() => {
         <span class="brand-copy"><strong>Cityou</strong><small>{{ region?.nome ?? 'Sua vida, em construção.' }}</small></span>
       </button>
       <div class="city-location"><span class="location-dot" /><span>{{ region?.nome ?? 'Rio de Janeiro' }}</span><span class="location-line" /><span class="city-day">Dia {{ day }}</span></div>
-      <div class="topbar-right"><small v-if="state?.test_mode" class="pilot-test-mode" title="Oito regiões abertas e créditos de teste">Prévia de teste</small><a class="city-world-link" :href="region ? `./world.html?de=${encodeURIComponent(region.id)}` : './world.html'">Voltar ao globo</a><span v-if="activeOfficeCount > 0" class="office-activity-count" title="Execuções detectadas/observadas em seus escritórios" :aria-label="`${activeOfficeCount} escritórios com execuções detectadas ou observadas`"><span />{{ activeOfficeCount }}<span class="office-activity-caption">em atividade</span></span>
+      <div class="topbar-right"><small v-if="state?.test_mode" class="pilot-test-mode" title="Oito regiões abertas e créditos de teste">Prévia de teste</small><a class="city-world-link" :href="region ? `./world.html?de=${encodeURIComponent(region.id)}` : './world.html'">Voltar ao globo</a>
         <div class="save-status" role="status"><span :class="{ busy: saving || refreshing }" />{{ saving ? 'Salvando…' : refreshing ? 'Sincronizando…' : state ? 'Salvo no servidor' : 'Conectando…' }}</div>
         <button class="balance" :aria-label="`Saldo: ${coins(state?.credits)} moedas. Ver histórico`" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen"><span class="coin-glyph"><Icon name="coin" :size="18" /></span><strong>{{ coins(state?.credits) }}</strong><span class="balance-label">moedas</span></button>
         <div class="level-badge" :title="`${progress.remaining} ações recompensadas para o próximo nível`"><span>NÍVEL</span><strong>{{ state?.level || 1 }}</strong><span class="level-track" role="progressbar" aria-label="Progresso para o próximo nível" :aria-valuenow="progress.withinLevel" :aria-valuemin="0" :aria-valuemax="10"><i :style="{ transform: `scaleX(${progress.withinLevel / 10})` }" /></span></div>
@@ -585,7 +521,7 @@ onUnmounted(() => {
 
     <section v-if="historyOpen" class="balance-history panel" aria-label="Histórico de moedas"><div class="history-heading"><h2>Seu saldo</h2><button class="icon-button" aria-label="Fechar histórico" @click="historyOpen = false"><Icon name="close" :size="16" /></button></div><ul><li v-for="(entry, index) in (state?.history || []).slice(0, 5)" :key="index"><span :title="entry.label">{{ entry.label }}</span><strong :class="{ expense: entry.amount < 0 }">{{ entry.amount > 0 ? '+' : '' }}{{ coins(entry.amount) }}</strong></li></ul><p>Tarefa +10 <span>·</span> Hábito +5</p></section>
     <nav class="nav-rail" aria-label="Seus espaços Cityou">
-      <button v-for="item in nav" :key="item.id" class="rail-button" :class="{ active: item.id === 'city' && !workspace, 'workspace-active': workspace?.label === item.label }" :aria-label="item.label" :aria-current="item.id === 'city' && !workspace ? 'page' : undefined" @click="useNav(item)"><Icon :name="item.icon" :size="22" /><span class="rail-tooltip">{{ item.label }}</span></button>
+      <button v-for="item in nav" :key="item.id" class="rail-button" :class="{ active: item.id === 'city' }" :aria-label="item.label" :aria-current="item.id === 'city' ? 'page' : undefined" @click="useNav(item)"><Icon :name="item.icon" :size="22" /><span class="rail-tooltip">{{ item.label }}</span></button>
       <span class="rail-divider" />
       <button class="rail-button help-button" :class="{ active: helpOpen }" aria-label="Como jogar" :aria-expanded="helpOpen" @click="helpOpen = !helpOpen"><Icon name="help" :size="21" /><span class="rail-tooltip">Como jogar</span></button>
     </nav>
@@ -600,29 +536,26 @@ onUnmounted(() => {
     </aside>
 
     <aside class="missions panel" :class="{ collapsed: !tasksOpen }" aria-label="Missões da sua cidade">
-      <div class="missions-header"><div class="section-title"><span class="small-icon"><Icon name="tasks" :size="17" /></span><h1>Suas missões</h1><span v-if="sourceConnected" class="count-bubble">{{ openTasks.length }}</span></div><div class="header-actions"><button class="icon-button" :class="{ spinning: refreshing }" aria-label="Atualizar tarefas e recompensas" :disabled="refreshing || saving" @click="refreshAll(true)"><Icon name="refresh" :size="16" /></button><button class="icon-button collapse-button" :aria-label="tasksOpen ? 'Recolher missões' : 'Expandir missões'" :aria-expanded="tasksOpen" @click="tasksOpen = !tasksOpen"><Icon name="down" :size="16" /></button></div></div>
+      <div class="missions-header"><div class="section-title"><span class="small-icon"><Icon name="tasks" :size="17" /></span><h1>Suas missões</h1><span v-if="tasksError === ''" class="count-bubble">{{ openTasks.length }}</span></div><div class="header-actions"><button class="icon-button" :class="{ spinning: refreshing }" aria-label="Atualizar tarefas e recompensas" :disabled="refreshing || saving" @click="refreshAll(true)"><Icon name="refresh" :size="16" /></button><button class="icon-button collapse-button" :aria-label="tasksOpen ? 'Recolher missões' : 'Expandir missões'" :aria-expanded="tasksOpen" @click="tasksOpen = !tasksOpen"><Icon name="down" :size="16" /></button></div></div>
       <div v-if="tasksOpen" class="missions-content">
         <div class="mission-tabs" role="group" aria-label="Mostrar missões ou conquistas"><button :class="{ active: missionTab === 'tasks' }" :aria-pressed="missionTab === 'tasks'" @click="missionTab = 'tasks'">Missões</button><button :class="{ active: missionTab === 'milestones' }" :aria-pressed="missionTab === 'milestones'" @click="missionTab = 'milestones'">Conquistas <span>{{ progress.milestones.filter(item => item.value >= item.total).length }}/3</span></button></div>
         <div v-if="missionTab === 'milestones'" class="milestones"><div v-for="item in progress.milestones" :key="item.id" class="milestone" :class="{ achieved: item.value >= item.total }"><span class="milestone-icon"><Icon :name="item.value >= item.total ? 'check' : item.icon" :size="19" /></span><div><strong>{{ item.label }}</strong><p>{{ item.detail }}</p><div class="milestone-track"><i :style="{ transform: `scaleX(${item.value / item.total})` }" /></div></div><small>{{ item.value }}/{{ item.total }}</small></div><p class="milestone-note">No seu ritmo. Seu progresso não expira.</p></div>
         <template v-else>
-        <template v-if="sourceConnected">
-
           <div class="reward-note"><span class="reward-coin"><Icon name="coin" :size="15" /></span><span>Cada tarefa vale <strong>+10 moedas.</strong></span></div>
-          <ul v-if="openTasks.length" class="task-list"><li v-for="task in openTasks.slice(0, 3)" :key="task.id" class="task-row"><button class="task-check" :class="{ pending: taskSaving === task.id }" :disabled="saving || refreshing" :aria-label="`Concluir ${task.title}`" @click="finishTask(task)"><Icon v-if="taskSaving === task.id" name="refresh" :size="13" /></button><span class="task-title" :title="task.title">{{ task.title || 'Tarefa sem título' }}</span><span class="task-reward">+10</span></li></ul>
+          <div v-if="tasksError === null" class="empty-tasks"><span class="empty-check"><Icon name="refresh" :size="21" /></span><strong>Buscando suas tarefas…</strong></div>
+          <div v-else-if="tasksError" class="empty-tasks" role="status"><span class="empty-check"><Icon name="wifi" :size="21" /></span><strong>Não foi possível carregar suas tarefas.</strong><span>{{ tasksError }}</span><button class="text-button" :disabled="refreshing" @click="refreshAll(true)">Tentar de novo <Icon name="refresh" :size="13" /></button></div>
+          <ul v-else-if="openTasks.length" class="task-list"><li v-for="task in openTasks.slice(0, 3)" :key="task.id" class="task-row"><button class="task-check" :class="{ pending: taskSaving === task.id }" :disabled="saving || refreshing" :aria-label="`Concluir ${task.title}`" @click="finishTask(task)"><Icon v-if="taskSaving === task.id" name="refresh" :size="13" /></button><span class="task-title" :title="task.title">{{ task.title || 'Tarefa sem título' }}</span><span class="task-reward">+10</span></li></ul>
           <div v-else class="empty-tasks"><span class="empty-check"><Icon name="check" :size="21" /></span><strong>Tudo em dia por aqui.</strong><span>Crie uma tarefa para dar o próximo passo.</span></div>
-          <div class="mission-footer"><span><span class="done-dot" />{{ doneTasks }} concluída{{ doneTasks === 1 ? '' : 's' }}</span><button class="text-button" @click="openWorkspace('Tarefas', '/#/tarefas')">Ver tarefas <Icon name="arrow" :size="14" /></button></div>
-        </template>
-        <div v-else class="offline-tasks"><span class="offline-icon"><Icon name="wifi" :size="22" /></span><strong>{{ tasksConnected === null ? 'Buscando suas tarefas…' : 'Seu Fifones está offline' }}</strong><p>Inicie o app original na porta 8765 para conectar suas tarefas e ganhar moedas.</p><button class="text-button" :disabled="refreshing" @click="refreshAll(true)">Tentar conectar <Icon name="refresh" :size="13" /></button></div>
+          <div class="mission-footer"><span><span class="done-dot" />{{ doneTasks }} concluída{{ doneTasks === 1 ? '' : 's' }}</span><button class="text-button" @click="openPanel('Tarefas', 'tarefas')">Ver tarefas <Icon name="arrow" :size="14" /></button></div>
         </template>
       </div>
     </aside>
 
-    <section v-if="selected && !workspace && !activeInterior" class="building-panel panel" aria-label="Construção selecionada">
+    <section v-if="selected && !activeInterior" class="building-panel panel" aria-label="Construção selecionada">
       <div class="building-heading"><img v-if="selectedCatalog" :src="thumbnail(selectedCatalog)" alt="" /><div><span class="eyebrow">NA SUA CIDADE</span><h2>{{ selected.nome || selectedCatalog?.label || selected.kind }}</h2><p v-if="selected.activity_id">{{ selectedCatalog?.label }} <span>· {{ selected.x }}, {{ selected.y }}</span></p><p v-else>Nível {{ selected.level || 1 }} <span>· {{ selected.x }}, {{ selected.y }}</span></p></div><button class="icon-button" aria-label="Fechar detalhes da construção" @click="selectedId = null; cancelTool()"><Icon name="close" :size="16" /></button></div>
       <div v-if="selected.activity_id" class="building-stage"><strong>{{ selected.etapa_nome }}</strong><span>{{ selected.dias }} {{ selected.dias === 1 ? 'dia' : 'dias' }} com prática · {{ selected.semanas }} {{ selected.semanas === 1 ? 'semana' : 'semanas' }}</span><i class="stage-track" role="progressbar" aria-label="Etapa do prédio" :aria-valuenow="selected.etapa" aria-valuemin="0" aria-valuemax="4"><b :style="{ transform: `scaleX(${selected.etapa / 4})` }" /></i><small v-if="selected.proxima">Próxima etapa, {{ selected.proxima.etapa_nome }}: {{ selected.proxima.dias }} dias em {{ selected.proxima.semanas }} semanas com prática. O prédio avança com a sua prática, no seu ritmo.</small><small v-else>Prédio concluído.</small></div>
-      <div v-if="selectedActivity" class="building-activity" :class="`signal-${selectedActivity.state}`"><span class="activity-dot" /><span>{{ selectedActivity.label }}</span></div>
       <button v-if="selectedCatalog?.interior" class="open-building" :disabled="interiorPending" @click="openSelectedInterior">{{ interiorPending ? 'Abrindo interior…' : 'Abrir corte do prédio' }} <Icon name="expand" :size="16" /></button>
-      <button v-else-if="selected.target || selectedCatalog?.destination" class="open-building" @click="openWorkspace(selectedCatalog?.label || 'Seu espaço', selected.target || selectedCatalog?.destination)">Entrar neste espaço <Icon name="arrow" :size="16" /></button>
+      <button v-else-if="selected.target || selectedCatalog?.destination" class="open-building" @click="openPanel(selectedCatalog?.label || 'Seu espaço', selected.target || selectedCatalog?.destination)">Entrar neste espaço <Icon name="arrow" :size="16" /></button>
       <div class="building-actions"><button :disabled="saving || refreshing" :class="{ selected: mode === 'move' }" @click="moveSelected"><Icon name="move" :size="17" /><span>Mover</span></button><button :disabled="saving || refreshing" @click="rotateSelected"><Icon name="rotate" :size="17" /><span>Girar</span></button><button v-if="!protectedBuilding && !selected.activity_id" :disabled="saving || refreshing || selected.level >= 3 || state.credits < upgradeCost" :title="selected.level >= 3 ? 'Nível máximo' : `Evoluir por ${upgradeCost} moedas`" @click="upgradeSelected"><Icon name="upgrade" :size="17" /><span>{{ selected.level >= 3 ? 'Máximo' : `Evoluir · ${upgradeCost}` }}</span></button><button v-if="!protectedBuilding" class="danger-action" :disabled="saving || refreshing" @click="askRemove"><Icon name="demolish" :size="17" /><span>Demolir</span></button></div>
     </section>
 
@@ -678,7 +611,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <div v-if="toolText && !workspace && !buildQuote" class="tool-hint" role="status"><span class="hint-dot" /><span>{{ toolText }}</span><kbd>R</kbd><span class="rotation-hint">girar</span><button aria-label="Girar construção" title="Girar construção (R)" @click="rotateSelected"><Icon name="rotate" :size="16" /></button><button aria-label="Cancelar construção" @click="cancelTool"><Icon name="close" :size="16" /></button></div>
+    <div v-if="toolText && !buildQuote" class="tool-hint" role="status"><span class="hint-dot" /><span>{{ toolText }}</span><kbd>R</kbd><span class="rotation-hint">girar</span><button aria-label="Girar construção" title="Girar construção (R)" @click="rotateSelected"><Icon name="rotate" :size="16" /></button><button aria-label="Cancelar construção" @click="cancelTool"><Icon name="close" :size="16" /></button></div>
 
     <section v-if="!scenic || islandBuild" class="catalog panel" :class="{ 'catalog-is-closed': !catalogOpen }" aria-label="Catálogo de construções">
       <div class="catalog-toolbar"><button class="catalog-title" :aria-expanded="catalogOpen" @click="catalogOpen = !catalogOpen"><span class="build-icon"><Icon name="plus" :size="18" /></span>Construir <Icon name="down" :size="14" /></button><div v-if="catalogOpen" class="catalog-filters" role="group" aria-label="Filtrar construções"><button :class="{ selected: activeFilter === 'all' }" @click="activeFilter = 'all'">Tudo</button><button :class="{ selected: activeFilter === 'life' }" @click="activeFilter = 'life'">Bairro</button><button :class="{ selected: activeFilter === 'work' }" @click="activeFilter = 'work'">Seus espaços</button></div><span v-if="catalogOpen" class="catalog-spacer" /><button v-if="catalogOpen" class="select-tool" :class="{ selected: mode === 'select' }" aria-label="Selecionar construção" @click="cancelTool"><Icon name="pointer" :size="16" /><span>Selecionar</span></button></div>
@@ -687,15 +620,13 @@ onUnmounted(() => {
 
     <div class="view-controls"><div class="light-switch" role="group" aria-label="Iluminação da cidade"><button :class="{ selected: lighting === 'day' }" aria-label="Luz do dia" :aria-pressed="lighting === 'day'" @click="setLighting('day')"><Icon name="sun" :size="18" /></button><button :class="{ selected: lighting === 'dusk' }" aria-label="Entardecer" :aria-pressed="lighting === 'dusk'" @click="setLighting('dusk')"><Icon name="moon" :size="17" /></button></div><div class="camera-controls"><button aria-label="Girar câmera" title="Girar câmera" @click="engine?.rotateCamera()"><Icon name="rotate" :size="18" /></button><button aria-label="Voltar à vista inicial" title="Vista inicial" @click="engine?.home()"><Icon name="expand" :size="18" /></button></div><span class="view-caption">{{ lighting === 'day' ? 'Luz do dia' : 'Entardecer' }}<span>·</span>{{ region?.nome ?? 'Rio 2035' }}</span></div>
 
-    <div v-if="helpOpen" class="help-popover panel"><button class="icon-button" aria-label="Fechar ajuda" @click="helpOpen = false"><Icon name="close" :size="16" /></button><h2>Cuide da vida.<br />Construa sua cidade.</h2><p>Você começa com 50 moedas. Tarefas concluídas valem 10; hábitos, 5. A cada 10 recompensas, seu nível sobe e a cidade ganha mais espaço.</p><dl><div><dt>Explorar</dt><dd>Arraste a cidade</dd></div><div><dt>Aproximar</dt><dd>Role o mouse</dd></div><div><dt>Girar construção</dt><dd><kbd>R</kbd></dd></div><div><dt>Cancelar</dt><dd><kbd>Esc</kbd></dd></div></dl><p class="help-footnote">Seu progresso fica salvo neste computador.</p></div>
+    <div v-if="helpOpen" class="help-popover panel"><button class="icon-button" aria-label="Fechar ajuda" @click="helpOpen = false"><Icon name="close" :size="16" /></button><h2>Cuide da vida.<br />Construa sua cidade.</h2><p>Você começa com 50 moedas. Tarefas concluídas valem 10; hábitos, 5. A cada 10 recompensas, seu nível sobe e a cidade ganha mais espaço.</p><dl><div><dt>Explorar</dt><dd>Arraste a cidade</dd></div><div><dt>Aproximar</dt><dd>Role o mouse</dd></div><div><dt>Girar construção</dt><dd><kbd>R</kbd></dd></div><div><dt>Cancelar</dt><dd><kbd>Esc</kbd></dd></div></dl><p class="help-footnote">Seu progresso fica salvo no servidor.</p></div>
 
     <div v-if="loading || bootError || sceneError" class="city-notice panel" role="status"><span class="notice-mark">c.</span><strong>{{ sceneError ? 'Não foi possível abrir a vista 3D' : bootError ? 'A cidade está desconectada' : 'Sua cidade está chegando…' }}</strong><p v-if="bootError || sceneError">{{ sceneError || bootError }}</p><span v-else class="loading-line" /><button v-if="bootError || sceneError" class="primary-button" @click="reloadPage">Tentar novamente</button></div>
 
-    <Transition name="reward"><div v-if="celebration && !workspace" :key="celebration.key" class="reward-burst" role="status"><span v-for="index in 8" :key="index" class="reward-spark" :style="{ '--n': index }" aria-hidden="true" /><span class="reward-medal"><Icon :name="celebration.levelUp ? 'expand' : 'check'" :size="29" /></span><strong>{{ celebration.levelUp ? `Nível ${state.level}!` : `+${coins(celebration.amount)} moedas` }}</strong><span>{{ celebration.levelUp ? 'Mais terrenos para suas ideias.' : 'Seu progresso ganhou espaço.' }}</span></div></Transition>
+    <Transition name="reward"><div v-if="celebration" :key="celebration.key" class="reward-burst" role="status"><span v-for="index in 8" :key="index" class="reward-spark" :style="{ '--n': index }" aria-hidden="true" /><span class="reward-medal"><Icon :name="celebration.levelUp ? 'expand' : 'check'" :size="29" /></span><strong>{{ celebration.levelUp ? `Nível ${state.level}!` : `+${coins(celebration.amount)} moedas` }}</strong><span>{{ celebration.levelUp ? 'Mais terrenos para suas ideias.' : 'Seu progresso ganhou espaço.' }}</span></div></Transition>
 
     <Transition name="toast"><div v-if="toast" class="toast" :class="toast.kind" role="status"><span class="toast-icon"><Icon :name="toast.kind === 'error' ? 'close' : toast.kind === 'info' ? 'wifi' : 'check'" :size="17" /></span><span>{{ toast.message }}</span><button aria-label="Fechar mensagem" @click="toast = null"><Icon name="close" :size="14" /></button></div></Transition>
-
-    <div v-if="workspace" class="workspace-backdrop"><section class="workspace" role="dialog" aria-modal="true" :aria-label="workspace.label"><header class="workspace-header"><div><span class="workspace-mark">c.</span><span><strong>{{ workspace.label }}</strong><small>Seu espaço no Cityou</small></span></div><div class="workspace-header-right"><span v-if="sourceConnected && workspaceActivity" class="workspace-user-badge">Em uso por você</span><span v-if="workspaceActivity" class="workspace-activity" :class="`signal-${workspaceActivity.state}`" :title="workspaceActivity.label"><span class="activity-dot" />{{ workspaceActivity.label }}</span><span class="connection-badge" :class="{ disconnected: !sourceConnected }"><span />{{ sourceConnected ? 'Conectado' : 'Desconectado' }}</span><button class="workspace-close icon-button" aria-label="Fechar espaço e voltar à cidade" @click="closeWorkspace"><Icon name="close" :size="20" /></button></div></header><div v-if="!sourceConnected" class="workspace-offline"><Icon name="wifi" :size="36" /><h2>Vamos reconectar seu espaço.</h2><p>Abra o app original do Fifones na porta 8765.<br />Sua cidade continua salva e disponível.</p><button class="primary-button" :disabled="refreshing" @click="refreshAll(true)">{{ refreshing ? 'Conectando…' : 'Tentar novamente' }}<Icon name="refresh" :size="16" /></button></div><template v-else><div v-if="iframeLoading" class="iframe-loading"><span class="loading-line" />Abrindo {{ workspace.label }}…</div><iframe :key="workspace.url" :src="workspace.url" :title="workspace.label" allow="microphone; camera" @load="iframeLoaded" /></template></section></div>
 
     <div v-if="confirmation" class="confirmation-backdrop" @click.self="confirmation = null"><section class="confirmation panel" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description"><span class="confirm-icon"><Icon name="demolish" :size="25" /></span><h2 id="confirm-title">Demolir {{ confirmation.label }}?</h2><p id="confirm-description">Você receberá {{ coins(confirmation.refund) }} moedas de volta, metade do custo da construção.</p><div><button class="secondary-button confirm-cancel" :disabled="saving" @click="confirmation = null">Manter construção</button><button class="danger-button" :disabled="saving || refreshing" @click="confirmRemove">{{ saving ? 'Demolindo…' : 'Demolir' }}</button></div></section></div>
   </main>

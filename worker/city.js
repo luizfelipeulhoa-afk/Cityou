@@ -47,6 +47,7 @@ function buildRadius(city, location) {
   return getCityLayout(location).max - 8
 }
 
+// Sem `source`: a cidade não depende mais de uma fonte externa (o Fifones), etapa 2 de docs/PLANO-PROXIMOS-PASSOS.md.
 export function snapshot(city, location, testMode = false) {
   const { min, max, protectedTiles } = getCityLayout(location)
   const scenic = isScenicCity(location)
@@ -55,7 +56,6 @@ export function snapshot(city, location, testMode = false) {
     unlock_radius: buildRadius(city, location, testMode),
     grid_min: min, grid_max: max, protected_tiles: protectedTiles,
     location_id: location, test_mode: testMode,
-    source: { connected: false },
   }
 }
 
