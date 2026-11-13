@@ -27,6 +27,10 @@ Vários Claude trabalham neste repositório em branches e sessões diferentes, e
 
 A página de apresentação e a de teste do terreno são construídas à parte (`vite.landing.config.js`, `vite.terrain.config.js`). Não as ponha nas entradas do `vite.config.js`: isso redistribui os pacotes compartilhados e cada página de produção passa a pedir de 1 a 3 arquivos a mais (medido).
 
+## Design system
+
+Cores, tipografia, forma, topografia do globo e os prompts de imagem e 3D dos prédios estão em `docs/DESIGN-SYSTEM.md`. Antes de criar uma cor, fonte ou prompt novo, leia esse arquivo; se a cor já existe em `:root` ou em `PALETTE`, use a existente. A mesma versão está no Claude Docs da empresa ("Design system Cityou"): mudanças entram pelos dois lados.
+
 ## Mapa-mundo (`src/world/`)
 
 - O cabeçalho do mapa tem o link **Voltar ao Cityou**, que abre o painel pessoal tanto na página avulsa quanto no mapa embutido.
@@ -84,7 +88,7 @@ Nove prédios de exemplo construíveis na cidade do Rio (barraca de feira, casa 
 
 ## Contas e página de apresentação
 
-Guia: `docs/CONTAS.md`. Resumo: `worker/auth.js` faz cadastro, entrada e saída (cookie `cityou_session`, PBKDF2, tabelas do D1 criadas pelo próprio Worker). A conta não copia dados: `users.data_key` é o nome do Durable Object `DemoSession` da pessoa, adotado da demonstração no cadastro; objeto de conta não vence. Com o D1 ligado, `/app`, `/city` e `/world` pedem login (`pageGate` em `worker/index.js`) e `/` leva quem já entrou ao app; sem o D1 (produção hoje, até pôr o `database_id` em `wrangler.jsonc`), tudo segue como demonstração e a página diz "Abrir a demonstração". Página nova do app entra em `APP_PAGES` e em `run_worker_first`. Links para o painel usam `/app#/...`; os `/#/...` do catálogo apontam para o Fifones (porta 8765), não para o painel. Falta: esqueci a senha (precisa de e-mail com domínio).
+Guia: `docs/CONTAS.md`. Resumo: `worker/auth.js` faz cadastro, entrada e saída (cookie `cityou_session`, PBKDF2, tabelas do D1 criadas pelo próprio Worker). A conta não copia dados: `users.data_key` é o nome do Durable Object `DemoSession` da pessoa, adotado da demonstração no cadastro; objeto de conta não vence. Com o D1 ligado, `/app`, `/city` e `/world` pedem login (`pageGate` em `worker/index.js`) e `/` leva quem já entrou ao app; sem o D1 (produção hoje, até pôr o `database_id` em `wrangler.jsonc`), tudo segue como demonstração e a página diz "Abrir a demonstração". Página nova do app entra em `APP_PAGES` e em `run_worker_first`. Links para o painel usam `/app#/...`; os `/#/...` do catálogo apontam para o Fifones (porta 8765), não para o painel. **Login obrigatório:** `REQUIRE_LOGIN="true"` em `wrangler.jsonc` (produção e prévia) faz toda rota de dados da API responder 401 sem sessão, além das páginas, mas só vale com o D1 ligado; sem `database_id` nada muda (a demonstração continua). Teste com `wrangler.test-login.jsonc`. Falta: esqueci a senha (precisa de e-mail com domínio).
 
 ## Backend
 
@@ -105,9 +109,9 @@ Código: `worker/` (entrada em `worker/index.js`, uma rota por arquivo em `worke
 
 Painel de progresso (créditos, nível, bônus): `docs/DASHBOARD.md`; o contrato `resumo` está em `shared/game/summary.js`. Comprovação das atividades: `shared/game/proof.js` e a seção "Comprovação" de `docs/GAME-DESIGN.md`. Viagens de produção ficam fechadas por `TRAVEL_OPEN=false` em `wrangler.jsonc`. A prévia tem acesso aos oito destinos e carteira de teste isolada.
 
-Prédios de atividade: `shared/game/buildings.js` (área→tipo `dom-*`, etapas por dias e semanas); a ação `build` aceita `activity_id` sem x/y e o servidor escolhe o lote (`findSite` em `worker/city.js`). Todo o terreno é construível (`buildRadius`). A Ilha Inicial é só cenário (`isScenicCity`); sem `?local`, a cidade é o Rio (`DEFAULT_CITY` em `worker/demo.js`), já aberto.
+Prédios de atividade: `shared/game/buildings.js` (área→tipo `dom-*`, etapas por dias e semanas); a ação `build` aceita `activity_id` sem x/y e o servidor escolhe o lote (`findSite` em `worker/city.js`). Todo o terreno é construível (`buildRadius`). A Ilha Inicial é de cenário (`isScenicCity`: sem praça, sede, ruas nem prédios de atividade), mas o jogador constrói nela o Farol, a Cabana e o Píer (decidido em 13/11/2026; lista em `scenicBuildable` de `shared/game/city-layout.js`, e `applyCityAction` recusa ruas e qualquer outro tipo lá); sem `?local`, a cidade é o Rio (`DEFAULT_CITY` em `worker/demo.js`), já aberto.
 
-No `shared/game/city-catalog.json`, os itens `island-*` são prédios da Ilha Inicial: `city-layout.js` os tira do catálogo comum e os põe no catálogo regional da ilha, e o FastAPI local os ignora. Farol da Percepção, Cabana do Primeiro Passo e Píer da Jornada estão definidos assim, sem modelo 3D. Como a ilha é só cenário, eles ainda não aparecem no jogo.
+No `shared/game/city-catalog.json`, os itens `island-*` são prédios da Ilha Inicial: `city-layout.js` os tira do catálogo comum e os põe no catálogo regional da ilha, e o FastAPI local os ignora. Farol da Percepção, Cabana do Primeiro Passo e Píer da Jornada têm GLB em `public-fifones/models/island/` (6 mil triângulos cada, feitos pelo guia de `docs/DESIGN-SYSTEM.md` e reduzidos com `tools/optimize-city-models.mjs`; orçamento e altura em `tests/city-models.test.mjs`) e já se constroem na ilha (a tela mostra o catálogo só com esses três). Quem acrescentar decoração da ilha põe o item em `city-catalog.json` com prefixo `island-` e o id em `scenicBuildable`.
 
 Regras do jogo: `shared/game/rules.js` (puro, sem banco; `npm test`). O estudo de referência de city builders está em `docs/research/estudo-city-builders.md`; o que foi adotado e o que ficou de fora está em `docs/GAME-DESIGN.md`. Onde os dados ficam é decisão em aberto (`docs/DATA-MODEL.md`).
 

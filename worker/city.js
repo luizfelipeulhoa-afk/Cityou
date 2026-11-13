@@ -1,6 +1,6 @@
 import {
   connectedRoads, getBuilding, getCityCatalog, getCityLayout, hasRoadFrontage, isPilotCity, isScenicCity,
-  placementProblem, previewRoadPath, roadPath, tileKey,
+  placementProblem, previewRoadPath, roadPath, scenicBuildKinds, tileKey,
 } from '../shared/game/city-layout.js'
 import { RULES } from '../shared/game/rules.js'
 import { HttpError } from './http.js'
@@ -34,7 +34,7 @@ export function newCity(location, testMode = false) {
 // Todo o terreno é construível desde o começo: a cidade vista de cima ocupa o terreno até perto das bordas.
 // (Antes a área crescia de 7x7 com as recompensas; isso deixava a maior parte do mapa sem uso.)
 function buildRadius(city, location) {
-  if (isScenicCity(location)) return -1
+  if (isScenicCity(location) && scenicBuildKinds(location).length === 0) return -1
   return getCityLayout(location).max - 8
 }
 
@@ -42,7 +42,7 @@ export function snapshot(city, location, testMode = false) {
   const { min, max, protectedTiles } = getCityLayout(location)
   const scenic = isScenicCity(location)
   return {
-    ...city, ...(scenic && { placements: [] }), scenic, catalog: getCityCatalog(location), level: 1 + Math.floor(city.reward_count / 10),
+    ...city, ...(scenic && { placements: city.placements.filter(item => scenicBuildKinds(location).includes(item.kind)) }), scenic, catalog: getCityCatalog(location), level: 1 + Math.floor(city.reward_count / 10),
     unlock_radius: buildRadius(city, location, testMode),
     grid_min: min, grid_max: max, protected_tiles: protectedTiles,
     location_id: location, test_mode: testMode,
@@ -196,7 +196,11 @@ function applyPlacement(city, action, context) {
 }
 
 export function applyCityAction(city, action, location, testMode = false, extra = {}) {
-  if (isScenicCity(location)) throw new HttpError(422, 'A ilha é só para contemplar. Construa no Rio de Janeiro.')
+  if (isScenicCity(location)) {
+    // A ilha só aceita o que o catálogo dela oferece: sem ruas, e nada de prédios de atividade.
+    if (scenicBuildKinds(location).length === 0) throw new HttpError(422, 'A ilha é só para contemplar. Construa no Rio de Janeiro.')
+    if (action.type === 'road_path') throw new HttpError(422, 'Na ilha não há ruas. Construa o Farol, a Cabana e o Píer.')
+  }
   if (action.expected_revision !== city.revision) throw new HttpError(409, 'A cidade mudou. Atualize e tente novamente.')
   const context = { ...city, location_id: location, unlock_radius: buildRadius(city, location, testMode), activity_name: extra.nome }
   const { amount, label } = applyPlacement(city, action, context)

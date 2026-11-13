@@ -51,6 +51,8 @@ const state = ref(null)
 const region = computed(() => requestedRegion ?? findSpace(state.value?.location_id))
 // A Ilha Inicial é só cenário: sem catálogo, ruas nem prédios. As construções ficam no Rio de Janeiro.
 const scenic = computed(() => state.value?.scenic === true)
+// Na ilha (cenário) o catálogo existe, mas só com os prédios que ela aceita.
+const islandBuild = computed(() => scenic.value && (state.value?.catalog?.length ?? 0) > 0)
 const tileCoordinates = ref({ x: 8, y: 8 })
 const roadStart = ref(null)
 const roadEnd = ref(null)
@@ -556,7 +558,7 @@ onUnmounted(() => {
       <button class="rail-button help-button" :class="{ active: helpOpen }" aria-label="Como jogar" :aria-expanded="helpOpen" @click="helpOpen = !helpOpen"><Icon name="help" :size="21" /><span class="rail-tooltip">Como jogar</span></button>
     </nav>
 
-    <aside v-if="scenic && !loading" class="next-build scenic-note panel" aria-label="Sobre a ilha"><span class="eyebrow">ILHA INICIAL</span><p>Aqui é só para contemplar o mar. Suas construções ficam no Rio de Janeiro.</p><a class="goal-action" href="./city.html?local=cristo-redentor"><span>Ir para o Rio de Janeiro</span></a></aside>
+    <aside v-if="scenic && !loading" class="next-build scenic-note panel" aria-label="Sobre a ilha"><span class="eyebrow">ILHA INICIAL</span><p v-if="islandBuild">Aqui você constrói o Farol, a Cabana e o Píer. Os outros prédios ficam no Rio de Janeiro.</p><p v-else>Aqui é só para contemplar o mar. Suas construções ficam no Rio de Janeiro.</p><a class="goal-action" href="./city.html?local=cristo-redentor"><span>Ir para o Rio de Janeiro</span></a></aside>
 
     <aside v-if="!scenic && progress.goal && !loading" class="next-build panel" aria-label="Próxima construção">
       <div class="goal-topline"><span class="eyebrow">SUA PRÓXIMA CONSTRUÇÃO</span><span class="goal-ready" v-if="!progress.missing">Pode construir</span><span v-else>{{ Math.round(progress.goalPercent) }}%</span></div>
@@ -627,7 +629,7 @@ onUnmounted(() => {
 
     <div v-if="toolText && !workspace" class="tool-hint" role="status"><span class="hint-dot" /><span>{{ toolText }}</span><kbd>R</kbd><span class="rotation-hint">girar</span><button aria-label="Girar construção" title="Girar construção (R)" @click="rotateSelected"><Icon name="rotate" :size="16" /></button><button aria-label="Cancelar construção" @click="cancelTool"><Icon name="close" :size="16" /></button></div>
 
-    <section v-if="!scenic" class="catalog panel" :class="{ 'catalog-is-closed': !catalogOpen }" aria-label="Catálogo de construções">
+    <section v-if="!scenic || islandBuild" class="catalog panel" :class="{ 'catalog-is-closed': !catalogOpen }" aria-label="Catálogo de construções">
       <div class="catalog-toolbar"><button class="catalog-title" :aria-expanded="catalogOpen" @click="catalogOpen = !catalogOpen"><span class="build-icon"><Icon name="plus" :size="18" /></span>Construir <Icon name="down" :size="14" /></button><div v-if="catalogOpen" class="catalog-filters" role="group" aria-label="Filtrar construções"><button :class="{ selected: activeFilter === 'all' }" @click="activeFilter = 'all'">Tudo</button><button :class="{ selected: activeFilter === 'life' }" @click="activeFilter = 'life'">Bairro</button><button :class="{ selected: activeFilter === 'work' }" @click="activeFilter = 'work'">Seus espaços</button></div><span v-if="catalogOpen" class="catalog-spacer" /><button v-if="catalogOpen" class="select-tool" :class="{ selected: mode === 'select' }" aria-label="Selecionar construção" @click="cancelTool"><Icon name="pointer" :size="16" /><span>Selecionar</span></button></div>
       <div v-if="catalogOpen" class="catalog-items"><button v-for="item in filteredCatalog" :key="item.id" class="catalog-card" :class="{ chosen: selectedKind === item.id, unaffordable: state.credits < item.cost, 'is-goal': progress.goal?.id === item.id }" :aria-pressed="selectedKind === item.id" :aria-label="`Construir ${item.label}, ${item.cost} moedas`" :disabled="saving || refreshing" @click="pickItem(item)"><span class="card-thumbnail"><img :src="thumbnail(item)" alt="" loading="eager" /></span><span class="card-name">{{ item.label }}</span><span class="card-price"><Icon name="coin" :size="12" />{{ coins(item.cost) }}</span><span v-if="state.credits < item.cost" class="card-missing">Faltam {{ coins(item.cost - state.credits) }}</span><span v-else class="card-missing card-fit">{{ item.width }} × {{ item.depth }} terrenos</span><span v-if="progress.goal?.id === item.id" class="card-goal-dot" title="Sua próxima construção" /><span v-if="selectedKind === item.id" class="card-selected"><Icon name="check" :size="11" /></span></button><div v-if="!filteredCatalog.length" class="catalog-empty">{{ loading ? 'Preparando sua cidade…' : 'O catálogo aparece quando a cidade se conectar.' }}</div></div>
     </section>

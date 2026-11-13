@@ -11,7 +11,7 @@
     "run_worker_first": ["/api/*", "/", "/index.html", "/app", "/app.html", "/city", "/city.html", "/world", "/world.html"]
   },
   // Viagens fechadas em produção. A prévia de teste abre todos os destinos para validação.
-  "vars": { "TRAVEL_OPEN": "false" },
+  "vars": { "TRAVEL_OPEN": "false", "REQUIRE_LOGIN": "true" },
   "durable_objects": {
     "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
   },
@@ -20,7 +20,7 @@
     "enabled": true
   },
   "previews": {
-    "vars": { "TRAVEL_OPEN": "false", "CITYOU_TEST_OPEN_REGIONS": "1" },
+    "vars": { "TRAVEL_OPEN": "false", "CITYOU_TEST_OPEN_REGIONS": "1", "REQUIRE_LOGIN": "true" },
     "durable_objects": {
       "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
     }

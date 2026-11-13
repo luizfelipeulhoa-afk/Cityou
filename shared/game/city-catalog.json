@@ -19,7 +19,7 @@
   {"id":"dom-estudos","label":"Prédio de Estudos","cost":20,"model":null,"width":2,"depth":2,"height":2.4,"color":"#7b86d6","destination":null},
   {"id":"dom-mente","label":"Prédio de Mente","cost":20,"model":null,"width":2,"depth":2,"height":2.4,"color":"#9a7fd0","destination":null},
   {"id":"dom-organizacao","label":"Prédio de Organização","cost":20,"model":null,"width":2,"depth":2,"height":2.4,"color":"#5cba8a","destination":null},
-  {"id":"island-lighthouse","label":"Farol da Percepção","cost":60,"model":null,"width":3,"depth":3,"height":4.5,"color":"#e0604f","destination":null},
-  {"id":"island-cabin","label":"Cabana do Primeiro Passo","cost":20,"model":null,"width":2,"depth":2,"height":1.6,"color":"#c79a5b","destination":null},
-  {"id":"island-pier","label":"Píer da Jornada","cost":60,"model":null,"width":3,"depth":3,"height":0.8,"color":"#8d6a4a","destination":null}
+  {"id":"island-lighthouse","label":"Farol da Percepção","cost":60,"model":"/models/island/island-lighthouse.glb","width":3,"depth":3,"height":4.5,"color":"#e0604f","destination":null},
+  {"id":"island-cabin","label":"Cabana do Primeiro Passo","cost":20,"model":"/models/island/island-cabin.glb","width":2,"depth":2,"height":1.6,"color":"#c79a5b","destination":null},
+  {"id":"island-pier","label":"Píer da Jornada","cost":60,"model":"/models/island/island-pier.glb","width":3,"depth":3,"height":1.8,"color":"#8d6a4a","destination":null}
 ]

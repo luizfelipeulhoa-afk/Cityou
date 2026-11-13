@@ -22,13 +22,19 @@ function guardWrite(request, url) {
   if (!sameOrigin) throw new HttpError(403, 'Origem inválida.')
 }
 
+/** Login obrigatório: só vale com o banco de contas ligado (sem ele ninguém consegue entrar). */
+const loginRequired = env => accountsEnabled(env) && env.REQUIRE_LOGIN === 'true'
+
 async function handleApi(request, env, ctx, url, timing) {
   guardWrite(request, url)
   const matches = routes.filter(([, path]) => path === url.pathname)
   if (!matches.length) {
     const account = await authApi({ request, env, url, demoKey: await demoKeyOf(request, env), freshDemoCookie: sessionCookie(url) })
     if (account) return account
-    return demoApi(request, env, url, await sessionUser(request, env))
+    const user = await sessionUser(request, env)
+    // Com as contas ativas e REQUIRE_LOGIN ligado, não há mais demonstração sem conta: toda rota de dados pede sessão.
+    if (!user && loginRequired(env)) throw new HttpError(401, 'Entre na sua conta para continuar.')
+    return demoApi(request, env, url, user)
   }
   const route = matches.find(([method]) => method === request.method)
   if (!route) throw new HttpError(405, 'Método não permitido.')

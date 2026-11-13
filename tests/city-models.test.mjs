@@ -52,6 +52,27 @@ test('catálogo do Rio: a altura de cada prédio com GLB não encolhe o modelo',
   }
 })
 
+// A ilha é só cenário (getCityCatalog devolve vazio para ela), então os itens island-* são lidos do arquivo do catálogo.
+const islandModels = JSON.parse(fs.readFileSync('shared/game/city-catalog.json', 'utf8')).filter(item => item.model?.startsWith('/models/island/'))
+
+test('catálogo da ilha: Farol, Cabana e Píer têm GLB dentro do orçamento e com a altura certa', () => {
+  assert.deepEqual(islandModels.map(item => item.id).sort(), ['island-cabin', 'island-lighthouse', 'island-pier'])
+  for (const item of islandModels) {
+    const bytes = fs.readFileSync(path.join(PUBLIC, item.model))
+    assert.ok(bytes.length <= MAX_KB * 1024, `${item.id}: ${Math.round(bytes.length / 1024)} KB (máx. ${MAX_KB})`)
+    const glb = readGlb(bytes)
+    const { min, max, triangles } = boundsOf(glb)
+    assert.ok(triangles <= MAX_TRIANGLES, `${item.id}: ${triangles} triângulos (máx. ${MAX_TRIANGLES})`)
+    assert.deepEqual((glb.json.extensionsRequired || []).filter(name => name !== 'EXT_texture_webp'), [], item.id)
+    assert.equal(glb.json.images.length, 1, `${item.id}: uma textura só`)
+    const size = [0, 1, 2].map(c => max[c] - min[c])
+    const scale = Math.min(item.width * 0.9 / size[0], item.depth * 0.9 / size[2])
+    assert.ok(item.height + 1e-6 >= size[1] * scale, `${item.id}: altura ${item.height} < ${(size[1] * scale).toFixed(2)}`)
+    assert.ok(item.height - size[1] * scale < 0.3, `${item.id}: altura ${item.height} folgada demais (${(size[1] * scale).toFixed(2)})`)
+    assert.ok(Math.abs(min[1]) < 0.01, `${item.id}: a base deve ficar em y = 0`)
+  }
+})
+
 // Malha de teste: uma grade ondulada de 40 × 40 com uma costura de textura no meio (vértices repetidos, UV descontínuo).
 function bumpyGrid(n = 40) {
   const positions = [], uvs = [], indices = []
