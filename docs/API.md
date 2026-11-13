@@ -45,7 +45,7 @@ No desenvolvimento, o Vite encaminha `/api` para o `wrangler dev`, no lugar do F
 
 - **Formato:** JSON em UTF-8. Respostas de `/api/*` saem com `Cache-Control: no-store`.
 - **Sessão:** cookie `cityou_session`, `HttpOnly; Secure; SameSite=Lax; Path=/`, válido por 30 dias. O banco guarda só o SHA-256 do token.
-- **Escritas** (`POST`, `PUT`, `PATCH`, `DELETE`) exigem o cabeçalho `X-Fifones-City: 1` (o cliente `src/fifones/api.js` já envia) e `Origin` igual ao do site. Juntos com `SameSite=Lax`, barram envio forçado por outro site.
+- **Escritas** (`POST`, `PUT`, `PATCH`, `DELETE`) exigem o cabeçalho `X-Fifones-City: 1` (o cliente `src/fifones/api.js` já envia) e `Origin` igual ao do site. Juntos com `SameSite=Lax`, barram envio forjado por outro site.
 - **Identificadores:** o navegador gera o `id` (UUID) e envia no corpo do `POST`. Repetir o mesmo `POST` devolve o registro já criado, com 200, sem duplicar.
 - **Dono:** toda rota usa o `user_id` da sessão. Registro de outra conta responde 404.
 - **Erros:** `{ "message": "texto para a pessoa", "detail": "o mesmo texto", "fields": { "campo": "motivo" } }`. `ApiError` em `src/fifones/api.js` já lê `message` e `detail`.
