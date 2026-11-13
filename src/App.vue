@@ -153,7 +153,7 @@ onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);window.removeEventListe
         <section class="reflection-hero surface"><span class="reflection-bloom" aria-hidden="true"><i v-for="n in 5" :key="n" :style="{'--petal':n}" /></span><div><span class="eyebrow">UMA CONVERSA COM VOCÊ</span><h2>Como está sendo o seu dia?</h2><p>Escreva o que sente, o que funcionou ou o que está difícil.</p><div class="hero-actions"><button class="primary-btn" @click="showForm('note')">Registrar meu momento <Icon name="plus" :size="17" /></button></div></div></section><div class="section-label"><h2>Seus registros</h2><a href="#/memorias">Ver memórias <Icon name="arrow" :size="15" /></a></div><div class="record-grid"><article v-for="note in notes.slice(0,6)" :key="note.id" class="surface note-card"><span class="eyebrow">{{ formatDate(note.day) }}</span><h2>{{ note.title }}</h2><p>{{ note.body }}</p></article></div><p v-if="!notes.length" class="small-note">Você escolhe o que compartilhar. Só você vê o que escreve aqui.</p>
       </template>
       <template v-else-if="route==='biblioteca'||route==='estudos'">
-<section class="surface gentle-empty soon"><Icon name="library" :size="40" /><h2>Biblioteca, em breve.</h2><p>Seus materiais vão ficar sempre por perto, neste mesmo lugar.</p></section>
+<section class="surface gentle-empty soon"><Icon name="library" :size="40" /><h2>{{ route==='estudos'?'Estudos':'Biblioteca' }}, em breve.</h2><p>Seus materiais vão ficar sempre por perto, neste mesmo lugar.</p></section>
       </template>
       <template v-else-if="route==='projetos'">
 <section class="surface gentle-empty soon"><Icon name="projects" :size="40" /><h2>Projetos, em breve.</h2><p>Aqui você vai transformar uma intenção em próximos passos.</p></section>
