@@ -35,8 +35,10 @@ const routes = [
   [/^\/api\/personal$/, { GET: 'personal' }],
   [/^\/api\/personal\/entries$/, { POST: 'addEntry' }],
   [/^\/api\/personal\/entries\/([a-f0-9-]{36})\/checkin$/, { PUT: 'checkin' }],
-  [/^\/api\/personal\/tasks$/, { POST: 'addTask' }],
+  [/^\/api\/personal\/tasks$/, { GET: 'tasks', POST: 'addTask' }],
+  [/^\/api\/personal\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/personal\/proofs\/([a-f0-9-]{36})\/(\d{4}-\d{2}-\d{2})\/photo$/, { GET: 'proofPhoto' }],
+  // Apelidos de /api/personal/tasks* por um deploy, para abas abertas com o bundle antigo (etapa 2). Saem na etapa 6.
   [/^\/api\/workspace\/tasks$/, { GET: 'tasks' }],
   [/^\/api\/workspace\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/city$/, { GET: 'city' }],
@@ -69,11 +71,14 @@ export async function demoKeyOf(request, env) {
 }
 
 export async function demoApi(request, env, url, user = null, timing = null) {
+  // Projetos ainda não são guardados (etapa 5 do plano): o painel recebe a lista vazia.
   if (url.pathname === '/api/workspace/projects' && request.method === 'GET') {
-    return json({ connected: false, projects: [] })
+    return json({ projects: [] })
   }
+  // Apelido para abas abertas com o bundle antigo da cidade, que ainda pedem os sinais de atividade do Fifones.
+  // A cidade nova não pede mais (etapa 2). Sai na etapa 6.
   if (url.pathname === '/api/workspace/activity' && request.method === 'GET') {
-    return json({ connected: false, activity: null })
+    return json({ activity: null })
   }
   const route = routes.find(([pattern]) => pattern.test(url.pathname))
   if (!route) throw new HttpError(404, 'Rota não encontrada.')
@@ -319,7 +324,8 @@ export class DemoSession {
     return new Response(bytes, { headers: { 'Content-Type': match[1], 'Cache-Control': 'private, no-store' } })
   }
 
-  tasks() { return json({ connected: false, tasks: this.list('task') }) }
+  // Tarefas reais da pessoa, guardadas neste objeto (etapa 2). Sem `connected`: não há mais fonte externa.
+  tasks() { return json({ tasks: this.list('task') }) }
 
   addTask({ title, due_date = null, domain, place: where }) {
     if (due_date !== null && !isDate(due_date)) throw new HttpError(422, 'Confira a data da tarefa.')
