@@ -86,6 +86,7 @@ function palm(parent, x, z, scale = 1) {
     g.add(leaf)
   }
   parent.add(g)
+  return g
 }
 
 function mountain(parent, x, z, width, height, depth, colors = [0x6c926d, 0x91ac85]) {
@@ -226,6 +227,7 @@ function sceneryTiles(group, name, cells, geometry) {
     tiles.setColorAt(index, color.set(tint))
   }
   group.add(tiles)
+  return tiles
 }
 
 function slopeHeight(x, y, min) {
@@ -474,36 +476,74 @@ function pilotIsland(group, layout, shore, land) {
   return animateIsland
 }
 
-function pilotRio(group, layout, shore) {
-  const segments = shore.map(({ position: [x, , z] }) => ({ x, z }))
-  const edge = new Map()
-  for (const { x, z } of segments) {
-    if (!edge.has(x) || z < edge.get(x)) edge.set(x, z)
+// O desenho do calçadão de Copacabana: ondas pretas e brancas paralelas ao mar. Uma textura que se repete ao longo da
+// orla (u = x do mundo), num só desenho para todo o calçadão.
+function copacabanaTexture() {
+  if (typeof document === 'undefined') return null
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 128
+  const context = canvas.getContext('2d')
+  context.fillStyle = '#f4ecdb'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.fillStyle = '#2e3431'
+  // Quatro ondas pretas finas sobre o branco, como as pedras portuguesas da orla.
+  for (const middle of [16, 48, 80, 112]) {
+    context.beginPath()
+    for (let x = 0; x <= canvas.width; x += 4) context.lineTo(x, middle - 5 + Math.sin(x / canvas.width * Math.PI * 2) * 11)
+    for (let x = canvas.width; x >= 0; x -= 4) context.lineTo(x, middle + 5 + Math.sin(x / canvas.width * Math.PI * 2) * 11)
+    context.closePath()
+    context.fill()
   }
-  const coast = [...edge].map(([x, z]) => ({ x, z }))
-  sceneryTiles(group, 'Passeio de pedra clara na orla', coast.map(({ x, z }) => ({
-    position: [x, 0.01, z], scale: [1, 0.12, 0.98], tint: 0xd8c7a3,
-  })))
-  sceneryTiles(group, 'Ciclovia costeira', coast.map(({ x, z }) => ({
-    position: [x, 0.075, z - 0.3], scale: [1, 0.017, 0.18], tint: 0xc58461,
-  })))
-  // A small repeating wave evokes local paving while following the authored coastline.
-  const ribbons = coast.flatMap(({ x, z }) => Array.from({ length: 5 }, (_, sample) => {
-    const along = x - 0.4 + sample * 0.2
-    return {
-      position: [along, 0.079, z + 0.07 + Math.sin(along * 2.9) * 0.105],
-      scale: [0.205, 0.015, 0.056], tint: 0x4b5951,
-    }
-  }))
-  sceneryTiles(group, 'Mosaico do passeio', ribbons)
-  for (let index = 2; index < coast.length; index += 5) {
-    const { x, z } = coast[index]
-    tree(group, x, z + 0.24, 0.74)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.anisotropy = 4
+  return texture
+}
+
+// Orla de Copacabana: o calçadão fica na primeira fileira de água junto à terra (entre a avenida e a areia), fora dos
+// lotes construíveis. No terreno do Rio essa fileira é plana e de areia (`d` em src/terrain/regions/rio-cidade.js).
+function pilotRio(group, layout) {
+  const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
+  const promenade = layout.waterTiles
+    .filter(([x, y]) => !water.has(tileKey(x, y - 1)) && y - 1 >= layout.min)
+    .map(([x, y]) => ({ x: x - layout.center, z: y - layout.center }))
+  const DEPTH = 0.62 // do lado da avenida; o resto do lote é areia
+  const vertices = [], uvs = [], indices = []
+  for (const { x, z } of promenade) {
+    const base = vertices.length / 3, near = z - 0.5, far = z - 0.5 + DEPTH
+    vertices.push(x - 0.5, 0.022, near, x + 0.5, 0.022, near, x + 0.5, 0.022, far, x - 0.5, 0.022, far)
+    uvs.push((x - 0.5) / 1.5, 1, (x + 0.5) / 1.5, 1, (x + 0.5) / 1.5, 0, (x - 0.5) / 1.5, 0)
+    indices.push(base, base + 2, base + 1, base, base + 3, base + 2)
   }
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
+  geometry.setIndex(indices)
+  geometry.computeVertexNormals()
+  const texture = copacabanaTexture()
+  const walk = new THREE.Mesh(geometry, material(texture ? 0xffffff : 0xe9dfc8, { map: texture }))
+  walk.name = 'Calçadão de Copacabana'
+  walk.receiveShadow = true
+  walk.userData.decorative = true
+  group.add(walk)
+  // Meio-fio entre a avenida e o calçadão, e uma borda baixa do lado da areia.
+  sceneryTiles(group, 'Meio-fio da orla', promenade.flatMap(({ x, z }) => [
+    { position: [x, 0.035, z - 0.5 + 0.02], scale: [1, 0.05, 0.04], tint: 0xe8e1cf },
+    { position: [x, 0.03, z - 0.5 + DEPTH], scale: [1, 0.035, 0.03], tint: 0xcdbb94 },
+  ]))
+  // Coqueiros na areia, a cada três lotes.
+  for (const [index, { x, z }] of promenade.entries()) {
+    if (index % 3 === 1) palm(group, x, z + 0.3, 0.72)
+  }
+  // Reserva sem o terreno do Rio: a fileira do calçadão ganha uma base de areia, e o fundo tem morros feitos à mão.
+  const sand = sceneryTiles(group, 'Base de areia da orla', promenade.map(({ x, z }) => ({
+    position: [x, -0.24, z], scale: [1, 0.48, 1], tint: 0xdcc79c,
+  })))
   const edgeLand = material(0x929b77)
-  // Silhouettes beyond the grid give the Corcovado and the bay a separate horizon.
-  // São o pano de fundo à mão: o terreno do Rio (src/terrain) os substitui quando carrega.
   const backdrop = [
+    sand,
     box(group, 22, 0.45, 22.5, -27.5, -0.226, -2.5, edgeLand),
     box(group, 22, 0.45, 29, 27.5, -0.226, -2.5, edgeLand),
     mountain(group, -23, -19, 6.1, 6.5, 4.5),
@@ -574,10 +614,11 @@ function pilotLand(group, cells) {
   mesh.name = 'Patamar edificável'
   mesh.receiveShadow = true
   group.add(mesh)
+  return mesh
 }
 
 function pilotSlope(group, layout, slope, water) {
-  if (slope.size === 0) return
+  if (slope.size === 0) return []
   const vertices = [], colors = []
   const foot = new THREE.Color(0x829771), canopy = new THREE.Color(0x496c55)
   const color = new THREE.Color()
@@ -631,12 +672,13 @@ function pilotSlope(group, layout, slope, water) {
       scale: [0.28 + index % 3 * 0.085, 0.45 + index % 4 * 0.07, 0.35],
       tint: [0x647a4c, 0x506d53, 0x68835b][index % 3],
     }))
-  sceneryTiles(group, 'Copas da encosta', forest, new THREE.IcosahedronGeometry(1, 0))
+  return [mesh, sceneryTiles(group, 'Copas da encosta', forest, new THREE.IcosahedronGeometry(1, 0))].filter(Boolean)
 }
 
 function createPilotEnvironment(group, region, layout) {
   const island = region.id === 'ilha-inicial'
-  const floorColor = island ? 0xc2c297 : 0xaaa986
+  // No Rio o chão dos lotes tem o verde da mata do terreno (o mesmo de `plateau` em rio-cidade.js), um tom por lote.
+  const floorColor = island ? 0xc2c297 : 0x6fb377
   const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
   const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))
   const sea = pilotWater(island)
@@ -656,20 +698,24 @@ function createPilotEnvironment(group, region, layout) {
     const coast = around.some(([ax, ay]) => water.has(tileKey(ax, ay)))
     // Na ilha, o miolo é de mata rasteira e a areia aparece perto da água.
     const beach = THREE.MathUtils.smoothstep(Math.hypot((x - 8) / 15, (y - 8) / 14), 0.7, 0.93)
-    const tint = (island ? new THREE.Color(0x8fb56a).lerp(new THREE.Color(0xe5d3a5), Math.max(beach, coast ? 1 : 0)) : new THREE.Color(coast ? 0xc4c6a2 : floorColor))
-      .multiplyScalar(1 + (Math.abs(x * 19 + y * 13) % 11 - 5) * 0.002)
+    const tint = island
+      ? new THREE.Color(0x8fb56a).lerp(new THREE.Color(0xe5d3a5), Math.max(beach, coast ? 1 : 0)).multiplyScalar(1 + (Math.abs(x * 19 + y * 13) % 11 - 5) * 0.002)
+      : new THREE.Color(floorColor).multiplyScalar(1 + ((Math.abs(x * 13 + y * 7) % 5) - 2) * 0.03)
     land.push({ x: px, z: pz, tint })
   }
-  pilotLand(group, land)
-  pilotSlope(group, layout, slope, water)
+  const floor = pilotLand(group, land)
+  // A encosta feita à mão (com o Cristo em cima) é só a reserva do Rio: com o terreno, o relevo real continua ali e o
+  // Cristo vai para o topo do morro de rio-cidade.js (CityWorld.loadTerrain).
+  const hillside = pilotSlope(group, layout, slope, water)
   if (island) sceneryTiles(group, 'Faixa de areia protegida', shore)
   const animate = island ? pilotIsland(group, layout, shore, land) : () => {}
-  const backdrop = island ? [] : [sea, ...pilotRio(group, layout, shore)]
+  const backdrop = island ? [] : [sea, floor, ...hillside, ...pilotRio(group, layout)].filter(Boolean)
   const site = layout.landmarks[0]
   const landmarkY = island ? -0.42 : slopeHeight(site.x, site.y, layout.min)
   const landmark = addLandmark(group, region, site.x - layout.center, landmarkY, site.y - layout.center)
-  // `backdrop`: o mar e os morros feitos à mão, que o terreno do Rio substitui (CityWorld.loadTerrain).
-  return { group, landmark, backdrop, tileColor: island ? 0xdad0a7 : 0xc7c9ac, animate, lamps: [], setDusk(value) { animate.setDusk?.(value) } }
+  // `backdrop`: o mar, o chão dos lotes, a encosta e os morros feitos à mão, que o terreno do Rio substitui
+  // (CityWorld.loadTerrain): com ele, o chão dos lotes é o platô do próprio terreno, no verde da mata.
+  return { group, landmark, backdrop, tileColor: island ? 0xdad0a7 : 0xe9f5d8, animate, lamps: [], setDusk(value) { animate.setDusk?.(value) } }
 }
 
 export function createEnvironment(scene, region) {
