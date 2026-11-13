@@ -78,3 +78,15 @@
 .event-dialog .form-columns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:900px){.ag-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:520px){.ag-title{min-width:0;flex:1}.ag-month{flex:1 1 100%}.ag-actions{width:100%}.ag-actions .ag-btn{flex:1}.ag-calendar{padding:12px}.ag-list li{grid-template-columns:minmax(0,1fr) auto}.ag-list time{grid-column:1/-1}.ag-cell{min-height:42px}}
+
+/* Projetos reais (etapa 5): um nome e um proximo passo. Sem prazo, sem contagem regressiva. */
+.pj-card{display:flex;flex-direction:column;gap:10px;min-width:0}
+.pj-card.saved{opacity:.75}
+.pj-card h2{font-size:1.05rem;overflow-wrap:anywhere}
+.pj-desc{color:#b3b6c7;font-size:.85rem;white-space:pre-line;overflow-wrap:anywhere}
+.pj-count{color:var(--mint);font-size:.82rem;overflow-wrap:anywhere}
+.pj-step{display:grid;gap:6px;font-size:.82rem;color:var(--muted)}
+.pj-step input{width:100%}
+.pj-actions{display:flex;gap:8px}
+.pj-foot{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:6px;border-top:1px solid #ffffff0d}
+.segmented small{margin-left:4px;opacity:.7}

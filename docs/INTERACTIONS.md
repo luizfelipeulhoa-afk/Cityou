@@ -217,8 +217,14 @@ Ação principal: "Novo projeto".
 
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
-| Gerenciar projetos, "Abrir meus projetos" | Fifones | `POST /api/projects` (vira "Novo projeto") | `projects` | Cartão novo |
-| Cartão do projeto | Fifones | `GET /api/tasks?project_id=…` | `tasks` | Abre o projeto com as tarefas dele; edição e "Arquivar" |
+| Novo projeto | `POST /api/personal/projects` (etapa 5) | `POST /api/projects` | `records` (kind `project`) | Cartão com a caixa "Qual é o próximo passo?" |
+| Guardar passo | `PUT /api/personal/projects/{id}` com `next_step` | | `records` | O botão vira "Concluí" |
+| Concluí | `POST /api/personal/projects/{id}/step-done` | | `records` | "N passos dados" e "E agora, qual é o próximo?" com a caixa vazia; sem moedas nem XP |
+| Editar | `PUT /api/personal/projects/{id}` | `PATCH /api/projects/{id}` | `records` | Nome e detalhes |
+| Guardar por enquanto / Retomar | `PUT` com `status` | | `records` | Passa para a aba "Guardados" e volta; reversível |
+| Apagar (pede "Apagar mesmo?") | `DELETE /api/personal/projects/{id}` | | `records` | O projeto sai |
+
+Sem prazo, sem contagem regressiva e sem cartões de "parado há N dias". Vazio: "Seu próximo projeto tem espaço aqui."
 
 ### Memórias
 

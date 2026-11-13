@@ -8,6 +8,7 @@ import { newCity, newTown, withoutHeadquarters, withoutRetired, snapshot, normal
 import { HttpError, json, errorResponse, readJsonObject } from './http.js'
 import { dateFormatter, isDate, capOf, capMessage } from './records.js'
 import { agendaMethods } from './agenda.js'
+import { projectMethods } from './projects.js'
 
 const START = SPACE_ORDER[0]
 // A ilha é só cenário; a cidade onde se constrói começa aberta no Rio de Janeiro.
@@ -41,10 +42,14 @@ const routes = [
   [/^\/api\/personal\/entries\/([a-f0-9-]{36})\/checkin$/, { PUT: 'checkin' }],
   [/^\/api\/personal\/events$/, { POST: 'addEvent' }],
   [/^\/api\/personal\/events\/([a-f0-9-]{36})$/, { PUT: 'editEvent', DELETE: 'removeEvent' }],
+  [/^\/api\/personal\/projects$/, { GET: 'projectsList', POST: 'addProject' }],
+  [/^\/api\/personal\/projects\/([a-f0-9-]{36})$/, { PUT: 'editProject', DELETE: 'removeProject' }],
+  [/^\/api\/personal\/projects\/([a-f0-9-]{36})\/step-done$/, { POST: 'stepDone' }],
   [/^\/api\/personal\/tasks$/, { GET: 'tasks', POST: 'addTask' }],
   [/^\/api\/personal\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/personal\/proofs\/([a-f0-9-]{36})\/(\d{4}-\d{2}-\d{2})\/photo$/, { GET: 'proofPhoto' }],
   // Apelidos de /api/personal/tasks* por um deploy, para abas abertas com o bundle antigo (etapa 2). Saem na etapa 6.
+  [/^\/api\/workspace\/projects$/, { GET: 'projectsList' }],
   [/^\/api\/workspace\/tasks$/, { GET: 'tasks' }],
   [/^\/api\/workspace\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/city$/, { GET: 'city' }],
@@ -104,10 +109,6 @@ async function reservedAccount(db, key) {
 }
 
 export async function demoApi(request, env, url, user = null, timing = null) {
-  // Projetos ainda não são guardados (etapa 5 do plano): o painel recebe a lista vazia.
-  if (url.pathname === '/api/workspace/projects' && request.method === 'GET') {
-    return json({ projects: [] })
-  }
   // Apelido para abas abertas com o bundle antigo da cidade, que ainda pedem os sinais de atividade do Fifones.
   // A cidade nova não pede mais (etapa 2). Sai na etapa 6.
   if (url.pathname === '/api/workspace/activity' && request.method === 'GET') {
@@ -357,7 +358,7 @@ export class DemoSession {
     const entries = this.list('entry')
     return {
       entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), predios: [...this.buildingActivityIds()],
-      tasks: this.list('task'), ...this.agendaView(), sources,
+      tasks: this.list('task'), projects: this.list('project'), ...this.agendaView(), sources,
     }
   }
 
@@ -657,4 +658,4 @@ export class DemoSession {
   }
 }
 
-Object.assign(DemoSession.prototype, agendaMethods)
+Object.assign(DemoSession.prototype, agendaMethods, projectMethods)
