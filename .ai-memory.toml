@@ -1,0 +1,17 @@
+# Marcador do ai-memory (docs/ai-memory.md). Commitado de propósito: toda cópia e todo worktree do projeto
+# caem no mesmo workspace e projeto, em vez de depender do nome da pasta. Não liga nada sozinho: só vale
+# para quem instalou o ai-memory.
+workspace = "cityou"
+project = "cityou"
+
+[capture]
+# Caminhos que os hooks não capturam. Filtro de MELHOR ESFORÇO (não enxerga comandos de shell nem ferramentas
+# que o ai-memory não conhece): a garantia estrita é o modo `allowlist` do ai-memory. `**/` casa uma ou mais
+# pastas, nunca zero, então cada padrão aparece nas duas formas (na raiz e em subpastas).
+ignore_paths = [
+  ".env", "**/.env", ".env.*", "**/.env.*",
+  ".dev.vars", "**/.dev.vars",
+  "data/**", ".wrangler/**", "**/.wrangler/**",
+  "*.pem", "**/*.pem", "*.key", "**/*.key",
+  "*.sqlite3", "**/*.sqlite3", "*.db", "**/*.db",
+]

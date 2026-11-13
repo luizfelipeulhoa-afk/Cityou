@@ -22,6 +22,14 @@ O gancho `.claude/hooks/session-start.sh` (registrado em `.claude/settings.json`
 - Fim de sessão: skill `reflect` (atualiza `docs/CHECKPOINT.md`, registra tropeços em `docs/known-issues.md` e propõe ajustes de skill com a evidência; só aplica com o OK do responsável).
 - Revisão de contas, produto e lei de 13/11/2026, com o que já foi resolvido: `council/COUNCIL_SINTESE.md`.
 
+## Memória do projeto (ai-memory)
+
+Decisão do dono (13/11/2026): a memória de longo prazo das sessões é o `ai-memory` (binário local com servidor MCP e hooks; wiki em Markdown). Guia, procedência, instalação fixada e privacidade: [docs/ai-memory.md](docs/ai-memory.md). O repositório só traz a configuração (`.ai-memory.toml`) e as regras; **cada pessoa instala o binário**, nada liga sozinho e o gancho de sessão não o instala.
+
+- O wiki automático de cada pessoa fica **fora do repositório** (o diretório de dados guarda um token). O que o time compartilha entra em `docs/memoria/` por PR, revisado: leia a página inteira antes e tire segredo e dado pessoal.
+- Com o ai-memory ligado, tudo o que se digita numa sessão pode virar memória: **nunca** cole segredo, `CITYOU_ADMIN_TOKEN`, `.env`, `.dev.vars` ou dado de conta ou pessoal. Não ligue `embedding_provider` de nuvem, `llm_provider`, `capture_assistant` nem webhooks sem decisão do dono.
+- `docs/CHECKPOINT.md` segue sendo o estado e as decisões oficiais; a memória guarda contexto de longo prazo e o que já falhou. Depois da leitura obrigatória, se o ai-memory estiver ligado, consulte-o sobre o assunto antes de repetir uma investigação.
+
 ## Regra de trabalho: mantenha este arquivo em dia
 
 Vários Claude trabalham neste repositório em branches e sessões diferentes, e este arquivo é o que um novo lê primeiro. Toda mudança que outro Claude precisa saber (arquivo ou módulo novo, comando novo, regra de desempenho, convenção, rota, decisão fechada) entra aqui **no mesmo commit** da mudança, na seção do assunto, em poucas linhas. Antes de começar, leia a versão do `main` e leia o `git log` do que mudou desde o seu branch, para não desfazer o trabalho de outro. Se o assunto já tem guia em `docs/`, aqui vai só o resumo e o caminho do guia.

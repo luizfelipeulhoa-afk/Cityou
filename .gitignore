@@ -22,3 +22,9 @@ test-results/
 .DS_Store
 .wrangler/
 .dev.vars
+
+# ai-memory (docs/ai-memory.md): os dados dele ficam FORA do repositório (guardam um token). Proteção, caso alguém
+# aponte o diretório de dados para dentro do projeto.
+.ai-memory/
+ai-memory-data/
+auth-tokens/
