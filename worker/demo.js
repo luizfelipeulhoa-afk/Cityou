@@ -68,7 +68,7 @@ export async function demoKeyOf(request, env) {
   return sha256Hex(new TextEncoder().encode(previewEnabled(env) ? `test:${token}` : token))
 }
 
-export async function demoApi(request, env, url, user = null) {
+export async function demoApi(request, env, url, user = null, timing = null) {
   if (url.pathname === '/api/workspace/projects' && request.method === 'GET') {
     return json({ connected: false, projects: [] })
   }
@@ -86,7 +86,9 @@ export async function demoApi(request, env, url, user = null) {
   const forwarded = new Request(request)
   if (user) forwarded.headers.set(ACCOUNT_HEADER, user.id)
   else forwarded.headers.delete(ACCOUNT_HEADER)
-  const response = await env.DEMO_SESSIONS.getByName(key).fetch(forwarded)
+  // `do` = ida e volta ao Durable Object (inclui o trabalho dele): separa o servidor do banco no Server-Timing.
+  const call = () => env.DEMO_SESSIONS.getByName(key).fetch(forwarded)
+  const response = timing ? await timing.measure('do', call) : await call()
   return new Response(response.body, response)
 }
 

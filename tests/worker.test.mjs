@@ -55,6 +55,13 @@ test('toda resposta da API sai sem cache e com Server-Timing', async () => {
   assert.match(response.headers.get('Server-Timing'), /^total;dur=\d+(\.\d)?, db;dur=\d+(\.\d)?$/)
 })
 
+test('rota de dados separa o tempo do Durable Object no Server-Timing', async () => {
+  const cookie = sessionCookie(new URL(ORIGIN)).split(';')[0]
+  const response = await call('/api/city', { headers: { Cookie: cookie } })
+  assert.equal(response.status, 200)
+  assert.match(response.headers.get('Server-Timing'), /^total;dur=\d+(\.\d)?, do;dur=\d+(\.\d)?$/)
+})
+
 test('rota desconhecida responde 404 em JSON, no formato lido por ApiError', async () => {
   const response = await call('/api/nao-existe')
   assert.equal(response.status, 404)

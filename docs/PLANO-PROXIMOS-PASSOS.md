@@ -34,10 +34,39 @@ Regras que valem em todas as etapas (do `CLAUDE.md`): o navegador nunca envia XP
 | 4 | **Painel sem iframe.** Saem `openBridge` e `openDocument`; aba Conta; indicador Salvo/Salvando; Biblioteca "Em breve"; Sair só redireciona em sucesso e aparece também na cidade e no mapa; hash preservado no login, com `next` validado contra `APP_PAGES`; miniaturas da ilha (`tools/catalog-previews.mjs` com `?local=ilha-inicial`). | Nenhum `<iframe>` além de mapa e cidade; nenhum "Fifones" em texto visível; 390 px sem rolagem horizontal; `/app#/habitos` volta à mesma aba depois de entrar. |
 | 5 | **Conexões reais.** Agenda, Projetos e Peso, em três commits; `GET /api/personal` traz tudo que o painel precisa (uma leitura por tela); toda escrita devolve o estado novo; teto de registros por conta definido. | Criar, editar e apagar com 1 pedido cada e persistência após recarregar; 422 para campo extra; isolamento entre duas sessões; latência comparada com a base da etapa 1. |
 | 6 | **Segurança e corte do legado.** CSP e cabeçalhos de segurança pelo Worker, primeiro em `Report-Only`; cabeçalho `X-Cityou-Request` aceito junto do antigo e, um deploy depois, só ele; saem os apelidos; `backend/` (FastAPI), pytest e scripts Python apagados; proxy do Vite na porta 8787. | Uma semana sem violação de CSP com GLB e worker carregando; rotas antigas respondem 404; nenhum script do `package.json` chama Python. |
-| 7 | **Luz e ambientação da cidade.** Uma tabela de luz por região (`src/terrain/lighting.js`, com tone mapping incluso) lida pelas cenas; GLB e chão em `MeshLambertMaterial`; sombra de contato barata (um `InstancedMesh`, +1 draw) e shadow map desligado; névoa única; base do prédio na cor do terreno; `enter`/`leave` animados (0,25 s); desenho sob demanda; GLB legados reduzidos a 6 mil triângulos e publicados com hash; vegetação instanciada em volta dos prédios (sem draw a mais). | `shadowMap.enabled === false`; nenhum `MeshStandardMaterial`; no máximo +1 draw; tempo por quadro menor ou igual à base; 0 quadros desenhados com a cena parada; todo GLB da cidade com até 500 KB e 8 mil triângulos; imagens antes e depois em `.verification/`. |
+| 7 | **Luz e ambientação da cidade (dividida em 7a e 7b: ver "Prioridade do dono" abaixo).** Uma tabela de luz por região (`src/terrain/lighting.js`, com tone mapping incluso) lida pelas cenas; GLB e chão em `MeshLambertMaterial`; sombra de contato barata (um `InstancedMesh`, +1 draw) e shadow map desligado; névoa única; base do prédio na cor do terreno; `enter`/`leave` animados (0,25 s); desenho sob demanda; GLB legados reduzidos a 6 mil triângulos e publicados com hash; vegetação instanciada em volta dos prédios (sem draw a mais). | `shadowMap.enabled === false`; nenhum `MeshStandardMaterial`; no máximo +1 draw; tempo por quadro menor ou igual à base; 0 quadros desenhados com a cena parada; todo GLB da cidade com até 500 KB e 8 mil triângulos; imagens antes e depois em `.verification/`. |
 | 8 | **Fita do Tempo e transições.** Desfazer/refazer (abaixo); cortina na cor do céu do destino, pré-busca da próxima página e View Transition como melhoria progressiva; Voltar hierárquico; por último, renome `src/fifones` → `src/city` num PR só de `git mv`. | Testes por tipo de ação (créditos e peças idênticos depois de desfazer); 409 fora da janela ou com revisão diferente; `request_id` repetido não credita duas vezes; nenhum quadro branco entre telas; `perf:world-frame` e o bench da cidade sem piora. |
 
-Ordem: 2 a 6 atendem o pedido principal (sair do Fifones). A 7 vem depois da 3 porque não vale medir nem otimizar luzes e modelos que vão ser apagados. A 8 usa a animação de entrada e saída entregue pela 7.
+Ordem: **1 → 7a → 2 a 6 → 7b → 8.** A 7a sobe na fila por pedido do dono (abaixo). A 7b (o resto da 7) fica depois da 3 porque não vale otimizar GLB que vão ser apagados. A 8 usa a animação de entrada e saída entregue pela 7b.
+
+## Prioridade do dono: prédio e terreno como uma coisa só (etapa 7a)
+
+Pedido (13/11/2026): a base dos prédios 3D precisa ser renderizada melhor, para o prédio e o terreno não parecerem duas coisas diferentes, com mais fluidez visual.
+
+**Por que hoje parecem duas coisas** (lido no código pelo especialista de 3D; o item sobre o chão dos lotes foi em parte resolvido pelo PR 24):
+
+- A cidade não segue os limites do `CLAUDE.md`: usa sombras reais, tone mapping ACES, `MeshStandardMaterial` e uma `PointLight` por prédio ativo. O terreno foi calibrado para "sem sombras e sem tone mapping" (`docs/TERRAIN.md`) e entra numa cena com as duas coisas. É a causa principal.
+- Três materiais sob a mesma luz: terreno em Lambert com cor por vértice; chão e lotes em Standard; GLB em Standard com textura.
+- Cor do céu e da névoa da cidade (`0xd1e4e5`) diferente da paleta do terreno (`#8FD3F4`); sol quente e hemisfério esverdeado tingem tudo.
+- A sombra não cai no terreno e some na borda da grade; não há sombra de contato.
+- A névoa quase não alcança os prédios (começa em 48, termina em 105, câmera a até 73) e pega pesado no morro distante.
+- O prédio fica em altura fixa sobre uma caixa de lote, sem transição de cor com o entorno.
+- Os prédios surgem de uma vez (troca do volume provisório pelo GLB) e o terreno entra sem fade.
+
+**Etapa 7a (logo depois da 1), só o que faz prédio e terreno parecerem um só, sem tocar em rotas nem dados:**
+
+1. Uma tabela de luz por região lida pela cidade, pelo terreno e pelo globo; cor do céu e da névoa vindas da paleta do terreno; **sem** tone mapping na cidade (o terreno foi calibrado sem ele).
+2. GLB e chão em `MeshLambertMaterial` de faces planas, a mesma resposta de luz do terreno; uma pitada de cor do ambiente no GLB para a face em sombra não ficar preta.
+3. Sombra de contato barata (um `InstancedMesh`, +1 draw) e shadow map desligado, junto com a remoção das `PointLight` por prédio.
+4. Base do prédio na cor do terreno, com borda suavizada (disco de assentamento e lote sob o prédio).
+5. Uma névoa só para tudo (prédio distante e morro recebem a mesma).
+6. Prédios que entram com a animação de escala já existente em vez de aparecer de uma vez; terreno entrando com a névoa abrindo.
+
+Pronto quando: imagens antes e depois das mesmas vistas em `.verification/` (Rio e ilha); nenhum `MeshStandardMaterial` na cena da cidade; shadow map desligado; no máximo +1 draw; tempo de CPU por quadro menor ou igual à base da etapa 1, medido com `tools/city-frame-bench.mjs`; GLB de vários tamanhos lado a lado sem diferença de tom no mesmo terreno.
+
+Risco: o visual muda de uma vez (menos contraste, sem sombra projetada). Por isso a comparação por imagem em cada vista e a decisão 3 abaixo.
+
+**Etapa 7b (depois):** desenho sob demanda, GLB legados reduzidos e com hash, vegetação extra em volta dos prédios, escala dos prédios em relação ao relevo, terreno ligado à grade (`getHeightAt`, `seatBuilding`).
 
 ## O que o PR 24 já entregou (e muda a etapa 7)
 
