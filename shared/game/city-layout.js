@@ -123,6 +123,9 @@ const regionalCatalog = {
     building('rio-picole', 'Carrinho de picolé', 1, 1, 1.1, '#f0d27a', 15, null, rioModel('rio-picole')),
     building('rio-sobradinho', 'Sobrado colorido', 2, 2, 2.2, '#ffd166', 30, null, rioModel('rio-sobradinho')),
     building('rio-predio-comercial', 'Prédio comercial', 2, 2, 2.0, '#2e3a59', 55, null, rioModel('rio-predio-comercial')),
+    building('rio-milho', 'Carrinho de milho', 1, 1, 0.9, '#b07a4f', 15, null, rioModel('rio-milho')),
+    building('rio-hospital', 'Hospital', 3, 3, 1.7, '#a6dcff', 75, null, rioModel('rio-hospital')),
+    building('rio-academia-grande', 'Academia grande', 3, 3, 1.5, '#2e3a59', 65, null, rioModel('rio-academia-grande')),
   ],
 }
 
