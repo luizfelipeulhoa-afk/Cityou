@@ -15,7 +15,7 @@ Atualizado a cada etapa concluída e enviado para a branch `claude/blissful-gate
 |---|---|---|
 | 1 Medição de base | Feita, falta só a base da prévia publicada (precisa de URL e cookie) | enviado |
 | 7a Prédio e terreno como uma coisa só | **Feita** (falta só entrada animada e fade do terreno, vão para a 7b). Números em `docs/WORLD-PERF.md` | enviado |
-| 9 Ocupar todo o terreno (rua automática) | **Próxima.** Decisão do dono: rua automática | |
+| 9 Ocupar todo o terreno (rua automática) | **Em andamento, só o servidor, sem teste da regra nova.** Feito: `autoRoadPlan` em `shared/game/city-layout.js` e a construção com rua em `worker/city.js`. Falta: prévia e custo no cliente (`CityWorld.refreshPreview`, `CityApp.vue`), testes novos (lote longe da rua, cobrança exata, tudo ou nada, reenvio com o mesmo `request_id`, caminho bloqueado, mais de 30 trechos), `docs/GAME-DESIGN.md`, `docs/INTERACTIONS.md`, `docs/API.md` | WIP |
 | 2 Tarefas reais, cliente único, cidade sem iframe | pendente | |
 | 3 Catálogo e migração | pendente | |
 | 4 Painel sem iframe | pendente | |
@@ -25,7 +25,7 @@ Atualizado a cada etapa concluída e enviado para a branch `claude/blissful-gate
 | 8 Fita do Tempo e transições | pendente | |
 
 ## Próximo passo
-Etapa 9 (rua automática), descrita em `docs/PLANO-PROXIMOS-PASSOS.md`. Depois a etapa 2 e as seguintes (ordem: 9 → 2 a 6 → 7b → 8).
+Terminar a etapa 9 (rua automática); o dono mandou uma mensagem cortada ("na verdade…"): perguntar a ele antes de seguir. Depois, descrita em `docs/PLANO-PROXIMOS-PASSOS.md`. Depois a etapa 2 e as seguintes (ordem: 9 → 2 a 6 → 7b → 8).
 
 ## Pedidos do dono ainda sem etapa fechada
 - Entrada animada dos prédios e fade do terreno (7b).

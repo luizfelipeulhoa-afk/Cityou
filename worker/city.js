@@ -1,5 +1,5 @@
 import {
-  connectedRoads, getBuilding, getCityCatalog, getCityLayout, hasRoadFrontage, isPilotCity, isScenicCity,
+  autoRoadPlan, connectedRoads, getBuilding, getCityCatalog, getCityLayout, hasRoadFrontage, isPilotCity, isScenicCity,
   placementProblem, previewRoadPath, roadPath, scenicBuildKinds, tileKey,
 } from '../shared/game/city-layout.js'
 import { RULES } from '../shared/game/rules.js'
@@ -91,8 +91,8 @@ export function normalizeAction(input) {
   return action
 }
 
-function validateSite(context, placement) {
-  const issue = placementProblem(context, placement)
+function validateSite(context, placement, options) {
+  const issue = placementProblem(context, placement, options)
   if (issue) throw new HttpError(issue.status, issue.message)
 }
 
@@ -150,10 +150,14 @@ function applyPlacement(city, action, context) {
     const site = auto ? findSite(context, kind, rotation ?? 0) : { x, y }
     const placement = { id: crypto.randomUUID(), kind, x: site.x, y: site.y, rotation: rotation ?? 0, level: 1 }
     if (linked) Object.assign(placement, { activity_id: action.activity_id, nome: context.activity_name })
-    validateSite(context, placement)
-    requireCredits(city, item.cost)
-    city.placements.push(placement)
-    return { amount: -item.cost, label: `Construiu ${placement.nome || item.label}` }
+    validateSite(context, placement, { autoRoad: true })
+    // Lote sem frente para rua: a rua mais curta até a rede entra na mesma ação, cobrada junto, tudo ou nada.
+    const road = autoRoadPlan(context, placement)
+    const total = item.cost + road.cost
+    requireCredits(city, total)
+    city.placements.push(...road.tiles.map(({ x: roadX, y: roadY }) => ({ id: crypto.randomUUID(), kind: 'road', x: roadX, y: roadY, rotation: 0, level: 1 })), placement)
+    const name = placement.nome || item.label
+    return { amount: -total, label: road.tiles.length ? `Construiu ${name} e ${road.tiles.length} trechos de rua` : `Construiu ${name}` }
   }
 
   if (kind !== null || placement_id === null) throw new HttpError(422, 'Escolha uma construção da cidade.')
