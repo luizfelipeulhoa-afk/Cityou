@@ -31,3 +31,7 @@
 .building-tag:hover{color:var(--text)}
 
 .sign-out{display:block;width:100%;text-align:left;font-size:10px;color:#8b90a5;padding:0 4px 18px;margin-top:-8px}.sign-out:hover{color:#ded8fa;text-decoration:underline}.sidebar-compact .sign-out{display:none}.profile-link small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.local-status i.busy{animation:pulse-save 1s ease-in-out infinite}@keyframes pulse-save{50%{opacity:.35}}@media(prefers-reduced-motion:reduce){.local-status i.busy{animation:none}}
+.account-panel{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:24px}.account-panel>div{flex:1;min-width:160px}.account-panel h2{margin:0 0 4px}.account-panel p{margin:0;color:var(--muted);overflow-wrap:anywhere}
+.profile-avatar.large{width:56px;height:56px;font-size:22px;flex:none}a.profile-link{text-decoration:none;color:inherit}
+.gentle-empty.soon{padding:44px 20px}

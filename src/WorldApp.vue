@@ -1,12 +1,15 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { loadWorldProgress, travelTo } from '@/fifones/api.js'
+import { loadAccount, loadWorldProgress, signOut, travelTo } from '@/fifones/api.js'
 import WorldMap from '@/components/WorldMap.vue'
 import { WORLD_SPACES } from '@/world/worldSpaces.js'
 import { applyProgress, completeSpace, currentSpaceId, loadProgress, mergeProgress, saveProgress } from '@/world/progress.js'
 import { createProgressSync, hasLocalBackend } from '@/world/progressSync.js'
 
 const progress = ref(loadProgress())
+const account = ref(null)
+loadAccount().then(user => { account.value = user })
+async function leave() { try { await signOut() } catch (error) { alert(error.message) } }
 const mode = ref('loading')
 const syncStatus = ref('local')
 const availableTrips = ref(0)
@@ -197,6 +200,7 @@ function stateLabel(space) {
           <strong>BuildU</strong>
           <small>Mapa-mundo</small>
           <a class="world-app__back" href="/app#/inicio" target="_top">← Voltar ao Cityou</a>
+          <button v-if="account" class="world-app__back world-app__signout" @click="leave">Sair</button>
         </div>
       </div>
       <div class="world-app__progress" role="img" :aria-label="`${done} de ${spaces.length} espaços concluídos. ${syncLabel}`">
@@ -330,6 +334,7 @@ body {
   text-underline-offset: 3px;
   pointer-events: auto;
 }
+.world-app__signout { background: none; border: 0; padding: 0; font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; }
 .world-app__back:focus-visible { outline: 2px solid #ffd166; outline-offset: 2px; }
 .world-app__logo {
   display: grid;

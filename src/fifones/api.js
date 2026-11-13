@@ -12,10 +12,10 @@ export class ApiError extends Error {
 
 // Abas do painel (`/app#/<aba>`). Lista fechada: destino fora dela não navega.
 export const PANEL_TABS = ['inicio', 'tarefas', 'agenda', 'habitos', 'metas', 'fitness', 'nutricao', 'autoconhecimento',
-  'estudos', 'financas', 'projetos', 'biblioteca', 'memorias', 'cidade', 'mundo']
+  'estudos', 'financas', 'projetos', 'biblioteca', 'memorias', 'conta', 'cidade', 'mundo']
 
 // A janela que navega: dentro do painel (iframe da mesma origem) é a do painel; aberta sozinha, a própria.
-function topWindow() {
+export function topWindow() {
   try {
     if (window.parent !== window && window.parent.location.origin === window.location.origin) return window.parent
   } catch { /* Outra origem: navega só esta janela. */ }
@@ -27,6 +27,31 @@ export function goToPanel(tab) {
   if (!PANEL_TABS.includes(tab)) return false
   topWindow().location.assign(`/app#/${tab}`)
   return true
+}
+
+// Páginas do app que aceitam voltar depois de entrar (a mesma lista de `APP_PAGES` em worker/index.js).
+export const APP_PAGES = ['/app', '/app.html', '/city', '/city.html', '/world', '/world.html']
+
+/** `next` vindo da URL: só página do app; o `#/aba` de onde a pessoa estava é mantido. Qualquer outra coisa vira `/app`. */
+export function safeNext(raw, hash = '') {
+  if (typeof raw !== 'string' || !/^\/(?!\/)[\w\-./?=&%#]*$/.test(raw) || !APP_PAGES.includes(raw.split(/[?#]/)[0])) return '/app'
+  return raw.includes('#') || !/^#[\w\-/]*$/.test(hash) ? raw : raw + hash
+}
+
+/** Sair da conta: só vai para a página inicial se o servidor confirmou; senão lança erro e a pessoa continua dentro. */
+export async function signOut() {
+  let response
+  try {
+    response = await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1' }, body: '{}' })
+  } catch { throw new ApiError('Sem conexão. Você continua dentro da conta.', 0) }
+  if (!response.ok) throw new ApiError('Não foi possível sair agora. Tente de novo.', response.status)
+  topWindow().location.assign('/')
+}
+
+/** Conta da sessão, ou null (demonstração, sem rede). Só a página avulsa mostra o Sair; dentro do painel ele já está lá. */
+export async function loadAccount() {
+  if (window.parent !== window) return null
+  try { return (await (await fetch('/api/auth/status', { headers: { Accept: 'application/json' } })).json()).user || null } catch { return null }
 }
 
 const LOGIN_MESSAGE = 'Entre na sua conta para continuar.'

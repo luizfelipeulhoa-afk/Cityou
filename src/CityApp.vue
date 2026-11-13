@@ -4,7 +4,10 @@ import { previewBuild, previewRoadPath, roadPath, usesAutoRoad } from '../shared
 import { findSpace } from './world/worldSpaces.js'
 import CityWorld from './fifones/CityWorld.js'
 import { progression } from './fifones/progression.js'
-import { PANEL_TABS, cityAction, completeTask, goToPanel, loadCity, loadTasks, syncRewards } from './fifones/api.js'
+import { PANEL_TABS, cityAction, completeTask, goToPanel, loadAccount, loadCity, loadTasks, signOut, syncRewards } from './fifones/api.js'
+const account = ref(null)
+loadAccount().then(user => { account.value = user })
+async function leave() { try { await signOut() } catch (error) { alert(error.message) } }
 
 const paths = {
   city: 'M3 21V9l6-3v15M9 21V3l7 3v15M16 12l5-3v12M1 21h22M12 8h1m-1 4h1m-1 4h1M5 12h1m-1 4h1m13-2h1m-1 3h1',
@@ -512,6 +515,7 @@ onUnmounted(() => {
       </button>
       <div class="city-location"><span class="location-dot" /><span>{{ region?.nome ?? 'Rio de Janeiro' }}</span><span class="location-line" /><span class="city-day">Dia {{ day }}</span></div>
       <div class="topbar-right"><small v-if="state?.test_mode" class="pilot-test-mode" title="Oito regiões abertas e créditos de teste">Prévia de teste</small><a class="city-world-link" :href="region ? `./world.html?de=${encodeURIComponent(region.id)}` : './world.html'">Voltar ao globo</a>
+        <button v-if="account" class="city-sign-out" @click="leave">Sair</button>
         <div class="save-status" role="status"><span :class="{ busy: saving || refreshing }" />{{ saving ? 'Salvando…' : refreshing ? 'Sincronizando…' : state ? 'Salvo no servidor' : 'Conectando…' }}</div>
         <button class="balance" :aria-label="`Saldo: ${coins(state?.credits)} moedas. Ver histórico`" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen"><span class="coin-glyph"><Icon name="coin" :size="18" /></span><strong>{{ coins(state?.credits) }}</strong><span class="balance-label">moedas</span></button>
         <div class="level-badge" :title="`${progress.remaining} ações recompensadas para o próximo nível`"><span>NÍVEL</span><strong>{{ state?.level || 1 }}</strong><span class="level-track" role="progressbar" aria-label="Progresso para o próximo nível" :aria-valuenow="progress.withinLevel" :aria-valuemin="0" :aria-valuemax="10"><i :style="{ transform: `scaleX(${progress.withinLevel / 10})` }" /></span></div>
