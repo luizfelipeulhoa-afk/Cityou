@@ -43,6 +43,9 @@ export default {
   landmarks: [...rio.landmarks, { id: 'morro-do-cristo', name: 'Morro do Cristo', ...peakGeo, radius: 10 }],
   // Chão dos lotes com o verde da mata do mapa, um tom por lote e a variação por face do relevo.
   plateau: { tint: -0.3, contrast: 0.012, facets: 0.8 },
-  // Na cidade a névoa fecha em 105 unidades: a vegetação distante não aparece. O calçadão tem coqueiros próprios.
-  vegetation: { ...rio.vegetation, treeRange: 80, palmRange: 50, decorativePalms: 0 },
+  // A névoa da cidade fecha bem mais perto que a da faixa de Copacabana (13/11/2026, src/terrain/lighting.js:
+  // TERRAIN.fog, 80 unidades): o relevo real além disso nunca aparece, então o orçamento de malha da cidade
+  // cai bem abaixo do da faixa de Copacabana (abaixo), sem mudar o que se vê. A vegetação acompanha a névoa.
+  detail: { maxTriangles: 13000 },
+  vegetation: { ...rio.vegetation, treeRange: 56, palmRange: 36, decorativePalms: 0 },
 }

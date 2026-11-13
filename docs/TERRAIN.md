@@ -6,6 +6,19 @@ Na cidade do Rio (Cristo Redentor), o terreno é o **cenário**: só o que fica 
 
 Desde 13/11/2026, com o terreno carregado:
 
+Desempenho (13/11/2026, continuado): a cidade fecha a névoa bem mais perto (`TERRAIN.fog` em `src/terrain/lighting.js`,
+40 a 80 unidades, era 48 a 105) e a câmera inicial do Rio começa mais perto (`CityWorld.home`, zoom maior; o teto
+do zoom, `controls.maxDistance`, caiu de 73 para 56). Nada disso é visível além da névoa, então o orçamento de
+malha da cidade (`detail.maxTriangles` em `rio-cidade.js`) caiu de 60 mil (o de `rio.js`, usado em `/terrain.html`)
+para 13 mil: o algoritmo de erro já prioriza o que fica perto da grade e dos marcos (`detail.landmark`), então cortar
+o orçamento tira primeiro o relevo distante que a névoa nova já escondia. Vegetação (`treeRange`/`palmRange`) e o
+raio do morro do Cristo (`relief`) acompanham a nova distância. Medido com `node tools/city-frame-bench.mjs` (Worker
+local, CPU 4× mais lenta, rede 4G): de 57.756 para 35.852 triângulos e de 52 para 40 draws na cidade vazia (−38% e
+−23%); com 25 prédios, de 203.487 para 181.583 triângulos (−11%). O tempo até a cidade ficar pronta não mudou
+nesse teste: nele, quem domina é o download dos GLB sob a rede simulada, não o terreno; o download do mapa de
+alturas (170 KB, compartilhado com `/terrain.html`) e passar `createTerrainData` para um worker (já seguia como
+próximo passo) são o que falta para essa parte também cair.
+
 - **Encosta protegida e morro do Cristo:** a encosta feita à mão (`pilotSlope`, com o Cristo grande em cima) só fica na reserva sem terreno. As `slopeTiles` do servidor são `#` na máscara de `rio-cidade.js` (relevo real, sem construção) e a região soma um morro (`relief`) atrás da grade, que continua os morros reais à esquerda. O Cristo vai para o topo dele (`CRISTO_PEAK`) com `CRISTO_SCALE` (0,6) do tamanho do monumento; `loadCityTerrain` devolve essa posição em `landmark`.
 - **Chão dos lotes:** é o platô do próprio terreno, no verde da mata (`plateau.tint` negativo, `contrast` e `facets` em `rio-cidade.js`); o `pilotLand` bege virou reserva. Ao construir, a grade aparece como lotes claros e translúcidos com um vão entre eles (`CityWorld.makeGround`, cidades piloto).
 - **Calçadão de Copacabana:** fica na primeira fileira de água junto à terra (`d` na máscara: plana e não construível), entre a avenida e a areia, com o desenho de ondas em textura (`pilotRio`, `copacabanaTexture`) e coqueiros na areia. Antes ele ocupava a última fileira de lotes construíveis.
