@@ -164,8 +164,11 @@ export default class CityWorld {
   }
 
   makeGround() {
-    const geo = new THREE.BoxGeometry(0.98, 0.035, 0.98)
-    this.tiles = new THREE.InstancedMesh(geo, material(0xffffff), this.gridSize ** 2)
+    // Nas cidades piloto a grade só aparece ao construir: lotes claros e translúcidos, com um vão entre eles,
+    // para o chão (a mata do terreno no Rio) continuar à vista e cada lote ser contável.
+    const geo = this.pilot ? new THREE.BoxGeometry(0.9, 0.02, 0.9) : new THREE.BoxGeometry(0.98, 0.035, 0.98)
+    const tileMaterial = this.pilot ? material(0xffffff, { transparent: true, opacity: 0.42, depthWrite: false }) : material(0xffffff)
+    this.tiles = new THREE.InstancedMesh(geo, tileMaterial, this.gridSize ** 2)
     this.tiles.receiveShadow = true
     this.tiles.name = `${this.gridSize} × ${this.gridSize} buildable lots`
     this.tiles.visible = !this.pilot
@@ -636,6 +639,13 @@ export default class CityWorld {
       }
       this.environment.backdrop = []
       this.environment.group.add(terrain.group)
+      // O Cristo sai da encosta feita à mão e vai, menor, para o topo do morro do terreno.
+      const anchor = this.environment.landmark
+      if (anchor && terrain.landmark) {
+        const { x, y, z, scale } = terrain.landmark
+        anchor.position.set(x, y - 0.05, z)
+        anchor.scale.setScalar(scale)
+      }
       this.refreshShadows()
     } catch {
       // A cidade mantém o cenário feito à mão quando o terreno está indisponível.
@@ -974,7 +984,8 @@ export default class CityWorld {
     this.stopArrival()
     if (this.pilot) {
       const island = this.region.id === 'ilha-inicial'
-      this.controls.target.set(island ? 0 : -1, 0.8, island ? 4 : -4)
+      // No Rio o alvo fica um pouco acima do chão para o Cristo, no morro do fundo, caber abaixo do cabeçalho.
+      this.controls.target.set(island ? 0 : -1, island ? 0.8 : 3.6, island ? 4 : -4)
       this.camera.position.set(island ? 18 : 23, island ? 31 : 29, island ? 42 : 41)
     } else {
       this.controls.target.set(0, 0.8, 0)
