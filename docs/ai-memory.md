@@ -32,12 +32,39 @@ Achados, sem nada grave:
 A decisão original era guardar o wiki em `docs/memoria/`. A leitura do ai-memory mostrou que **isso não é seguro nem prático**:
 - O diretório de dados (`data_dir`, padrão `~/.local/share/ai-memory`) guarda também **o token de autenticação** (`auth-tokens/default`), o banco e os registros brutos. Apontá-lo para dentro do repositório poria um segredo na árvore do projeto.
 - O `wiki/` é **um repositório git próprio** (o ai-memory faz commit nele a cada consolidação). Aninhá-lo no repositório do projeto cria um repositório dentro de outro.
-- O ai-memory compartilha com o time por um **servidor único** (todos apontam para ele) ou por um **remoto git do wiki** (`docs/backup.md` do projeto dele).
+- O ai-memory compartilha com o time por **um servidor único** (todos apontam para ele). O `git remote` do wiki é **backup de um wiki só** (`docs/backup.md` do ai-memory), não sincronização entre pessoas: dois wikis empurrados para o mesmo ramo têm históricos sem relação e o push é recusado.
 
-Por isso o arranjo adotado é:
-1. **A memória automática de cada pessoa fica no diretório de dados dela, fora do repositório.**
-2. **O que o time quer compartilhar** entra em [`docs/memoria/`](memoria/README.md) como Markdown revisado, por PR, copiado do `wiki/` (depois de conferir que não há segredo nem dado pessoal).
-3. **Opcional, para o dono decidir:** um repositório git **privado** só para o wiki (`git remote add origin …` dentro do `wiki/`, como no guia de backup do ai-memory), para sincronizar a memória completa entre computadores. Eu não consigo criar esse repositório daqui.
+Arranjo adotado (13/11/2026): **A + B + C**.
+
+| | O que é | O que faz | O que não faz |
+|---|---|---|---|
+| **A. Caderno individual** | O wiki no diretório de dados de cada pessoa, fora do repositório | Memória automática da pessoa: o contexto volta na sessão seguinte, mesmo em outra IA | Ninguém mais vê |
+| **B. Páginas revisadas** | [`docs/memoria/`](memoria/README.md), por PR | Compartilha com quem vê o repositório o que importa, já revisado | É manual: só entra o que alguém copia e revisa |
+| **C. Repositório privado da memória** | Um repositório privado só para os cadernos, **um ramo por pessoa** | Backup do caderno de cada um; os outros podem **ler** | **Não funde** os cadernos numa busca só |
+| **D. Servidor único** | Um servidor do ai-memory que todos usam | Memória realmente fundida e compartilhada | **Adiado** (decisão do dono): exige um computador ligado e conexão com TLS fora do loopback (`SECURITY.md` do ai-memory) |
+
+### Repositório privado da memória (backup e leitura entre pessoas)
+**O dono cria** (a sessão que escreveu isto só alcança o repositório do projeto): um repositório **privado**, sem README, nome sugerido `CityouApp/cityou-memoria`, com acesso só para quem vai usar. Se o nome for outro, troque a linha do `git remote add`.
+
+Por pessoa, depois de instalar o ai-memory e de ele ter gerado alguma página:
+
+```bash
+data_dir=$(ai-memory status --json | jq -r .data_dir)
+cd "$data_dir/wiki"
+git remote add memoria git@github.com:CityouApp/cityou-memoria.git
+git push memoria HEAD:refs/heads/<seu-nome>          # um ramo por pessoa; repita de tempos em tempos
+
+# ler o caderno de um colega (só leitura)
+git fetch memoria <ramo-do-colega>
+git log FETCH_HEAD --oneline                          # ou: git show FETCH_HEAD:<caminho-da-pagina>
+```
+
+- **Um ramo por pessoa:** é o que evita o push recusado. Nunca empurre para o ramo de outra pessoa.
+- **Só `push` e leitura.** Não rode `merge`, `rebase` nem `force-push` dentro do `wiki/` com o servidor ligado (o ai-memory escreve nele por libgit2 e avisa para não fazer isso).
+- **Olhe o `wiki/` antes do primeiro push.** As páginas guardam o texto ao pé da letra: procure segredo, token, e-mail e dado pessoal ou de usuário. Repositório **privado** não é desculpa para deixar passar.
+- Os registros `log.md` não vão no git do wiki, e é melhor que não vão mesmo (são eventos brutos). O exemplo de backup agendado do ai-memory (`docs/examples/backup/`, com cópia do SQLite) é opcional e pode conter segredos: só use depois de ler.
+- O que um colega escreveu e vale para todos vira página em [`docs/memoria/`](memoria/README.md), por PR e revisada.
+- **Não verificado:** estes comandos vêm da documentação do ai-memory (`docs/backup.md`); o binário não foi executado e nenhum `git push memoria` foi feito. Quem rodar primeiro registre em `docs/known-issues.md` o que tropeçar.
 
 ## Instalar (por pessoa, versão fixada, sem `curl | sh`)
 Pré-requisito: `git`. Leia antes `INSTALL_FOR_AGENTS.md` e `docs/install.md` do ai-memory se quiser.

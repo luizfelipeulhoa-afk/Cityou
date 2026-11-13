@@ -2,6 +2,10 @@
 
 Aqui ficam as páginas da memória do projeto que o time decidiu compartilhar. **Não é o wiki do ai-memory**: o wiki automático de cada pessoa fica no diretório de dados dela, fora do repositório, porque esse diretório também guarda o token de autenticação (motivo e instalação em [`docs/ai-memory.md`](../ai-memory.md)).
 
+## Diferença para o repositório privado da memória
+- **Aqui:** só páginas **revisadas**, visíveis a quem vê o repositório do app.
+- **No repositório privado** (`cityou-memoria`, um ramo por pessoa; roteiro em [`docs/ai-memory.md`](../ai-memory.md)): o caderno **completo e bruto** de cada pessoa, para backup e leitura entre pessoas. Ele **não funde** as memórias.
+
 ## O que entra aqui
 Só texto que ajude a próxima sessão a não repetir trabalho e que **alguém revisou**:
 - abordagens que já falharam, e por quê;
