@@ -6,7 +6,7 @@ Atualizado em 13/11/2026. Para continuar em outra IA ou com outro dev: `node too
 
 - **Objetivo:** entregar a primeira versão utilizável do Cityou, com painel pessoal e cidade 3D ligados aos dados do próprio app, sem depender do Fifones.
 - **O que falta:** integrar tarefas e Missões (etapa 2), migrar o catálogo e preservar as cidades salvas (3), tirar os atalhos e iframes legados do painel (4), ligar Agenda, Projetos e Peso aos dados reais (5) e concluir a segurança e o corte do legado (6). Ainda falta validar contas e latência na prévia e medir em celular físico. A tabela abaixo acompanha também a ambientação e a Fita do Tempo previstas no plano.
-- **Próximo passo:** (1) **conferir a etapa 2 no navegador** (o código entrou na `main` com o PR #34, com 77 testes, 41 do Worker e 59 do `pytest` verdes, mas ninguém abriu a tela): Missões lista tarefas reais do Worker, o menu da cidade abre as abas certas do painel e a sessão vencida leva à entrada sem repetir a requisição; (2) entrar o PR da branch `claude/blissful-gates-qmt20l` (montanha atrás do Cristo e ai-memory); (3) **etapa 3** (catálogo e migração), o maior risco técnico do plano.
+- **Próximo passo:** (1) **conferir a etapa 2 no navegador** (o código entrou na `main` com o PR #34, com 77 testes, 41 do Worker e 59 do `pytest` verdes, mas ninguém abriu a tela): Missões lista tarefas reais do Worker, o menu da cidade abre as abas certas do painel e a sessão vencida leva à entrada sem repetir a requisição; (2) entrar o **PR #35** (montanha atrás do Cristo, ai-memory e `CLAUDE.md` conferido por teste); (3) **etapa 3** (catálogo e migração), o maior risco técnico do plano.
 
 ## Em andamento por branch
 
@@ -14,7 +14,7 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 
 | Branch | O que está fazendo | Desde |
 |---|---|---|
-| `claude/blissful-gates-qmt20l` | Montanha atrás do Cristo (`crop.keep`, névoa e malha), ai-memory (configuração, regras e roteiro do `wikisync`), documentos reconciliados e teste que confere o `CLAUDE.md`; PR a abrir | 13/11/2026 |
+| `claude/blissful-gates-qmt20l` | Montanha atrás do Cristo (`crop.keep`, névoa e malha), ai-memory (configuração, regras e roteiro do `wikisync`), documentos reconciliados e teste que confere o `CLAUDE.md` (PR #35, aberto) | 13/11/2026 |
 
 ## O que já entrou na `main` (PR → etapa)
 | PR | O que entrou | Etapa do plano |
