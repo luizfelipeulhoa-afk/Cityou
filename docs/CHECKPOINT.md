@@ -14,7 +14,7 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 
 | Branch | O que está fazendo | Desde |
 |---|---|---|
-| `claude/etapa-3-catalogo-migracao` | Etapa 3: catálogo sem IA e StuntSync, Sede Cityou, destinos como nome de aba, `migrateCatalog` (reembolso 100% uma vez) | 13/11/2026 |
+| `claude/etapa-4-painel-sem-iframe` | Etapa 4: painel sem iframe do Fifones, aba Conta, Salvo/Salvando…/Sem conexão, "Em breve" (Agenda, Projetos, Fitness, Biblioteca, Estudos), Sair em todas as páginas, `next` do login validado | 13/11/2026 |
 | `claude/blissful-gates-qmt20l` | Montanha atrás do Cristo (`crop.keep`, névoa e malha), ai-memory (configuração, regras e roteiro do `wikisync`), documentos reconciliados e teste que confere o `CLAUDE.md` (PR #35, aberto) | 13/11/2026 |
 
 ## O que já entrou na `main` (PR → etapa)
@@ -68,6 +68,10 @@ No Rio, escolher o lote de um prédio mostra a ligação mais curta à rede e o 
 ### Etapa 2: tarefas reais, cliente único, cidade sem iframe
 **Estado:** código na `main` (PR #34); falta a conferência no navegador.
 `GET /api/personal/tasks` e concluir tarefa (apelidos para `/api/workspace/tasks*` por um deploy); saem `connected` e `source`; um `api()` único com 401 → `/?entrar=1&next=…` (copiar o padrão de `reloadPage` em `CityApp.vue`); `goToPanel(aba)`; saem `openWorkspace`, o diálogo, `setActivity`, a sondagem de 10 s e a atividade do `CityApp.vue`. Pronto quando: Missões lista tarefas, nenhum "8765" ou "offline" em `src/CityApp.vue`, os itens do menu chegam a `/app#/<aba>`.
+
+### Etapa 4: painel sem iframe (feita no código, 13/11/2026)
+
+`src/App.vue` não tem mais `openBridge`, `openDocument` nem iframe do Fifones (só mapa e cidade). Aba `conta` (nome, e-mail, Sair; na demonstração "Criar conta para guardar"); indicador Salvo/Salvando…/Sem conexão; Agenda, Projetos, Fitness, Biblioteca e Estudos mostram "Em breve" até a etapa 5. `signOut()`, `safeNext()` e `loadAccount()` em `src/fifones/api.js`: o Sair só redireciona se o servidor confirmou e aparece também na cidade e no mapa avulsos; a página de entrada devolve para a aba de antes (`/app#/habitos`) e só aceita `next` de página do app. Teste: `tests/session.test.mjs`. **Falta:** conferir no navegador (390 px, voltar à aba depois de entrar) e as miniaturas da ilha (`tools/catalog-previews.mjs` com `?local=ilha-inicial`).
 
 ### Etapa 3: catálogo e migração
 **Feita no código (branch `claude/etapa-3-catalogo-migracao`, PR aberto após a conferência):** `RETIRED_KINDS`/`withoutRetired` em `worker/city.js` (custo só no servidor); `DemoSession.migrateCatalog()` roda no construtor, regrava Ilha e cidades regionais, credita custo + melhorias uma vez (marca `migration:catalog-3`); padrão do objetivo virou `'tasks'`; 5 GLB e 5 PNG apagados; destinos são nome de aba. Testes: `tests/catalog-migration.test.mjs`. `pytest` do backend local: `tests/test_activity.py` removido (só testava as peças aposentadas; `backend/activity.py` virou código morto, sai com o backend na etapa 6) e `test_backend.py` usa um prédio 3 x 2 só de teste no lugar do StuntSync. Falta conferir no navegador.

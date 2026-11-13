@@ -1,6 +1,7 @@
 // Página de apresentação: animações de entrada, demonstração do ciclo do jogo e a janela de entrar / criar conta.
 // Sem framework e sem biblioteca de animação: CSS, IntersectionObserver e um pouco de estado.
 import './landing.css'
+import { safeNext } from '../fifones/api.js'
 
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
 const $ = (selector, root = document) => root.querySelector(selector)
@@ -109,8 +110,8 @@ if (demo) {
 // --- Conta: entrar e criar conta ---
 const dialog = $('[data-auth-dialog]'), form = $('[data-auth-form]')
 const params = new URLSearchParams(location.search)
-// Só caminhos do próprio site: nada de endereço completo vindo da URL.
-const nextPath = (() => { const next = params.get('next') || ''; return /^\/(?!\/)[\w\-./?=&%#]*$/.test(next) ? next : '/app' })()
+// Só páginas do app, com o `#/aba` de antes: nada de endereço completo vindo da URL (`safeNext`).
+const nextPath = safeNext(params.get('next') || '', location.hash)
 const copy = {
   signup: { title: 'Criar conta', lede: 'Leva um minuto. O que você já fez neste navegador vai junto.', submit: 'Criar conta', busy: 'Criando…', switch: 'Já tem conta?', other: 'Entrar' },
   login: { title: 'Entrar', lede: 'Bom ter você de volta. A sua cidade está esperando.', submit: 'Entrar', busy: 'Entrando…', switch: 'Ainda não tem conta?', other: 'Criar conta' },

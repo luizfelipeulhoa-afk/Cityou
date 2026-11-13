@@ -68,6 +68,8 @@ O app nasceu de uma cópia do Fifones e ainda tem botões, rotas e prédios que 
 
 **Etapa 3 feita no código (13/11/2026):** o catálogo não tem mais IA (chatgpt, claude, gemini, grok) nem StuntSync; a sede é "Sede Cityou" e todo `destination` é nome de aba do painel (sem `/#/`). Peças antigas guardadas saem da cidade e são reembolsadas em 100% (custo + melhorias, tabela `RETIRED_KINDS` em `worker/city.js`) uma só vez por `DemoSession.migrateCatalog()` (`worker/demo.js`, marca `migration:catalog-3`, roda no construtor antes de qualquer ação). Objetivo padrão do progresso: `'tasks'`. Teste: `tests/catalog-migration.test.mjs`. Decisão de produto: pacote conservador do PORTAR-KIT (ver `docs/CHECKPOINT.md`).
 
+**Etapa 4 feita no código (13/11/2026):** o painel (`src/App.vue`) não tem iframe do Fifones nem `openBridge`; aba `conta`, indicador Salvo/Salvando…/Sem conexão e "Em breve" onde a etapa 5 ainda vai ligar dados (Agenda, Projetos, Fitness, Biblioteca, Estudos). `signOut`, `safeNext` e `loadAccount` ficam em `src/fifones/api.js`: o Sair só redireciona com a resposta ok do servidor, aparece na cidade e no mapa avulsos, e o login volta à aba de antes (`next` só de `APP_PAGES`). Teste: `tests/session.test.mjs`.
+
 ## Design system
 
 Cores, tipografia, forma, topografia do globo e os prompts de imagem e 3D dos prédios estão em `docs/DESIGN-SYSTEM.md`. Antes de criar uma cor, fonte ou prompt novo, leia esse arquivo; se a cor já existe em `:root` ou em `PALETTE`, use a existente. A mesma versão está no Claude Docs da empresa ("Design system Cityou"): mudanças entram pelos dois lados.
