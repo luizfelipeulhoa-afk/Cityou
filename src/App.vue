@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Icon from './personal/Icon.vue'
 // Cliente único da API (etapa 2): o mesmo `api()` da cidade, que trata o 401 levando a pessoa para entrar.
-import { signOut, addEvent, addProject, addWeight, api, completeTask, editEvent, editProject, editWeight, removeEvent, removeProject, removeWeight, stepDone } from './fifones/api.js'
+import { readCache, signOut, writeCache, addEvent, addProject, addWeight, api, completeTask, editEvent, editProject, editWeight, removeEvent, removeProject, removeWeight, stepDone } from './fifones/api.js'
 import { photoToDataUrl } from './personal/proof.js'
 const sections=[
 {id:'inicio',label:'Seu dia',icon:'home',group:'SEU ESPAÇO',description:'O que importa, sem carregar tudo na cabeça.'},
@@ -105,8 +105,13 @@ async function refresh() {
   refreshing.value = true
   now.value = Date.now()
   error.value = ''
-  const [personal] = await Promise.allSettled([api(`/api/personal?month=${viewMonth()}`)])
+  const path = `/api/personal?month=${viewMonth()}`
+  // Primeira abertura: mostra na hora o último estado guardado neste navegador e confirma com a rede por trás.
+  const cached = loading.value ? readCache(path) : null
+  if (cached) { data.value = cached; tasks.value = cached.tasks || []; projects.value = cached.projects || []; loading.value = false }
+  const [personal] = await Promise.allSettled([api(path)])
   if (personal.status === 'fulfilled') {
+    writeCache(path, personal.value)
     data.value = personal.value
     // Tarefas reais, guardadas na conta ou na demonstração deste navegador (etapa 2), vêm na mesma leitura.
     tasks.value = personal.value.tasks || []
@@ -139,8 +144,8 @@ async function dropEvent(event){if(saving.value)return;if(confirmEvent.value!==e
 function showForm(kind){previousFocus=document.activeElement;modal.value=kind;form.value={title:'',body:'',amount:'',direction:'expense',category:'pessoal',day:today(),due_date:'',target:1,domain:routeDomain[route.value]||'organizacao',place:''};nextTick(()=>document.querySelector('.entry-dialog input')?.focus())}
 function closeForm(){if(saving.value)return;modal.value=null;previousFocus?.focus?.()}
 async function save(){if(saving.value)return;saving.value=true;try{if(modal.value==='task'){await api('/api/personal/tasks','POST',{title:form.value.title,due_date:form.value.due_date||null,domain:form.value.domain,place:form.value.place});notify('Tarefa salva.')}else{const raw=String(form.value.amount).trim().replace(/^R\$\s*/, '').replace(/\s/g,'');const normalized=/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(raw)?raw.replace(/\./g,'').replace(',','.'):/^\d+(?:[,.]\d{1,2})?$/.test(raw)?raw.replace(',','.'):'invalid';const cents=Math.round(Number(normalized)*100);if(modal.value==='transaction'&&(!Number.isFinite(cents)||cents<1))throw Error('Informe um valor válido.');await api('/api/personal/entries','POST',{kind:modal.value,title:form.value.title,body:form.value.body,category:form.value.category,day:form.value.day,direction:form.value.direction,amount_cents:modal.value==='transaction'?cents:0,target:modal.value==='goal'?Number(form.value.target):1,domain:form.value.domain,place:form.value.place});notify('Registro salvo.')}modal.value=null;await refresh();previousFocus?.focus?.()}catch(e){notify(e.message,'error')}finally{saving.value=false}}
-async function toggleHabit(item){if(saving.value)return;saving.value=true;try{const result=await api(`/api/personal/entries/${encodeURIComponent(item.id)}/checkin`,'PUT',{done:!isDone(item.id)});data.value={...data.value,...result};notify(isDone(item.id)?'Passo de hoje registrado.':'Registro de hoje desmarcado.')}catch(e){notify(e.message,'error')}finally{saving.value=false}}
-async function finish(task){if(saving.value)return;saving.value=true;try{await completeTask(task.id);notify('Tarefa concluída. Seu progresso também chega à cidade.');await refresh()}catch(e){notify(e.message,'error')}finally{saving.value=false}}
+async function toggleHabit(item){if(saving.value)return;saving.value=true;const before=data.value,done=!isDone(item.id);data.value={...before,checkins:done?[...before.checkins,{entry_id:item.id,day:today(),done:1}]:before.checkins.filter(i=>!(i.entry_id===item.id&&i.day===today()))};try{const result=await api(`/api/personal/entries/${encodeURIComponent(item.id)}/checkin`,'PUT',{done});data.value={...data.value,...result};notify(isDone(item.id)?'Passo de hoje registrado.':'Registro de hoje desmarcado.')}catch(e){data.value=before;notify(e.message,'error')}finally{saving.value=false}}
+async function finish(task){if(saving.value)return;saving.value=true;const before=tasks.value;tasks.value=before.map(i=>i.id===task.id?{...i,status:'done'}:i);try{await completeTask(task.id);notify('Tarefa concluída. Seu progresso também chega à cidade.');await refresh()}catch(e){tasks.value=before;notify(e.message,'error')}finally{saving.value=false}}
 function showProof(item){previousFocus=document.activeElement;proofDialog.value={item,note:'',file:null,preview:''};nextTick(()=>document.querySelector('.proof-dialog textarea')?.focus())}
 function closeProof(){if(proofSaving.value)return;if(proofDialog.value?.preview)URL.revokeObjectURL(proofDialog.value.preview);proofDialog.value=null;previousFocus?.focus?.()}
 function pickPhoto(event){const file=event.target.files?.[0];if(!file)return;if(proofDialog.value.preview)URL.revokeObjectURL(proofDialog.value.preview);proofDialog.value={...proofDialog.value,file,preview:URL.createObjectURL(file)}}

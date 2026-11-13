@@ -38,6 +38,22 @@ export function safeNext(raw, hash = '') {
   return raw.includes('#') || !/^#[\w\-/]*$/.test(hash) ? raw : raw + hash
 }
 
+// Estado em cache no navegador (atualiza por trás): o app mostra o último estado na hora e confirma com a rede.
+// Cada pedaço guarda só a leitura da própria conta; sai tudo ao sair da conta ou ao entrar (`clearCache`).
+const CACHE_PREFIX = 'cityou:swr:', CACHE_MAX_AGE = 24 * 3600 * 1000
+export function readCache(path) {
+  try {
+    const item = JSON.parse(localStorage.getItem(CACHE_PREFIX + path) || 'null')
+    return item && Date.now() - item.t < CACHE_MAX_AGE ? item.data : null
+  } catch { return null }
+}
+export function writeCache(path, data) {
+  try { localStorage.setItem(CACHE_PREFIX + path, JSON.stringify({ t: Date.now(), data })) } catch { /* Cota cheia ou navegação privada: só perde o atalho. */ }
+}
+export function clearCache() {
+  try { Object.keys(localStorage).filter(key => key.startsWith(CACHE_PREFIX)).forEach(key => localStorage.removeItem(key)) } catch { /* Sem acesso: nada a limpar. */ }
+}
+
 /** Sair da conta: só vai para a página inicial se o servidor confirmou; senão lança erro e a pessoa continua dentro. */
 export async function signOut() {
   let response
@@ -45,6 +61,7 @@ export async function signOut() {
     response = await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1' }, body: '{}' })
   } catch { throw new ApiError('Sem conexão. Você continua dentro da conta.', 0) }
   if (!response.ok) throw new ApiError('Não foi possível sair agora. Tente de novo.', response.status)
+  clearCache()
   topWindow().location.assign('/')
 }
 
@@ -61,6 +78,7 @@ let signedOut = false
 function goToLogin() {
   if (signedOut) return
   signedOut = true
+  clearCache()
   const top = topWindow()
   const next = top.location.pathname + top.location.search + top.location.hash
   top.location.assign(`/?entrar=1&next=${encodeURIComponent(next)}`)
