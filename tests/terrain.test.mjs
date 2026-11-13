@@ -246,25 +246,37 @@ test('rio: a API do terreno responde pela máscara', () => {
 })
 
 // ---------- Cenário da cidade ----------
-import cidade, { CITY_SHIFT } from '../src/terrain/regions/rio-cidade.js'
+import cidade, { CITY_SHIFT, CRISTO_PEAK } from '../src/terrain/regions/rio-cidade.js'
 import { getCityLayout, tileKey } from '../shared/game/city-layout.js'
 
-test('cidade: o terreno de cenário é plano sob toda a terra da grade e não passa do orçamento', () => {
+test('cidade: plano sob os lotes construíveis, relevo na encosta protegida, calçadão plano na orla e o morro do Cristo', () => {
   const layout = getCityLayout('cristo-redentor')
   const scenery = createTerrainData(cidade, heights.data)
   assert.ok(scenery.triangles <= 60000, `${scenery.triangles} triângulos`)
   const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
-  let land = 0
+  const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))
+  let land = 0, promenade = 0
   for (let ty = layout.min; ty <= layout.max; ty++) {
     for (let tx = layout.min; tx <= layout.max; tx++) {
       // Lote da cidade (tx − 8, ty − 8); no terreno, z anda CITY_SHIFT.
       const x = tx - layout.center, z = ty - layout.center - CITY_SHIFT
-      if (water.has(tileKey(tx, ty))) { assert.equal(scenery.lots.kindAt({ x, z }), 'blocked'); continue }
+      const kind = scenery.lots.kindAt({ x, z })
+      if (slope.has(tileKey(tx, ty))) { assert.equal(kind, 'blocked', `encosta (${tx}, ${ty})`); continue }
+      if (water.has(tileKey(tx, ty))) {
+        // A primeira fileira de água junto à terra é o calçadão: plana e só decorativa.
+        const shoreline = !water.has(tileKey(tx, ty - 1))
+        assert.equal(kind, shoreline ? 'decorative' : 'blocked', `água (${tx}, ${ty})`)
+        if (shoreline) { promenade++; assert.equal(scenery.getHeightAt(x, z), 0) }
+        continue
+      }
       land++
-      assert.equal(scenery.lots.kindAt({ x, z }), 'free', `tile (${tx}, ${ty})`)
+      assert.equal(kind, 'free', `tile (${tx}, ${ty})`)
       for (const [dx, dz] of [[0, 0], [-0.5, -0.5], [0.5, 0.5]]) assert.equal(scenery.getHeightAt(x + dx, z + dz), 0)
     }
   }
-  assert.ok(land > 800)
-  assert.equal(scenery.lots.playable.length, land)
+  assert.ok(land > 700)
+  assert.equal(promenade, layout.max - layout.min + 1)
+  assert.equal(scenery.lots.playable.length, land + promenade)
+  // O morro do Cristo fica bem acima do platô.
+  assert.ok(scenery.getHeightAt(CRISTO_PEAK.x, CRISTO_PEAK.z - CITY_SHIFT) > 6)
 })

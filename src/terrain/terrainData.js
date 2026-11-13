@@ -15,7 +15,9 @@ export const PALETTE = {
 const DEFAULTS = {
   // Altura do platô acima do mar e largura da mistura com o relevo, em unidades: `blend` do lado da terra (estreita, para
   // os morros vizinhos não serem achatados) e `shore` do lado da água (mais larga: é a faixa de areia que desce até o mar).
-  plateau: { height: 0.4, blend: 2, shore: 3 },
+  // `tint`: quanto o chão dos lotes livres puxa do verde claro para o creme (negativo: para o verde-escuro, como a mata);
+  // `contrast`: diferença de tom entre lotes vizinhos; `facets`: quanto da variação de tom por face (a do relevo) o platô recebe.
+  plateau: { height: 0.4, blend: 2, shore: 3, tint: 0.3, contrast: 0.008, facets: 0 },
   detail: {
     maxTriangles: 60000,
     tolerance: 0.05, // erro de altura aceito junto à zona jogável, em unidades
@@ -24,7 +26,7 @@ const DEFAULTS = {
     landmark: 0.5, // multiplica a tolerância em volta dos marcos da região
     nearLeg: 2, nearRange: 24, legGrowth: 0.1, maxLeg: 32, // maior cateto permitido: nearLeg perto, crescendo com a distância
   },
-  vegetation: { seed: 7, treeRange: 150, treeDensity: 0.16, palmRange: 70, palmDensity: 0.1 },
+  vegetation: { seed: 7, treeRange: 150, treeDensity: 0.16, palmRange: 70, palmDensity: 0.1, decorativePalms: 0.3 },
   seaMargin: 1200, // quanto o mar continua além da grade de alturas, em unidades
 }
 
@@ -86,6 +88,17 @@ export function createTerrainData(region, values) {
   // ---- Alturas no mundo ----
   const heights = new Float32Array(size * size)
   for (let index = 0; index < heights.length; index++) heights[index] = seaY + values[index] * metersPerValue * unitsPerMeter
+  // Relevo acrescentado pela região (`relief`): morros suaves somados ao mapa real, antes do platô, que os mistura à borda.
+  for (const hill of region.relief ?? []) {
+    for (let j = 0; j < size; j++) {
+      const dz = (originZ + j * spacing - hill.z) / hill.radiusZ
+      if (Math.abs(dz) >= 1) continue
+      for (let i = 0; i < size; i++) {
+        const d = Math.hypot((originX + i * spacing - hill.x) / hill.radiusX, dz)
+        if (d < 1) heights[j * size + i] += hill.height * (1 - d * d) ** 2
+      }
+    }
+  }
 
   // ---- Platô: os cantos dos lotes livres e decorativos ficam em y = 0, e os vizinhos se misturam ao relevo ----
   const isPlateau = new Uint8Array(size * size)
@@ -158,7 +171,7 @@ export function createTerrainData(region, values) {
   const grassBands = [P.grassLight, mix(P.grassLight, P.grassDark, 0.5), P.grassDark]
   const rockBands = [P.rock, mix(P.rock, P.cream, 0.28)]
   const seaBands = [mix(P.sea, P.cream, 0.24), mix(P.sea, P.cream, 0.1), P.sea]
-  const plateauFree = mix(P.grassLight, P.cream, 0.3), plateauDecorative = P.sand
+  const plateauFree = plateau.tint >= 0 ? mix(P.grassLight, P.cream, plateau.tint) : mix(P.grassLight, P.grassDark, -plateau.tint), plateauDecorative = P.sand
   const count = countTriangles(errors, size, threshold)
   const positions = new Float32Array((count + 8) * 9)
   const colors = new Uint8Array((count + 8) * 9)
@@ -196,9 +209,9 @@ export function createTerrainData(region, values) {
     }
     else if (lot !== 'blocked') {
       // Um tom por lote, alternado de leve, deixa a grade visível sem desenhar linhas.
-      const tone = 1 + ((Math.abs(Math.round(middleX) * 13 + Math.round(middleZ) * 7) % 5) - 2) * 0.008
-      paint(lot === 'free' ? plateauFree : plateauDecorative, tone)
-      if (lot === 'decorative' && random() < 0.3) plant(palms, ax, ay, az, bx, by, bz, cx, cy, cz, 0.85 + random() * 0.35)
+      const tone = 1 + ((Math.abs(Math.round(middleX) * 13 + Math.round(middleZ) * 7) % 5) - 2) * plateau.contrast
+      paint(lot === 'free' ? plateauFree : plateauDecorative, tone * (1 + (jitter - 1) * plateau.facets))
+      if (lot === 'decorative' && random() < vegetation.decorativePalms) plant(palms, ax, ay, az, bx, by, bz, cx, cy, cz, 0.85 + random() * 0.35)
       stats.plateau++
     }
     else {
