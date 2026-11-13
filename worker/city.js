@@ -199,7 +199,7 @@ export function applyCityAction(city, action, location, testMode = false, extra 
   if (isScenicCity(location)) {
     // A ilha só aceita o que o catálogo dela oferece: sem ruas, e nada de prédios de atividade.
     if (scenicBuildKinds(location).length === 0) throw new HttpError(422, 'A ilha é só para contemplar. Construa no Rio de Janeiro.')
-    if (action.type === 'road_path') throw new HttpError(422, 'Na ilha não há ruas. Construa o Farol, a Cabana e o Píer.')
+    if (action.type === 'road_path') throw new HttpError(422, 'Na ilha não há ruas. Construa o que está no catálogo da ilha.')
   }
   if (action.expected_revision !== city.revision) throw new HttpError(409, 'A cidade mudou. Atualize e tente novamente.')
   const context = { ...city, location_id: location, unlock_radius: buildRadius(city, location, testMode), activity_name: extra.nome }

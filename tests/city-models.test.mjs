@@ -55,8 +55,8 @@ test('catálogo do Rio: a altura de cada prédio com GLB não encolhe o modelo',
 // A ilha é só cenário (getCityCatalog devolve vazio para ela), então os itens island-* são lidos do arquivo do catálogo.
 const islandModels = JSON.parse(fs.readFileSync('shared/game/city-catalog.json', 'utf8')).filter(item => item.model?.startsWith('/models/island/'))
 
-test('catálogo da ilha: Farol, Cabana e Píer têm GLB dentro do orçamento e com a altura certa', () => {
-  assert.deepEqual(islandModels.map(item => item.id).sort(), ['island-cabin', 'island-lighthouse', 'island-pier'])
+test('catálogo da ilha: prédios e decorações da ilha têm GLB dentro do orçamento e com a altura certa', () => {
+  assert.deepEqual(islandModels.map(item => item.id).sort(), ['island-boat-large', 'island-boat-small', 'island-bonfire', 'island-cabin', 'island-hammock', 'island-lighthouse', 'island-palms', 'island-pier', 'island-statue'])
   for (const item of islandModels) {
     const bytes = fs.readFileSync(path.join(PUBLIC, item.model))
     assert.ok(bytes.length <= MAX_KB * 1024, `${item.id}: ${Math.round(bytes.length / 1024)} KB (máx. ${MAX_KB})`)

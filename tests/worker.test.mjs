@@ -560,7 +560,7 @@ test('ilha: cenário sem rua nem prédio de atividade; só Farol, Cabana e Píer
   const island = await city(session, ISLAND)
   assert.equal(island.scenic, true)
   assert.deepEqual(island.placements, [])
-  assert.deepEqual(island.catalog.map(item => item.id).sort(), ['island-cabin', 'island-lighthouse', 'island-pier'])
+  assert.deepEqual(island.catalog.map(item => item.id).sort(), ['island-boat-large', 'island-boat-small', 'island-bonfire', 'island-cabin', 'island-hammock', 'island-lighthouse', 'island-palms', 'island-pier', 'island-statue'])
   // O que não é da ilha é recusado: prédio comum, prédio de atividade e rua.
   await build(session, ISLAND, 'casa-na-ilha', island.revision, { x: 8, y: 8, status: 422 })
   await build(session, ISLAND, 'dom-na-ilha', island.revision, { kind: 'dom-saude', x: 8, y: 8, status: 422 })

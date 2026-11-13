@@ -182,7 +182,7 @@ test('terreno: todo o mapa é construível desde o começo, até perto das borda
 import { getBuilding, getCityCatalog } from '../shared/game/city-layout.js'
 
 test('catálogo: os prédios island-* do JSON são da Ilha Inicial e não aparecem nas outras cidades', () => {
-  const sizes = { 'island-lighthouse': [3, 3], 'island-cabin': [2, 2], 'island-pier': [3, 3] }
+  const sizes = { 'island-lighthouse': [3, 3], 'island-cabin': [2, 2], 'island-pier': [3, 3], 'island-hammock': [2, 2], 'island-palms': [2, 2], 'island-bonfire': [1, 1], 'island-statue': [2, 2], 'island-boat-small': [2, 2], 'island-boat-large': [3, 3] }
   for (const [id, [width, depth]] of Object.entries(sizes)) {
     const item = getBuilding(id)
     assert.deepEqual([item.width, item.depth, item.model, item.destination], [width, depth, `/models/island/${id}.glb`, null])
@@ -195,6 +195,6 @@ test('catálogo: os prédios island-* do JSON são da Ilha Inicial e não aparec
   for (const location of ['cristo-redentor', 'petra']) {
     assert.equal(getCityCatalog(location).some(item => item.id.startsWith('island-')), false)
   }
-  // A ilha é de cenário (sem ruas nem prédios de atividade), mas oferece só estes três prédios.
-  assert.deepEqual(getCityCatalog('ilha-inicial').map(item => item.id).sort(), ['island-cabin', 'island-lighthouse', 'island-pier'])
+  // A ilha é de cenário (sem ruas nem prédios de atividade), mas oferece só estes prédios e decorações.
+  assert.deepEqual(getCityCatalog('ilha-inicial').map(item => item.id).sort(), ['island-boat-large', 'island-boat-small', 'island-bonfire', 'island-cabin', 'island-hammock', 'island-lighthouse', 'island-palms', 'island-pier', 'island-statue'])
 })

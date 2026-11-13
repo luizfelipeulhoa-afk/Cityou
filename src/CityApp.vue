@@ -558,7 +558,7 @@ onUnmounted(() => {
       <button class="rail-button help-button" :class="{ active: helpOpen }" aria-label="Como jogar" :aria-expanded="helpOpen" @click="helpOpen = !helpOpen"><Icon name="help" :size="21" /><span class="rail-tooltip">Como jogar</span></button>
     </nav>
 
-    <aside v-if="scenic && !loading" class="next-build scenic-note panel" aria-label="Sobre a ilha"><span class="eyebrow">ILHA INICIAL</span><p v-if="islandBuild">Aqui você constrói o Farol, a Cabana e o Píer. Os outros prédios ficam no Rio de Janeiro.</p><p v-else>Aqui é só para contemplar o mar. Suas construções ficam no Rio de Janeiro.</p><a class="goal-action" href="./city.html?local=cristo-redentor"><span>Ir para o Rio de Janeiro</span></a></aside>
+    <aside v-if="scenic && !loading" class="next-build scenic-note panel" aria-label="Sobre a ilha"><span class="eyebrow">ILHA INICIAL</span><p v-if="islandBuild">Aqui você constrói o Farol, a Cabana, o Píer e decorações da ilha. Os outros prédios ficam no Rio de Janeiro.</p><p v-else>Aqui é só para contemplar o mar. Suas construções ficam no Rio de Janeiro.</p><a class="goal-action" href="./city.html?local=cristo-redentor"><span>Ir para o Rio de Janeiro</span></a></aside>
 
     <aside v-if="!scenic && progress.goal && !loading" class="next-build panel" aria-label="Próxima construção">
       <div class="goal-topline"><span class="eyebrow">SUA PRÓXIMA CONSTRUÇÃO</span><span class="goal-ready" v-if="!progress.missing">Pode construir</span><span v-else>{{ Math.round(progress.goalPercent) }}%</span></div>

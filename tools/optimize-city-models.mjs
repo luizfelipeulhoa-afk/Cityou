@@ -86,7 +86,9 @@ export async function optimizeCityModel(input, { tris = 9000, texture = 1024, qu
   const uvs = readAccessor(glb, primitive.attributes.TEXCOORD_0)
   const indices = readAccessor(glb, primitive.indices)
   const material = json.materials?.[0] ?? {}
-  const image = json.images?.[0]
+  // A textura de cor é a do material, não a primeira imagem: alguns GLB trazem também um mapa de normais.
+  const colorTexture = material.pbrMetallicRoughness?.baseColorTexture?.index
+  const image = json.images?.[json.textures?.[colorTexture]?.source ?? 0]
   if (!image || image.bufferView === undefined) throw new Error('o GLB não tem textura embutida')
   const view = json.bufferViews[image.bufferView]
   const source = glb.bin.subarray(view.byteOffset || 0, (view.byteOffset || 0) + view.byteLength)
