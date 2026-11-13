@@ -22,6 +22,10 @@ Vários Claude trabalham neste repositório em branches e sessões diferentes, e
 | `city.html` | `src/city-main.js` → `src/CityApp.vue` | cidade 3D (`src/fifones/CityWorld.js`) |
 | `world.html` | `src/world-main.js` → `src/WorldApp.vue` | mapa-mundo BuildU |
 
+## Design system
+
+Cores, tipografia, forma, topografia do globo e os prompts de imagem e 3D dos prédios estão em `docs/DESIGN-SYSTEM.md`. Antes de criar uma cor, fonte ou prompt novo, leia esse arquivo; se a cor já existe em `:root` ou em `PALETTE`, use a existente. A mesma versão está no Claude Docs da empresa ("Design system Cityou"): mudanças entram pelos dois lados.
+
 ## Mapa-mundo (`src/world/`)
 
 - `WorldGlobe.js`: cena, câmera, controles, shader do globo, nuvens, atmosfera, caminho, raycast, fila de animações.
