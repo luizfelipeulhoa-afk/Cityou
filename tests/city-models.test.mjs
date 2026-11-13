@@ -23,7 +23,7 @@ function boundsOf({ json }) {
 }
 
 test('catálogo do Rio: os prédios com GLB existem e cabem no orçamento', () => {
-  assert.equal(withModel.length, 17)
+  assert.equal(withModel.length, 23)
   for (const item of withModel) {
     const file = path.join(PUBLIC, item.model)
     assert.ok(fs.existsSync(file), `${item.id}: falta ${item.model}`)
