@@ -89,7 +89,7 @@ Nove prédios de exemplo construíveis na cidade do Rio (barraca de feira, casa 
 
 - Os GLB do Tripo chegam com 175 a 190 mil triângulos: reduza com `node tools/optimize-city-models.mjs <entrada> <saida> --tris 6000` (redutor próprio, sem baixar nada, textura em WebP de 1024). Não use `npx --yes` para baixar ferramentas: o ambiente bloqueia.
 - Orçamento travado em `tests/city-models.test.mjs` (`npm test`): até 8 mil triângulos e 500 KB por arquivo, sem Draco nem meshopt (o carregador da cidade não decodifica), `height` do catálogo = altura do modelo a 90% da área.
-- Prompts de novos prédios da cidade (carrinhos de picolé e de milho, academia grande, prefeitura, casas, prédios, hospital): `docs/PROMPTS-CIDADE.md`.
+- Prompts de novos prédios da cidade (carrinhos de picolé e de milho, academia grande, prefeitura, casas, prédios, hospital, 3 árvores típicas do Rio, comunidade do morro, polícia, bombeiro e o Maracanã — este, de propósito, o maior prédio da cidade): `docs/PROMPTS-CIDADE.md`. Nenhum desses últimos seis tem GLB ainda (propostas, sem imagem gerada).
 - Os nove prédios de `docs/PROMPTS-CIDADE.md` já têm GLB (13/11/2026): Prefeitura, Casa térrea, Carrinho de picolé, Sobrado colorido, Prédio comercial, Carrinho de milho, Hospital e Academia grande, todos reduzidos a 6 mil triângulos e no catálogo do Rio (`docs/PREDIOS-RIO.md`, 17 prédios com GLB ao todo).
 - A miniatura do menu vem de `item.preview`; gere com `node tools/catalog-previews.mjs <url-do-worker> rio-`.
 
