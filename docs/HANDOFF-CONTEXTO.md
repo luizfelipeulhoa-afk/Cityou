@@ -1,6 +1,6 @@
 # Contexto para continuar em outro chat
 
-Última atualização: 13/11/2026, depois do PR #33; o PR #34 (etapa 2) está aberto. Para ter o texto pronto para colar, com o estado do git de agora: `node tools/handoff.mjs` (ou `node tools/handoff.mjs --copy`). O texto abaixo da linha é o que a outra IA precisa ler.
+Última atualização: 13/11/2026, depois do PR #34 (etapa 2, já na `main`). Para ter o texto pronto para colar, com o estado do git de agora: `node tools/handoff.mjs` (ou `node tools/handoff.mjs --copy`). O texto abaixo da linha é o que a outra IA precisa ler.
 
 ---
 
@@ -14,10 +14,10 @@ Você vai continuar o trabalho num repositório que já tem várias sessões de 
 
 **Regras que valem sempre (do `CLAUDE.md`).** O navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência. Toda mudança que outro Claude precisa saber entra no `CLAUDE.md` no mesmo commit (e `docs/API.md` / `docs/INTERACTIONS.md` quando mexer em rota ou tela). Meça antes e depois, não estime. Não use `npx --yes` nem atualize three/TresJS. Limites 3D: uma luz direcional + hemisfério, sem sombras, sem mapa de ambiente, modelos opacos, 60 fps em celular médio. Página nova do app entra em `APP_PAGES` e `run_worker_first`.
 
-**Plano (um PR por etapa; ordem 1 ✔ → 7a ✔ → 9 ✔ → 2 (PR #34, aberto) → 3 a 6 → 7b → 8). Detalhe e estado de cada etapa: `docs/CHECKPOINT.md`.**
+**Plano (um PR por etapa; ordem 1 ✔ → 7a ✔ → 9 ✔ → 2 ✔ no código (PR #34; falta conferir no navegador) → 3 a 6 → 7b → 8). Detalhe e estado de cada etapa: `docs/CHECKPOINT.md`.**
 1. Medição de base (feita; falta a base da prévia publicada, ver abaixo).
 7a. Unificar visualmente prédio e terreno: tabela de luz única, sem tone mapping na cidade, GLB e chão em `MeshLambertMaterial`, sombra de contato (+1 draw) com shadow map desligado, remoção das `PointLight` por prédio, base do prédio na cor do terreno, névoa única, entrada animada dos prédios.
-2. Tarefas reais, cliente `api()` único com tratamento de 401, cidade sem iframe (em andamento no PR #34).
+2. Tarefas reais, cliente `api()` único com tratamento de 401, cidade sem iframe (feita no código, PR #34; falta conferir no navegador).
 3. Catálogo: sai IA/StuntSync com migração e reembolso recalculado pelo servidor.
 4. Painel sem iframe (aba Conta, Biblioteca "Em breve", Sair corrigido, miniaturas da ilha).
 5. Agenda, Projetos e Peso reais no Durable Object.
@@ -53,4 +53,4 @@ Medidas locais (Worker local e renderização por software, **não** são de pro
 
 **Ambiente.** `npm ci` já resolve as dependências (`node_modules` não vai para o git). Testes: `npm test`, `npm run test:worker`, `npm run build`. Navegador de teste: `CITYOU_CHROME=/opt/pw-browsers/chromium`.
 
-**Como trabalhar a partir daqui.** Confirme com `git status` e `git log` o que está commitado. Comece pelo "Próximo passo" de `docs/CHECKPOINT.md` (em 13/11/2026, incorporar o PR #34 da etapa 2 e depois a etapa 3) e anote o seu branch em "Em andamento por branch". Em cada etapa: ler `CLAUDE.md`, medir antes e depois, rodar os testes, atualizar `CLAUDE.md` e docs no mesmo commit, e dizer o que não foi verificado.
+**Como trabalhar a partir daqui.** Confirme com `git status` e `git log` o que está commitado. Comece pelo "Próximo passo" de `docs/CHECKPOINT.md` (em 13/11/2026: conferir a etapa 2 no navegador, entrar o PR da montanha e do ai-memory, e então a etapa 3) e anote o seu branch em "Em andamento por branch". Em cada etapa: ler `CLAUDE.md`, medir antes e depois, rodar os testes, atualizar `CLAUDE.md` e docs no mesmo commit, e dizer o que não foi verificado.

@@ -6,7 +6,7 @@ Atualizado em 13/11/2026. Para continuar em outra IA ou com outro dev: `node too
 
 - **Objetivo:** entregar a primeira versão utilizável do Cityou, com painel pessoal e cidade 3D ligados aos dados do próprio app, sem depender do Fifones.
 - **O que falta:** integrar tarefas e Missões (etapa 2), migrar o catálogo e preservar as cidades salvas (3), tirar os atalhos e iframes legados do painel (4), ligar Agenda, Projetos e Peso aos dados reais (5) e concluir a segurança e o corte do legado (6). Ainda falta validar contas e latência na prévia e medir em celular físico. A tabela abaixo acompanha também a ambientação e a Fita do Tempo previstas no plano.
-- **Próximo passo:** incorporar o **PR #34 (etapa 2)**: o conflito com a `main` foi resolvido em `cc478bd` e o PR está limpo (74 testes, 41 do Worker e 59 do `pytest` verdes). Falta revisão e a conferência no navegador: Missões lista tarefas reais do Worker, o menu da cidade abre as abas corretas do painel e a sessão vencida leva à entrada sem repetir a requisição. Depois, a etapa 3 (catálogo e migração).
+- **Próximo passo:** (1) **conferir a etapa 2 no navegador** (o código entrou na `main` com o PR #34, com 77 testes, 41 do Worker e 59 do `pytest` verdes, mas ninguém abriu a tela): Missões lista tarefas reais do Worker, o menu da cidade abre as abas certas do painel e a sessão vencida leva à entrada sem repetir a requisição; (2) entrar o PR da branch `claude/blissful-gates-qmt20l` (montanha atrás do Cristo e ai-memory); (3) **etapa 3** (catálogo e migração), o maior risco técnico do plano.
 
 ## Em andamento por branch
 
@@ -14,7 +14,7 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 
 | Branch | O que está fazendo | Desde |
 |---|---|---|
-| `claude/etapa-2-tarefas-reais` | Etapa 2 (PR #34): conflito com a `main` resolvido, aguardando revisão e teste no navegador | 13/11/2026 |
+| `claude/blissful-gates-qmt20l` | Montanha atrás do Cristo (`crop.keep`, névoa e malha), ai-memory (configuração, regras e roteiro do `wikisync`), documentos reconciliados e teste que confere o `CLAUDE.md`; PR a abrir | 13/11/2026 |
 
 ## O que já entrou na `main` (PR → etapa)
 | PR | O que entrou | Etapa do plano |
@@ -30,9 +30,9 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 | #31 | Morro da comunidade em patamares, calçadão como decoração, ondas mais realistas | fora do plano |
 | #32 | Contas, isolamento do Durable Object, migrações do D1, benchmarks, Vite 6.4 | 6 (parte) |
 | #33 | Leitura obrigatória, gancho de sessão, `AGENTS.md`, agentes `builder` e `reviewer`, skill `reflect`, revisão em `council/` | organização |
-| #34 (aberto) | Etapa 2: tarefas reais, cliente único, cidade sem iframe | 2 |
+| #34 | Etapa 2: tarefas reais, cliente único, cidade sem iframe (entrou na `main` em 13/11/2026) | 2 |
 
-Testes (13/11/2026): `main` depois do #33: `npm test` 74, `npm run test:worker` 36, build ok. PR #34 depois de juntar a `main`: `npm test` 74, Worker 41, `pytest` 59, build ok. Não rodados: testes de navegador (`test:terrain`, `test:world`) e a conferência da etapa 2 no navegador.
+Testes (13/11/2026): `main` depois do #33: `npm test` 74, `npm run test:worker` 36, build ok. Esta branch depois de juntar o #34: `npm test` 77, Worker 41, `pytest` 59, build ok. Não rodados: testes de navegador (`test:terrain`, `test:world`) depois da junção e a conferência da etapa 2 no navegador.
 
 ## Decisões do dono (13/11/2026): todas aprovadas
 1. Reembolso de 100% das peças de IA e StuntSync retiradas (recalculado pelo servidor, uma vez).
@@ -49,7 +49,7 @@ Testes (13/11/2026): `main` depois do #33: `npm test` 74, `npm run test:worker` 
 | 1 Medição de base | Feita. Falta a base da prévia publicada |
 | 7a Prédio e terreno como uma coisa só | Feita. Entrada animada e fade do terreno foram para a 7b |
 | 9 Rua automática (ocupar todo o terreno) | Implementada: prévia, confirmação, cobrança única e testes |
-| 2 Tarefas reais, cliente único, cidade sem iframe | Em andamento no PR #34 (conflito resolvido, aguarda revisão e teste no navegador) |
+| 2 Tarefas reais, cliente único, cidade sem iframe | Feita no código (PR #34, na `main`). Falta conferir no navegador: Missões, menu da cidade e sessão vencida |
 | 3 Catálogo e migração | Não começada |
 | 4 Painel sem iframe | Não começada |
 | 5 Agenda, Projetos e Peso reais | Não começada |
@@ -64,7 +64,7 @@ Testes (13/11/2026): `main` depois do #33: `npm test` 74, `npm run test:worker` 
 No Rio, escolher o lote de um prédio mostra a ligação mais curta à rede e o custo total. Confirmar grava o prédio e até 30 trechos de rua na mesma ação. Testes cobrem saldo insuficiente, áreas protegidas, caminho bloqueado e reenvio sem cobrança dupla. O teste de navegador é `node tools/auto-road-playtest.mjs <url-do-worker-em-modo-teste>`. A próxima etapa do plano é a 2.
 
 ### Etapa 2: tarefas reais, cliente único, cidade sem iframe
-**Estado:** em andamento no PR #34 (branch `claude/etapa-2-tarefas-reais`).
+**Estado:** código na `main` (PR #34); falta a conferência no navegador.
 `GET /api/personal/tasks` e concluir tarefa (apelidos para `/api/workspace/tasks*` por um deploy); saem `connected` e `source`; um `api()` único com 401 → `/?entrar=1&next=…` (copiar o padrão de `reloadPage` em `CityApp.vue`); `goToPanel(aba)`; saem `openWorkspace`, o diálogo, `setActivity`, a sondagem de 10 s e a atividade do `CityApp.vue`. Pronto quando: Missões lista tarefas, nenhum "8765" ou "offline" em `src/CityApp.vue`, os itens do menu chegam a `/app#/<aba>`.
 
 ### Etapa 3: catálogo e migração
