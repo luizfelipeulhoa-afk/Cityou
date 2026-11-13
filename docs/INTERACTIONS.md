@@ -12,7 +12,7 @@ Coluna "Hoje": o que o botão faz no código atual (`src/App.vue`). "Fifones" qu
 4. **Uma ação principal por tela.** "Novo registro", no topo, cria o item da tela atual. É o comportamento que `showForm` já tem.
 5. **Só o título é obrigatório.** A data vem com hoje. Campos opcionais ficam recolhidos em "Mais detalhes".
 6. **Estado vazio ensina.** Lista vazia mostra uma frase e o botão da primeira ação.
-7. **Erro diz o que fazer.** Campo inválido: mensagem junto do campo. Sem conexão: "Sem conexão. Tentaremos de novo." e o item fica marcado como pendente. Sessão expirada: volta ao login e preserva o que estava sendo digitado.
+7. **Erro diz o que fazer.** Campo inválido: mensagem junto do campo. Sem conexão: "Sem conexão. Tentaremos de novo." e o item fica marcado como pendente. Sessão expirada: volta ao login e preserva o que estava sendo digitado. Desde a etapa 2, o cliente único (`api()` em `src/fifones/api.js`) leva a pessoa a `/?entrar=1&next=…` no primeiro 401 e não manda mais nenhum pedido.
 8. **Progresso visível.** Nível, barra de XP e créditos ficam no topo de todas as telas e animam quando mudam. Clicar abre o extrato. Subida de nível, etapa de prédio e melhoria disponível aparecem num aviso curto, sem interromper o que a pessoa está fazendo.
 9. **Sem culpa.** Nada some, zera ou fica vermelho por falta de uso. Revisão da fase B6 com as skills `gamificacao-saude-etica` e `behavior-design-etico`.
 
@@ -91,8 +91,8 @@ Ação principal: "Anotar" (tirar algo da cabeça).
 |---|---|---|---|---|
 | Anotar | Cria nota | `POST /api/notes` | `notes` | Aviso "Guardado."; nota em Memórias |
 | Microfone (conversa por voz) | Fifones | | | **Sai** |
-| Círculo da tarefa | Conclui no Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | Tarefa sai da lista; XP e créditos sobem no topo; "Desfazer" |
-| Criar uma tarefa | Cria no Fifones | `POST /api/tasks` | `tasks` | Tarefa na lista |
+| Círculo da tarefa | Conclui a tarefa real (`POST /api/personal/tasks/{id}/complete`, etapa 2) | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | Tarefa sai da lista; XP e créditos sobem no topo; "Desfazer" |
+| Criar uma tarefa | Cria a tarefa real (`POST /api/personal/tasks`) | `POST /api/tasks` | `tasks` | Tarefa na lista |
 | Adicionar compromisso | Fifones | `POST /api/events` | `events` | Compromisso em "Na sua agenda" |
 | Ver tarefas, seta da agenda, cartões de área, "Registrar meu momento" | Navegação | | | Igual |
 
@@ -104,8 +104,8 @@ Ação principal: "Nova tarefa".
 
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
-| Nova tarefa | Cria no Fifones | `POST /api/tasks` | `tasks` | Linha no topo de "A fazer" |
-| Círculo | Conclui no Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | Vai para "Concluídas"; XP e créditos sobem; "Desfazer" |
+| Nova tarefa | Cria a tarefa real (`POST /api/personal/tasks`) | `POST /api/tasks` | `tasks` | Linha no topo de "A fazer" |
+| Círculo | Conclui a tarefa real (`POST /api/personal/tasks/{id}/complete`, etapa 2) | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | Vai para "Concluídas"; XP e créditos sobem; "Desfazer" |
 | Círculo de tarefa concluída | Desligado | `POST /api/tasks/{id}/reopen` | `tasks` | Volta para "A fazer"; os créditos ficam |
 | Linha da tarefa | Nada | `PATCH /api/tasks/{id}` | `tasks` | Formulário de edição (título, descrição, prazo, prioridade, projeto) |
 | Apagar (no formulário) | Não existe | `DELETE /api/tasks/{id}` | `tasks` | Some da lista; "Desfazer" chama `POST /api/tasks/{id}/restore` |
@@ -238,14 +238,16 @@ Uma cidade por local liberado. Sem `local`, abre a cidade do local atual. As reg
 |---|---|---|---|---|
 | Construir, mover, girar, remover | `POST /api/city/actions` | `POST /api/cities/{local}/actions` | `placements`, `player`, `ledger`, `requests` | A construção aparece; os créditos mudam |
 | Melhorar (níveis 1 a 3 por créditos) | `POST /api/city/actions` | | | **Sai**: o prédio de domínio avança de etapa pelo uso real |
-| Tocar num prédio de domínio | Abre o Fifones | `GET /api/buildings/{id}` | leitura | Painel do interior: etapa, salas, espaços vazios e o que falta para a próxima melhoria |
+| Menu lateral (Tarefas, Agenda, Projetos, Biblioteca, Fitness) | Abre a aba do painel com `goToPanel(aba)` (`/app#/<aba>`), na cidade avulsa ou embutida; "Conexões" saiu (etapa 2) | navegação | | Igual |
+| Entrar neste espaço (prédio com destino) | Abre a aba do painel ligada ao destino (etapa 2); prédio sem aba (os de IA) só avisa | navegação | | O destino vira nome de aba na etapa 3 |
+| Tocar num prédio de domínio | Painel da construção (etapa, dias com prática) | `GET /api/buildings/{id}` | leitura | Painel do interior: etapa, salas, espaços vazios e o que falta para a próxima melhoria |
 | Escolher melhoria (no interior) | Não existe | `POST /api/buildings/{id}/upgrades` | `building_upgrades`, `upgrade_points` | A sala ou o equipamento aparece, com a data e a conquista que o liberou |
 | Saldo → extrato | `history` | `GET /api/ledger` | leitura | Créditos e XP, com o bônus aplicado em cada linha |
-| Missões: concluir tarefa | Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | +10 XP e +10 créditos, mais o bônus |
+| Missões: concluir tarefa | Conclui a tarefa real (`POST /api/personal/tasks/{id}/complete`, etapa 2); a lista aparece sempre, com "Ver tarefas" | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | +10 XP e +10 créditos, mais o bônus |
 | Atualizar tarefas e recompensas | `POST /api/rewards/sync` | `GET /api/cities/{local}` | leitura | Só recarrega: a recompensa já foi gravada na ação |
-| Voltar ao globo | Não existe | navegação | | Abre `world.html` |
+| Voltar ao globo | Navegação | navegação | | Abre `world.html` |
 | Catálogo, filtros, luz do dia, entardecer, girar câmera, vista inicial, ajuda | Local | | | Igual |
-| Indicador de escritórios ativos; prédios de IA | Atividade do Fifones | | | **Saem** |
+| Indicador de escritórios ativos; prédios de IA | O indicador saiu na etapa 2; os prédios de IA saem na etapa 3 | | | **Saem** |
 
 Ao posicionar uma construção:
 
@@ -281,4 +283,4 @@ Sem sessão ou sem rede, o globo abre com o último estado conhecido e os botõe
 
 ## Botões que saem
 
-Todos dependiam do Fifones: "Falar sobre isso", microfone de voz, "Conversar", "Abrir professor", "Continuar avaliação", "Continuar entrevista sobre alimentação", "Minhas planilhas", "Memórias e Obsidian", "Abrir agenda completa", o diálogo do Fifones e o indicador de escritórios ativos. Voltam se e quando o Cityou tiver essas funções.
+Todos dependiam do Fifones: "Falar sobre isso", microfone de voz, "Conversar", "Abrir professor", "Continuar avaliação", "Continuar entrevista sobre alimentação", "Minhas planilhas", "Memórias e Obsidian", "Abrir agenda completa", o diálogo do Fifones e o indicador de escritórios ativos (na cidade, o diálogo e o indicador saíram na etapa 2). Voltam se e quando o Cityou tiver essas funções.
