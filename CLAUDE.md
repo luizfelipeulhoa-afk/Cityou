@@ -27,6 +27,10 @@ Vários Claude trabalham neste repositório em branches e sessões diferentes, e
 
 A página de apresentação e a de teste do terreno são construídas à parte (`vite.landing.config.js`, `vite.terrain.config.js`). Não as ponha nas entradas do `vite.config.js`: isso redistribui os pacotes compartilhados e cada página de produção passa a pedir de 1 a 3 arquivos a mais (medido).
 
+## Plano em andamento: sair do Fifones
+
+O app nasceu de uma cópia do Fifones e ainda tem botões, rotas e prédios que dependem dele (iframe para a porta 8765, `connected:false`, prédios de IA). Decisão do dono (13/11/2026): tirar toda ligação com o Fifones e ligar as telas a dados reais do Worker. O plano, em 8 etapas com critério de pronto, o destino de cada tela, a Fita do Tempo (desfazer/refazer) e a ambientação do 3D estão em `docs/PLANO-PROXIMOS-PASSOS.md`. Leia antes de mexer em `src/App.vue`, `src/CityApp.vue`, `worker/demo.js` ou no catálogo. Não crie botão novo que abra o Fifones.
+
 ## Design system
 
 Cores, tipografia, forma, topografia do globo e os prompts de imagem e 3D dos prédios estão em `docs/DESIGN-SYSTEM.md`. Antes de criar uma cor, fonte ou prompt novo, leia esse arquivo; se a cor já existe em `:root` ou em `PALETTE`, use a existente. A mesma versão está no Claude Docs da empresa ("Design system Cityou"): mudanças entram pelos dois lados.
@@ -55,12 +59,13 @@ Decisão fechada: o 3D migra para **TresJS** (`@tresjs/core`), não para React T
 
 - Estado: fase 0. As páginas de produção ainda são imperativas e não importam o TresJS. Existem a base (`glbMaterial.js`, `glbLoader.js`, `useGlb.js`, `GlbModel.vue`, `SpaceMarkerNode.vue`) e o laboratório `/tres-lab.html`, só no `npm run dev` (`TresLab.vue`; fora das entradas do build).
 - Regra visual de todo GLB, em `src/tres/glbMaterial.js` (`applyGlbStyle`): `flatShading = true`, `needsUpdate = true`, `metalness = 0`, `roughness = 1`, sem os mapas de metal e rugosidade. Já vale nas três cargas de hoje (`SpaceMarker.loadModel`, `CityWorld.loadLandmark`, `CityWorld.loadModel`). Carga nova de GLB passa por ela (`loadGlb`, `useGlb` ou `GlbModel`).
+- **Cidade, prédio e terreno como uma coisa só (13/11/2026):** `CityWorld` lê luz, céu, névoa e tone mapping da tabela por região `src/terrain/lighting.js` (o Rio usa a luz com que o terreno foi calibrado, sem tone mapping; ilha e cidades antigas mantêm o cenário à mão). Os GLB da cidade são convertidos para `MeshLambertMaterial` (`src/tres/lambert.js`) e a base bege que o Tripo gera no pé do prédio recebe um degradê até a cor do chão (`src/tres/groundBlend.js`, só onde há terreno). **A cidade não tem shadow map nem `PointLight`:** a sombra é de contato, um quad por prédio num `InstancedMesh` (`makeContactShadows`, +1 draw). `material()` de `sceneEnvironment.js` devolve Lambert, salvo vidro, água e mar (rugosidade abaixo de 0,6), que seguem Standard. `SpaceMarker.js` ainda tem a própria `toLambert` (o globo clona; unificar na etapa 7b). Fotos antes/depois: `node tools/city-look.mjs <url> --label x` (imagens em `.verification/`, e lista materiais, luzes e sombras da cena).
 - `vite.config.js` usa as opções de template do TresJS: tags `Tres*` e `primitive` são elementos da cena. Não crie componente Vue com nome começando em `Tres`.
 - Objeto do three em `shallowRef` ou `markRaw`, nunca em `ref`; nada reativo por quadro (use `useLoop`); `<primitive>` não libera nada, quem cria libera.
 - A API do TresJS 5 difere de exemplos antigos: confira em `node_modules/@tresjs/core/dist/*.d.ts`.
 - `invalidate()` aceita um número de quadros. Como ouvinte direto de um evento (`controls.addEventListener('change', invalidate)`) ele recebe o evento, o contador vira `NaN` e a cena para de redesenhar: use `() => invalidate()`.
 
-Limites de desempenho: uma luz direcional + hemisfério, sem sombras e sem mapa de ambiente, modelos opacos, globo em um draw call, alvo de 60 fps em celular médio. Meça antes e depois, não estime: `npm run perf:world` (abertura) e `npm run perf:world-frame` (custo por quadro), alternando as duas versões.
+Limites de desempenho: uma luz direcional + hemisfério, sem sombras e sem mapa de ambiente, modelos opacos, globo em um draw call, alvo de 60 fps em celular médio. Meça antes e depois, não estime: `npm run perf:world` (abertura), `npm run perf:world-frame` (custo por quadro do mapa) e `npm run perf:city` (cidade: abertura, GLB, CPU de render, draws; precisa do Worker local em modo de teste, comandos e base em `docs/WORLD-PERF.md`), alternando as duas versões.
 
 ## Terreno de cenário (`src/terrain/`)
 
@@ -106,7 +111,7 @@ O FastAPI acima é local e sem usuário. O destino é um Worker do Cloudflare co
 - `docs/INTERACTIONS.md`: cada tela, botão e atalho, com a rota e a tabela que toca.
 - `docs/API.md`: contrato das rotas, o destino de cada rota atual e as metas de velocidade.
 
-Código: `worker/` (entrada em `worker/index.js`, uma rota por arquivo em `worker/routes/`), esquema em `migrations/*.sql`. `npm run test:worker` roda os testes contra um D1 local (`wrangler.test.jsonc`). `npm run dev:worker` sobe site e API na porta 8787; para o Vite usar essa API, `CITYOU_API=http://127.0.0.1:8787 npm run dev`. `npm run perf:api -- <url>` mede a latência. Em produção já existe uma **demonstração com persistência**, sem login: cada visitante recebe um cookie (`cityou_demo`) e seus registros ficam num Durable Object com SQLite (`worker/demo.js`, binding `DEMO_SESSIONS`), com validação da cidade em `worker/city.js` e catálogo em `shared/game/city-catalog.json`. Os dados expiram em 30 dias. Ela atende as rotas de hoje (`/api/personal`, `/api/city`, `/api/world/*`); o login e o banco em São Paulo descritos nos documentos são o passo seguinte.
+Código: `worker/` (entrada em `worker/index.js`, uma rota por arquivo em `worker/routes/`), esquema em `migrations/*.sql`. `npm run test:worker` roda os testes contra um D1 local (`wrangler.test.jsonc`). `npm run dev:worker` sobe site e API na porta 8787; para o Vite usar essa API, `CITYOU_API=http://127.0.0.1:8787 npm run dev`. `npm run perf:api -- <url>` mede a latência (`--suite` mede personal, city e uma escrita de cidade; o `Server-Timing` traz `do`, o tempo do Durable Object). Em produção já existe uma **demonstração com persistência**, sem login: cada visitante recebe um cookie (`cityou_demo`) e seus registros ficam num Durable Object com SQLite (`worker/demo.js`, binding `DEMO_SESSIONS`), com validação da cidade em `worker/city.js` e catálogo em `shared/game/city-catalog.json`. Os dados expiram em 30 dias. Ela atende as rotas de hoje (`/api/personal`, `/api/city`, `/api/world/*`); o login e o banco em São Paulo descritos nos documentos são o passo seguinte.
 
 Painel de progresso (créditos, nível, bônus): `docs/DASHBOARD.md`; o contrato `resumo` está em `shared/game/summary.js`. Comprovação das atividades: `shared/game/proof.js` e a seção "Comprovação" de `docs/GAME-DESIGN.md`. Viagens de produção ficam fechadas por `TRAVEL_OPEN=false` em `wrangler.jsonc`. A prévia tem acesso aos oito destinos e carteira de teste isolada.
 
@@ -126,14 +131,15 @@ Procedência e revisão em `.claude/skills/SOURCES.md`. Use por assunto:
 
 - Animação: `gsap-core`, `gsap-timeline`, `gsap-performance`, `gsap-frameworks`, `gsap-plugins`, `gsap-utils`, `gsap-scrolltrigger`, `animation-performance`, `emil-design-eng`.
 - Visual e UI: `frontend-design` (direção estética), `impeccable` (crítica e polimento), `ui-ux-pro-max` (regras de UX e checklist), `design-system` (tokens e componentes), `ui-styling` (Tailwind/shadcn, só como referência: o app usa Vue), `design` (logo, ícones e identidade).
-- 3D: `threejs-performance`, `threejs-shaders`, `threejs-loaders`, `threejs-asset-pipeline`, `threejs-interaction`, `threejs-geometry`, `threejs-game-ui-designer`, `threejs-debug-profiler`, `threejs-qa-release`.
+- 3D: `threejs-performance`, `threejs-shaders`, `threejs-loaders`, `threejs-asset-pipeline`, `threejs-interaction`, `threejs-geometry`, `threejs-game-ui-designer`, `threejs-debug-profiler`, `threejs-qa-release`, `threejs-lighting`, `threejs-materials`, `threejs-textures`, `threejs-postprocessing`.
 - Mecânicas de jogo em Three.js: `threejs-gameplay-systems`. Usabilidade e formulários: `ux-heuristics`, `form-design`.
 - Vue: `vue-best-practices`.
 - Web: `performance`, `core-web-vitals`, `accessibility`, `web-quality-audit`, `web-perf`.
 - Backend: `fastapi`, `async-python-patterns`, `api-design-principles`.
 - Deploy (Cloudflare Workers, `wrangler.jsonc`): `workers-best-practices`, `wrangler`. E-mail (recuperação de senha): `cloudflare-email-service`. Alternativa ao D1 para latência: `durable-objects`.
 - Prompts para outras ferramentas de IA (Tripo, por exemplo): `prompt-master`.
-- Procurar skills novas: `find-skills` (usa `npx skills find`, que precisa de acesso a `skills.sh`).
+- Procurar skills novas: `find-skills` (usa `npx skills find`, que precisa de acesso a `skills.sh`; na sessão de nuvem o proxy bloqueia e a busca volta vazia: use a pesquisa do GitHub e `git clone`).
+- Segurança (sessão, cabeçalhos, CSP): `owasp-security`. Decisão de risco ou revisão de plano e PR por um conselho de conselheiros: `council-review` (11 a 14 subagentes por rodada).
 
 As skills de design da nextlevelbuilder vieram só com os `.md`: os scripts de busca e os CSVs citados nelas não estão no repositório, então use-as como referência. A `design` cita chaves de API externas: não configure nenhuma sem pedido.
 

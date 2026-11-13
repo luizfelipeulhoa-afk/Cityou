@@ -34,7 +34,7 @@ async function handleApi(request, env, ctx, url, timing) {
     const user = await sessionUser(request, env)
     // Com as contas ativas e REQUIRE_LOGIN ligado, não há mais demonstração sem conta: toda rota de dados pede sessão.
     if (!user && loginRequired(env)) throw new HttpError(401, 'Entre na sua conta para continuar.')
-    return demoApi(request, env, url, user)
+    return demoApi(request, env, url, user, timing)
   }
   const route = matches.find(([method]) => method === request.method)
   if (!route) throw new HttpError(405, 'Método não permitido.')
