@@ -251,8 +251,10 @@ import { getCityLayout, tileKey } from '../shared/game/city-layout.js'
 
 test('cidade: plano sob os lotes construíveis, relevo na encosta protegida, calçadão plano na orla e o morro do Cristo', () => {
   const layout = getCityLayout('cristo-redentor')
+  const originalHeights = heights.data.slice()
   const scenery = createTerrainData(cidade, heights.data)
-  assert.ok(scenery.triangles <= 60000, `${scenery.triangles} triângulos`)
+  assert.deepEqual(heights.data, originalHeights, 'o recorte não altera o mapa de alturas de origem')
+  assert.ok(scenery.triangles <= cidade.detail.maxTriangles, `${scenery.triangles} triângulos`)
   const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
   const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))
   let land = 0, beach = 0

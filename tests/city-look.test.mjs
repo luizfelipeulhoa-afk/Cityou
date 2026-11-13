@@ -6,6 +6,17 @@ import { HAND_MADE, LIGHTING, TERRAIN, lightingFor } from '../src/terrain/lighti
 import { PALETTE } from '../src/terrain/terrainData.js'
 import { toLambert, toLambertScene } from '../src/tres/lambert.js'
 import { applyGroundBlend, applyGroundBlendTo } from '../src/tres/groundBlend.js'
+import { buildRioFallback } from '../src/fifones/sceneEnvironment.js'
+import { getCityLayout } from '../shared/game/city-layout.js'
+
+test('reserva do Rio: recria a baía junto com o cenário de terra', () => {
+  const group = new THREE.Group()
+  const backdrop = buildRioFallback(group, getCityLayout('cristo-redentor'))
+  const bay = backdrop.find(object => object.name === 'Baía')
+  assert.ok(bay?.isMesh)
+  assert.equal(bay.parent, group)
+  assert.ok(backdrop.length > 1)
+})
 
 test('luz: o Rio usa a luz do terreno, o céu da paleta e nenhum tone mapping', () => {
   assert.equal(lightingFor('cristo-redentor'), TERRAIN)

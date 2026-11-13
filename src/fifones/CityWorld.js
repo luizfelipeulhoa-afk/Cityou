@@ -150,13 +150,10 @@ export default class CityWorld {
     this.sun.position.set(...sun.direction).setLength(26)
     this.scene.add(this.ambient, this.sun)
     this.environment = createEnvironment(this.scene, callbacks.region)
-    if (this.environment.landmark && !this.pilot) void this.loadLandmark(this.region)
+    if (this.environment.landmark) void this.loadLandmark(this.region)
     // No Rio o terreno real e o Cristo começam a carregar já na construção da cidade (13/11/2026), sem esperar o
     // estado do servidor nem o `requestIdleCallback` da chegada: a rede do terreno e a do estado correm juntas.
-    if (this.pilot && this.environment.backdrop?.length) {
-      void this.loadLandmark(this.region)
-      void this.loadTerrain()
-    }
+    if (this.pilot && this.environment.backdrop?.length) void this.loadTerrain()
     this.walkers = []
     this.foams = [...(this.environment.foams ?? [])]
     void this.loadCharacters()

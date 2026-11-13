@@ -2,7 +2,14 @@
 
 Atualizado em 13/11/2026. Para continuar em outra IA ou com outro dev: `node tools/handoff.mjs --full --out contexto.md` junta este arquivo, `docs/HANDOFF-CONTEXTO.md` e o plano num arquivo só. Leia antes o `CLAUDE.md` (regras obrigatórias) e `docs/PLANO-PROXIMOS-PASSOS.md`.
 
+## Rumo ao MVP
+
+- **Objetivo:** entregar a primeira versão utilizável do Cityou, com painel pessoal e cidade 3D ligados aos dados do próprio app, sem depender do Fifones.
+- **O que falta:** integrar tarefas e Missões (etapa 2), migrar o catálogo e preservar as cidades salvas (3), tirar os atalhos e iframes legados do painel (4), ligar Agenda, Projetos e Peso aos dados reais (5) e concluir a segurança e o corte do legado (6). Ainda falta validar contas e latência na prévia e medir em celular físico. A tabela abaixo acompanha também a ambientação e a Fita do Tempo previstas no plano.
+- **Próximo passo:** executar a etapa 2. Está pronta quando Missões lista tarefas reais do Worker, o menu da cidade abre as abas corretas do painel e o redirecionamento por sessão expirada funciona sem repetir a requisição. Conferir esses fluxos na prévia ou em Worker local, com testes do Worker e de navegador.
+
 ## O que este PR entrega
+- **Integração pós-PR #28:** incorpora a `main` até o #31, com os 23 GLB do Rio, o Fifo, o calçadão e as ondas. Preserva as correções locais de contas, dependências e benchmarks, além do monumento da Ilha, da baía de reserva e das amostras originais do relevo.
 - **Plano v2** (`docs/PLANO-PROXIMOS-PASSOS.md`): sair do Fifones com conexões reais, Fita do Tempo (desfazer/refazer), 3D ambientado; feito por um conselho de especialistas e revisado por um crítico.
 - **Etapa 1, medição de base:** `Server-Timing` com o tempo do Durable Object (`do`), `tools/api-perf.mjs` (cookie, escrita, `--suite`), `tools/city-frame-bench.mjs` (`npm run perf:city`), tabela de base em `docs/WORLD-PERF.md`.
 - **Etapa 7a, prédio e terreno como uma coisa só:** `src/terrain/lighting.js` (luz e céu por região), `src/tres/lambert.js`, `src/tres/groundBlend.js` (o disco bege do Tripo vira grama), sombra de contato, sem shadow map nem `PointLight`; `tools/city-look.mjs` (fotos antes e depois). Números em `docs/WORLD-PERF.md`.
@@ -30,7 +37,7 @@ Testes ao fechar o PR: `npm test` 67, `npm run test:worker` 30, `npm run test:te
 | 3 Catálogo e migração | Não começada |
 | 4 Painel sem iframe | Não começada |
 | 5 Agenda, Projetos e Peso reais | Não começada |
-| 6 Segurança e corte do legado | Não começada |
+| 6 Segurança e corte do legado | Correções de contas e dependências adiantadas. CSP, cabeçalho novo e corte do legado pendentes |
 | 7b Resto da ambientação | Não começada |
 | 8 Fita do Tempo e transições | Não começada |
 
@@ -52,6 +59,8 @@ Saem `openBridge` e `openDocument`; aba Conta; indicador Salvo/Salvando; Bibliot
 Tipos `event`, `project`, `weight` na tabela `records` do Durable Object; `GET /api/personal` traz tudo (uma leitura por tela); escritas devolvem o estado novo; 422 para campo extra; definir teto de registros por conta (hoje 100 por tipo, o peso diário trava em ~3 meses).
 
 ### Etapa 6: segurança e corte do legado
+Já adiantado: Vite 6.4 com dependências auditadas, adoção e isolamento do Durable Object, limite de corpo e reserva de tentativas de login, e esquema gerido por migrações. Antes de habilitar D1, siga [CONTAS](CONTAS.md) e valide um banco existente caso ele tenha sido inicializado pelo Worker antigo.
+
 CSP e cabeçalhos pelo Worker, primeiro em `Report-Only` (`connect-src` com `blob:` e `data:`; sem `'wasm-unsafe-eval'`); `X-Cityou-Request` aceito junto do antigo e, um deploy depois, só ele (`tools/pilot-*.mjs` enviam o antigo); apagar `backend/`, pytest e scripts Python; proxy do Vite na 8787; atualizar a seção "Backend" do `CLAUDE.md`. Use a skill `owasp-security`.
 
 ### Etapa 7b: resto da ambientação
@@ -62,7 +71,7 @@ Desfazer/refazer com pilha estrita no servidor (só o topo, só se a revisão fo
 
 ### Pendências soltas
 - **Base da prévia publicada** (etapa 1): `node tools/api-perf.mjs <url> --suite 50 --cookie '<sessão>'`; precisa de URL e cookie.
-- `tools/pilot-perf.mjs` provavelmente está quebrado (constrói `home` na ilha, proibido desde o PR 22).
+- `tools/pilot-perf.mjs` voltou a medir Ilha e Rio a partir de uma sessão nova, sem gravar construções ou viagens. Rodadas e próximos passos em [BENCHMARKS](BENCHMARKS.md).
 - **Não conferido visualmente depois da 7a:** a Ilha Inicial, o modo "Luz do anoitecer" (`setLighting('dusk')`, calibrado com ACES) e as outras cidades antigas. Só o Rio foi fotografado.
 - `sceneEnvironment.js` ainda tem 24 `castShadow`/`receiveShadow` sem efeito; `refreshShadows()` em `CityWorld.js` agora só marca a sombra de contato (nome herdado).
 - Peso medido só com renderização por software e Worker local; nada foi medido em celular de verdade.

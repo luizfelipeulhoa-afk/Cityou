@@ -649,6 +649,8 @@ function pilotSlope(group, layout, slope, water) {
 // falhar ao carregar. CityWorld.loadTerrain chama isto no catch, nunca de saída (13/11/2026): construir isto para
 // jogar fora um instante depois, sempre que o terreno carrega, era o "rastro" que atrasava a abertura da cidade.
 export function buildRioFallback(group, layout) {
+  const sea = pilotWater(false)
+  group.add(sea)
   const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
   const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))
   const land = []
@@ -660,7 +662,7 @@ export function buildRioFallback(group, layout) {
   }
   const floor = pilotLand(group, land)
   const hillside = pilotSlope(group, layout, slope, water)
-  return [floor, ...hillside, ...pilotRio(group, layout)].filter(Boolean)
+  return [sea, floor, ...hillside, ...pilotRio(group, layout)].filter(Boolean)
 }
 
 function createPilotEnvironment(group, region, layout) {

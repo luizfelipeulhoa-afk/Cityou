@@ -6,9 +6,14 @@ Organização pessoal gamificada. O repositório tem a página de apresentação
 
 Vários Claude trabalham neste repositório em branches e sessões diferentes, e este arquivo é o que um novo lê primeiro. Toda mudança que outro Claude precisa saber (arquivo ou módulo novo, comando novo, regra de desempenho, convenção, rota, decisão fechada) entra aqui **no mesmo commit** da mudança, na seção do assunto, em poucas linhas. Antes de começar, leia a versão do `main` e leia o `git log` do que mudou desde o seu branch, para não desfazer o trabalho de outro. Se o assunto já tem guia em `docs/`, aqui vai só o resumo e o caminho do guia.
 
+O objetivo final é entregar o **MVP do Cityou**. Ao fechar cada rodada, atualize [docs/CHECKPOINT.md](docs/CHECKPOINT.md) e informe na entrega o que avançou, o que foi verificado, **o que ainda falta para o MVP** e **qual é o próximo passo**, com um critério de pronto verificável. Identifique bloqueios e decisões pendentes quando afetarem esse passo. O checkpoint registra a ordem atual e o plano detalha as etapas.
+
 ## Stack e comandos
 
-- Vue 3 (`<script setup>`), Three.js **0.172.0 fixado**, GSAP 3.12, Vite 5. Backend: FastAPI 0.141.1 + SQLite.
+- Histórico de benchmarks de API, terreno, cidade e globo, com comandos e próximas medições: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+- Pós-PR #28: monumentos com GLB carregam também na Ilha Inicial. A reserva do Rio recria a Baía quando o terreno real falha, e o recorte do terreno preserva as amostras de origem.
+
+- Vue 3 (`<script setup>`), Three.js **0.172.0 fixado**, GSAP 3.12, Vite 6.4. Backend: FastAPI 0.141.1 + SQLite.
 - `@tresjs/core` **5.10.1 fixado** (3D declarativo, em migração; ver a seção "3D declarativo").
 - `npm run dev` (porta 5177, encaminha `/api` para 8766), `npm run build` (o build principal e, em seguida, o da página de teste do terreno), `npm test` (node:test), `npm run test:map`, `npm run test:tres` (laboratório do TresJS no navegador), `npm run test:terrain` (página de teste do terreno no navegador).
 - Backend: `python -m backend` (porta 8766). Testes: `pytest tests -q` com `backend/requirements-dev.txt`.
@@ -113,9 +118,13 @@ rua até a avenida da praia e passeia pelo calçadão. Modelo em `public-fifones
 
 ## Contas e página de apresentação
 
-Guia: `docs/CONTAS.md`. Resumo: `worker/auth.js` faz cadastro, entrada e saída (cookie `cityou_session`, PBKDF2, tabelas do D1 criadas pelo próprio Worker). A conta não copia dados: `users.data_key` é o nome do Durable Object `DemoSession` da pessoa, adotado da demonstração no cadastro; objeto de conta não vence. Com o D1 ligado, `/app`, `/city` e `/world` pedem login (`pageGate` em `worker/index.js`) e `/` leva quem já entrou ao app; sem o D1 (produção hoje, até pôr o `database_id` em `wrangler.jsonc`), tudo segue como demonstração e a página diz "Abrir a demonstração". Página nova do app entra em `APP_PAGES` e em `run_worker_first`. Links para o painel usam `/app#/...`; os `/#/...` do catálogo apontam para o Fifones (porta 8765), não para o painel. **Login obrigatório:** `REQUIRE_LOGIN="true"` em `wrangler.jsonc` (produção e prévia) faz toda rota de dados da API responder 401 sem sessão, além das páginas, mas só vale com o D1 ligado; sem `database_id` nada muda (a demonstração continua). Teste com `wrangler.test-login.jsonc`. Falta: esqueci a senha (precisa de e-mail com domínio).
+Guia: `docs/CONTAS.md`. `worker/auth.js` faz cadastro, entrada e saída (cookie `cityou_session`, PBKDF2). Aplique `migrations/` antes de habilitar o D1. `users.data_key` identifica o Durable Object da conta. O cadastro confirma a adoção e troca o cookie da demonstração, e o objeto confere o proprietário e preserva os dados no alarme. Cadastro e login limitam o corpo a 4.000 bytes; o login reserva tentativas atomicamente.
+
+Com D1 ligado, `/app`, `/city` e `/world` pedem login (`pageGate` em `worker/index.js`) e `/` leva quem já entrou ao app. Sem D1 (configuração versionada de produção), a demonstração continua. Página nova do app entra em `APP_PAGES` e em `run_worker_first`. Links para o painel usam `/app#/...`; os `/#/...` do catálogo apontam para o Fifones na porta 8765. **Login obrigatório:** `REQUIRE_LOGIN="true"` com D1 faz a API de dados responder 401 sem sessão. Teste com `wrangler.test-login.jsonc`. Falta: esqueci a senha (precisa de e-mail com domínio).
 
 ## Backend
+
+- Entrada Python local, configuração e testes: [docs/main.py.md](docs/main.py.md).
 
 - `backend/app.py` (`create_app`) só aceita acesso local; toda escrita exige o cabeçalho `X-Fifones-City: 1`.
 - Módulos novos seguem `backend/personal.py`: `register(application, root, clock)` com SQLite próprio em `data/`.

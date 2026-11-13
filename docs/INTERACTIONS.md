@@ -50,7 +50,7 @@ Os atalhos de uma tecla ficam desligados enquanto o foco está em campo de texto
 
 | Botão | Rota | Tabela | Retorno |
 |---|---|---|---|
-| Criar conta | `POST /api/auth/signup` | `users`, `sessions`, `player`, `cities`, `ledger` | Entra no app na Ilha Inicial; saudação com o nome; 50 créditos de boas-vindas |
+| Criar conta | `POST /api/auth/signup` | `users`, `sessions` e objeto de dados da conta | Preserva o progresso da demonstração, confirma o dono do objeto e troca o cookie de demonstração |
 | Entrar | `POST /api/auth/login` | `sessions`, `login_attempts` | Entra no app. Senha errada: "E-mail ou senha incorretos." |
 | Esqueci minha senha (link na tela de entrar) | navegação | | Abre a tela com o campo de e-mail |
 | Enviar instruções | `POST /api/auth/forgot` | `password_resets` | Sempre a mesma mensagem: "Se o e-mail existir, enviamos as instruções." |
