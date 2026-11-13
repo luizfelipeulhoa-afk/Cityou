@@ -61,3 +61,14 @@ Observações:
 1. Clone a origem, compare com a pasta daqui (`diff -r`) e leia o que mudou.
 2. Copie de novo só os `.md` e atualize o commit na tabela.
 3. Para a `fastapi`, extraia a pasta do wheel da versão em `backend/requirements.txt`.
+
+## Skills próprias (sem origem externa)
+
+| Skill | De onde veio | Data |
+|---|---|---|
+| `reflect` | Escrita neste repositório, para fechar cada sessão de trabalho | 13/11/2026 |
+| `council-especialistas`, `ponytail`, `behavior-design-etico`, `gamificacao-saude-etica`, `project-timeline-synthesizer`, `test-suite-generator` | Cópia das skills da conta do responsável, a pedido dele, para o repositório funcionar em qualquer conta ou IA. Só o `SKILL.md` de cada uma | 13/11/2026 |
+
+- A `test-suite-generator` gera testes em Python (pytest): só serve ao `backend/`, que sai na etapa 6.
+- A `council-especialistas` e a `council-review` fazem o mesmo papel. A primeira é a do responsável e usa de 3 a 4 especialistas quando o escopo é estreito.
+- A `supply-chain-risk-auditor` da mesma conta **não** foi copiada: o arquivo não traz origem nem licença.

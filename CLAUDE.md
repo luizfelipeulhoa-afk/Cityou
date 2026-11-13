@@ -2,6 +2,26 @@
 
 Organização pessoal gamificada. O repositório tem a página de apresentação, três páginas Vite do app e um backend FastAPI local.
 
+## Antes de qualquer trabalho (obrigatório)
+
+Vale para qualquer agente e qualquer pedido sobre este projeto ou o app, por menor que seja:
+
+1. Leia este arquivo inteiro, na versão da `main` (`git fetch origin main && git show origin/main:CLAUDE.md`). O arquivo carregado na sessão é o do seu branch, que pode estar atrás.
+2. Leia `docs/CHECKPOINT.md` (onde estamos, decisões do dono e próximo passo), `docs/PLANO-PROXIMOS-PASSOS.md` (o plano) e `docs/known-issues.md` (tropeços conhecidos e como contornar).
+3. Só então planeje ou edite. Se o pedido contrariar uma decisão registrada, avise antes de fazer. Ao começar uma etapa, anote o seu branch em "Em andamento por branch" no checkpoint.
+
+O gancho `.claude/hooks/session-start.sh` (registrado em `.claude/settings.json`) repete este aviso no começo de cada sessão, diz quando o `CLAUDE.md` do branch difere do da `main` e, nas sessões na nuvem, instala as dependências do npm quando o `package-lock.json` muda. Outros agentes (Codex e afins) chegam aqui pelo `AGENTS.md`.
+
+## Como trabalhamos: orquestrador e executores
+
+- A sessão principal é o orquestrador: planeja, escreve os pedidos e confere os resultados. Trabalho em volume vai para um executor quando ele dá conta.
+- Executores são os subagentes de `.claude/agents/`: `builder` (escreve código a partir de um pedido fechado) e `reviewer` (lê um diff contra o pedido), os dois em Haiku. Todo pedido traz objetivo, arquivos a ler e uma linha "Pronto quando:" com um comando ou algo que dá para ver.
+- Antes de aceitar o resultado de um executor, o orquestrador roda a conferência ele mesmo. Falhou: devolve com a falha. Relatório de executor não é repassado sem conferir.
+- Ficam com o orquestrador, não vão para um executor em Haiku: `worker/auth.js`, sessão, limites de abuso, regras de moedas (`shared/game/rules.js`) e decisões de arquitetura.
+- Custo medido em 13/11/2026 (uma rodada por caso; `docs/research/2026-11-13-revisao-mvp.md`, seção 7): a mesma revisão em Haiku achou 76% dos achados válidos contra 79% em Opus, por 86% a 97% menos pela tabela de preços, mas errou a ordem de prioridade. Três especialistas em Opus com a sessão principal no esforço máximo estouraram o limite de uso de 5 horas. Por isso revisão ampla (`council-review`, `council-especialistas`) roda em Haiku e com poucos conselheiros, e o modelo forte fica para contas, sessão e a síntese.
+- Fim de sessão: skill `reflect` (atualiza `docs/CHECKPOINT.md`, registra tropeços em `docs/known-issues.md` e propõe ajustes de skill com a evidência; só aplica com o OK do responsável).
+- Revisão de contas, produto e lei de 13/11/2026, com o que já foi resolvido: `council/COUNCIL_SINTESE.md`.
+
 ## Regra de trabalho: mantenha este arquivo em dia
 
 Vários Claude trabalham neste repositório em branches e sessões diferentes, e este arquivo é o que um novo lê primeiro. Toda mudança que outro Claude precisa saber (arquivo ou módulo novo, comando novo, regra de desempenho, convenção, rota, decisão fechada) entra aqui **no mesmo commit** da mudança, na seção do assunto, em poucas linhas. Antes de começar, leia a versão do `main` e leia o `git log` do que mudou desde o seu branch, para não desfazer o trabalho de outro. Se o assunto já tem guia em `docs/`, aqui vai só o resumo e o caminho do guia.
@@ -170,6 +190,8 @@ Procedência e revisão em `.claude/skills/SOURCES.md`. Use por assunto:
 - Prompts para outras ferramentas de IA (Tripo, por exemplo): `prompt-master`.
 - Procurar skills novas: `find-skills` (usa `npx skills find`, que precisa de acesso a `skills.sh`; na sessão de nuvem o proxy bloqueia e a busca volta vazia: use a pesquisa do GitHub e `git clone`).
 - Segurança (sessão, cabeçalhos, CSP): `owasp-security`. Decisão de risco ou revisão de plano e PR por um conselho de conselheiros: `council-review` (11 a 14 subagentes por rodada).
+- Fim de sessão: `reflect` (própria deste repositório; ver "Como trabalhamos").
+- Do responsável, copiadas da conta dele em 13/11/2026: `council-especialistas` (conselho próprio; 3 a 4 especialistas quando o escopo é estreito), `ponytail` (a solução mais simples que funciona, sem cortar validação, erro, segurança ou acessibilidade), `behavior-design-etico` e `gamificacao-saude-etica` (recompensas, engajamento e economia sem dark patterns nem punição), `project-timeline-synthesizer` (linha do tempo do projeto) e `test-suite-generator` (só Python com pytest: serve ao `backend/`, que sai na etapa 6).
 
 As skills de design da nextlevelbuilder vieram só com os `.md`: os scripts de busca e os CSVs citados nelas não estão no repositório, então use-as como referência. A `design` cita chaves de API externas: não configure nenhuma sem pedido.
 
