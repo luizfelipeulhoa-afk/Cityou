@@ -104,6 +104,7 @@ export function createTerrainData(region, values) {
   // Mais barato que só apertar `detail.maxTriangles`: tira de vez a praia e os morros reais distantes que a câmera e a
   // névoa da cidade (CityWorld, src/terrain/lighting.js) nunca mostravam mesmo, e corta os triângulos de lá também.
   if (region.crop) {
+    values = values.slice()
     const { x: cropX, z: cropZ, radius, blend: cropBlend = 14 } = region.crop
     for (let j = 0; j < size; j++) {
       const wz = originZ + j * spacing

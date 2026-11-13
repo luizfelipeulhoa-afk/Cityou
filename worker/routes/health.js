@@ -6,9 +6,15 @@ export async function health({ env, timing }) {
   let dbRegion = null
   if (env.DB) {
     try {
-      const result = await timing.measure('db', () =>
-        env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'users'").all())
-      db = result.results.length ? 'ok' : 'no_schema'
+      const result = await timing.measure('db', () => env.DB.prepare(
+        `SELECT
+           (SELECT count(*) FROM sqlite_master WHERE type = 'table'
+            AND name IN ('users', 'sessions', 'login_attempts', 'password_resets')) AS tables_ready,
+           EXISTS(SELECT 1 FROM pragma_table_info('users') WHERE name = 'data_key') AS has_data_key,
+           EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'users_data_key') AS has_data_key_index`,
+      ).all())
+      const schema = result.results[0]
+      db = schema.tables_ready === 4 && schema.has_data_key && schema.has_data_key_index ? 'ok' : 'no_schema'
       dbRegion = result.meta?.served_by_region ?? null
     } catch (error) {
       console.error(JSON.stringify({ message: 'health: banco indisponível', error: String(error) }))

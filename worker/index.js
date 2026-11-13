@@ -2,7 +2,7 @@
 // Contrato em docs/API.md.
 import { HttpError, createTiming, errorResponse } from './http.js'
 import { health } from './routes/health.js'
-import { demoApi, demoKeyOf, sessionCookie, sessionToken } from './demo.js'
+import { demoApi, sessionCookie, sessionToken } from './demo.js'
 import { accountsEnabled, authApi, sessionTokenOf, sessionUser } from './auth.js'
 export { DemoSession } from './demo.js'
 
@@ -29,7 +29,7 @@ async function handleApi(request, env, ctx, url, timing) {
   guardWrite(request, url)
   const matches = routes.filter(([, path]) => path === url.pathname)
   if (!matches.length) {
-    const account = await authApi({ request, env, url, demoKey: await demoKeyOf(request, env), freshDemoCookie: sessionCookie(url) })
+    const account = await authApi({ request, env, url })
     if (account) return account
     const user = await sessionUser(request, env)
     // Com as contas ativas e REQUIRE_LOGIN ligado, não há mais demonstração sem conta: toda rota de dados pede sessão.
@@ -51,8 +51,10 @@ async function pageGate(request, env, url) {
   if (!app && !landing) return null
   let user = null
   try { user = sessionTokenOf(request) ? await sessionUser(request, env) : null } catch (error) {
-    // Banco fora do ar: o app segue aberto como demonstração em vez de travar todo mundo na entrada.
     console.error(JSON.stringify({ message: 'pageGate: banco indisponível', error: String(error) }))
+    if (app) return new Response('O serviço de contas está indisponível. Tente novamente.', {
+      status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+    })
     return null
   }
   const redirect = location => new Response(null, { status: 302, headers: { Location: location, 'Cache-Control': 'private, no-store' } })

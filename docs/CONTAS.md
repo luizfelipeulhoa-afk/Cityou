@@ -16,15 +16,19 @@ Os dados de cada pessoa continuam no Durable Object `DemoSession` (`worker/demo.
 `users.data_key` o **nome do objeto** dela:
 
 - no cadastro, a conta adota o objeto da sessão de demonstração daquele navegador (cookie `cityou_demo`), se ninguém
-  o adotou antes. O que a pessoa já fez (cidade, moedas, registros) vai junto, sem cópia;
+  o adotou antes. O que a pessoa já fez (cidade, moedas, registros) vai junto, sem cópia. O objeto adia a
+  expiração por até cinco minutos enquanto o vínculo é registrado no D1. O cadastro só confirma depois que
+  o objeto grava o dono e cancela o alarme. O navegador recebe um novo cookie de demonstração;
 - ao entrar em outro aparelho, a sessão (`cityou_session`) aponta para o mesmo objeto;
-- o objeto de uma conta **não vence**: o alarme de 30 dias vale só para a demonstração sem conta. O Worker avisa o
-  objeto pelo cabeçalho interno `X-Cityou-Account`, que ele sempre reescreve (o navegador não consegue forjar);
+- o objeto de uma conta **não vence**. O Worker reescreve o cabeçalho interno `X-Cityou-Account` e o objeto
+  verifica se a conta é a proprietária. Se o D1 reservar o vínculo mas a confirmação falhar, entre com a senha
+  cadastrada para retomar a adoção. Uma reserva existente também protege o objeto no alarme;
 - ao sair, a sessão é apagada e o cookie da demonstração é trocado, para o navegador não continuar nos dados da conta.
 
 Senha: PBKDF2-SHA-256 com 100.000 iterações (o limite da Web Crypto nos Workers), sal por conta. O banco guarda só
-o hash da senha e o SHA-256 do token da sessão. Oito senhas erradas para o mesmo e-mail em 15 minutos bloqueiam
-novas tentativas (429). E-mail inexistente e senha errada dão a mesma resposta e gastam o mesmo tempo.
+o hash da senha e o SHA-256 do token da sessão. O login reserva uma das oito tentativas por e-mail de forma atômica,
+em janelas de 15 minutos (429 quando o limite é atingido). Senhas válidas liberam a reserva. E-mail inexistente
+e senha errada dão a mesma resposta. Cadastro e login aceitam até 4.000 bytes de JSON (413 acima do limite).
 
 ## Com e sem banco
 
@@ -37,15 +41,21 @@ As contas só existem com o D1 ligado (`env.DB`):
 | `/api/auth/*` | 503 | funcionam |
 | demais rotas `/api/*` | demonstração | dados da conta, se houver sessão; senão, demonstração, ou **401** com `REQUIRE_LOGIN="true"` (ligado em `wrangler.jsonc`) |
 
-Se o banco estiver configurado e fora do ar, as páginas do app abrem como demonstração em vez de travar na entrada.
-O Worker cria as tabelas sozinho no primeiro uso (`SCHEMA` em `worker/auth.js`, igual a `migrations/0001` e `0002`).
+Se a validação de sessão falhar por indisponibilidade do D1, a página protegida responde 503. O esquema vem de
+`migrations/`, aplicado antes de habilitar contas no ambiente de destino.
 
 ## Como ligar o banco em produção
 
 1. Criar o banco: Cloudflare → Storage & Databases → D1 → Create, com o nome `cityou` (ou `npx wrangler d1 create cityou`).
 2. Copiar o **Database ID** e pôr em `wrangler.jsonc`:
    `"d1_databases": [{ "binding": "DB", "database_name": "cityou", "database_id": "<id>", "migrations_dir": "migrations" }]`
-3. Fazer o merge. Não é preciso rodar as migrações: o Worker cria as tabelas no primeiro pedido de conta.
+3. Num banco novo, aplicar `npx wrangler d1 migrations apply cityou --remote` no ambiente de destino antes
+   do deploy. Para homologar em um D1 local, use `--local` e a configuração de teste correspondente.
+4. Confirmar `db: "ok"` em `/api/health` e verificar cadastro, entrada e saída com uma conta sintética na prévia.
+
+Para um banco existente inicializado pelo Worker antigo, confira o esquema e o histórico de migrações antes
+de aplicar os arquivos. Um banco com as tabelas e a coluna `data_key` existentes pode precisar de um baseline
+validado. Preserve os dados e valide o procedimento numa cópia antes de executar no ambiente real.
 
 O ID do banco não é segredo. Nota: `docs/DATA-MODEL.md` registra a decisão de levar o banco para São Paulo (provedor
 externo + Hyperdrive). O D1 aqui guarda só contas e sessões; a troca de banco continua em aberto.
