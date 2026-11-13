@@ -4,7 +4,7 @@ Aqui ficam as páginas da memória do projeto que o time decidiu compartilhar. *
 
 ## Diferença para o repositório privado da memória
 - **Aqui:** só páginas **revisadas**, visíveis a quem vê o repositório do app.
-- **No repositório privado** (`cityou-memoria`, um ramo por pessoa; roteiro em [`docs/ai-memory.md`](../ai-memory.md)): o caderno **completo e bruto** de cada pessoa, para backup e leitura entre pessoas. Ele **não funde** as memórias.
+- **No repositório privado** (`cityou-memoria`; roteiro em [`docs/ai-memory.md`](../ai-memory.md)): as páginas **escolhidas** (`_rules`, `decisions`, `gotchas`, `procedures`) exportadas pelo `ai-memory-wikisync`, para você usar outro computador e para os colegas importarem no ai-memory deles.
 
 ## O que entra aqui
 Só texto que ajude a próxima sessão a não repetir trabalho e que **alguém revisou**:

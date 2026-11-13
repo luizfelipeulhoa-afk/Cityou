@@ -34,37 +34,56 @@ A decisão original era guardar o wiki em `docs/memoria/`. A leitura do ai-memor
 - O `wiki/` é **um repositório git próprio** (o ai-memory faz commit nele a cada consolidação). Aninhá-lo no repositório do projeto cria um repositório dentro de outro.
 - O ai-memory compartilha com o time por **um servidor único** (todos apontam para ele). O `git remote` do wiki é **backup de um wiki só** (`docs/backup.md` do ai-memory), não sincronização entre pessoas: dois wikis empurrados para o mesmo ramo têm históricos sem relação e o push é recusado.
 
-Arranjo adotado (13/11/2026): **A + B + C agora, e D como objetivo.** O dono quer a memória **junta** entre pessoas e IAs, para evitar problemas de comunicação; isso só o servidor único (D) entrega. A, B e C valem enquanto não houver servidor.
+Arranjo adotado (13/11/2026): **A + B + C agora, sem servidor sempre ligado.** O dono quer a memória **junta** entre pessoas, computadores e IAs, para evitar problemas de comunicação, e quer que ela viva num **repositório novo do GitHub**: é o C. O servidor único (D) seria tempo real, mas o dono não tem onde hospedá-lo hoje.
 
 | | O que é | O que faz | O que não faz |
 |---|---|---|---|
 | **A. Caderno individual** | O wiki no diretório de dados de cada pessoa, fora do repositório | Memória automática da pessoa: o contexto volta na sessão seguinte, mesmo em outra IA | Ninguém mais vê |
 | **B. Páginas revisadas** | [`docs/memoria/`](memoria/README.md), por PR | Compartilha com quem vê o repositório o que importa, já revisado | É manual: só entra o que alguém copia e revisa |
-| **C. Repositório privado da memória** | Um repositório privado só para os cadernos, **um ramo por pessoa** | Backup do caderno de cada um; os outros podem **ler** | **Não funde** os cadernos numa busca só |
-| **D. Servidor único** | Um servidor do ai-memory que todos usam | Memória realmente fundida e compartilhada | **Objetivo do dono.** Exige um servidor sempre ligado (Docker), autenticação por token ou contas e TLS fora do loopback (`SECURITY.md` e `docs/deploy.md` do ai-memory). **Falta decidir onde hospedar** |
+| **C. Repositório privado de páginas escolhidas** (`ai-memory-wikisync`) | Um repositório privado só para a memória: o `wikisync` exporta para ele as páginas que o time escolhe (`_rules`, `decisions`, `gotchas`, `procedures`), em Markdown, e importa no ai-memory local de quem baixa | Você em **outro computador** e os **colegas** recebem a sua memória de trabalho e a IA deles a consulta normalmente; colaboração comum em git | Não é tempo real (precisa exportar, dar `push` e `pull`) e só leva as famílias de páginas que você nomear |
+| **D. Servidor único** | Um servidor do ai-memory que todos usam | Memória fundida em tempo real | **Fica para depois**, sem hospedagem hoje. Exige um servidor sempre ligado (Docker), autenticação por token ou contas e TLS fora do loopback (`SECURITY.md` e `docs/deploy.md` do ai-memory). Quando existir, o C continua valendo como backup |
 
-### Repositório privado da memória (backup e leitura entre pessoas)
-**O dono cria** (a sessão que escreveu isto só alcança o repositório do projeto): um repositório **privado**, sem README, nome sugerido `CityouApp/cityou-memoria`, com acesso só para quem vai usar. Se o nome for outro, troque a linha do `git remote add`.
+### Repositório privado da memória (outro computador e colegas)
+Como funciona: o **`ai-memory-wikisync`** (acessório do ai-memory, em `companions/ai-memory-wikisync`) conversa com o ai-memory **local** de cada pessoa e mantém **páginas escolhidas** em sincronia com uma pasta de um repositório git. `export` leva as páginas do ai-memory para a pasta; `sync` também traz para o ai-memory as edições que chegaram pelo git. O wikisync **nunca roda git** (nem commit, nem push): quem dá `commit` e `push` é a pessoa. Exige ai-memory 3.0 ou mais novo (a versão fixada aqui é a 3.4.6). Não precisa de servidor sempre ligado.
 
-Por pessoa, depois de instalar o ai-memory e de ele ter gerado alguma página:
+**O dono cria** (a sessão que escreveu isto só alcança o repositório do projeto): um repositório **privado**, vazio, com nome sugerido `CityouApp/cityou-memoria`, e dá acesso só a quem vai usar. Se o nome for outro, troque nos comandos.
 
+**1) Compilar o wikisync (por pessoa, uma vez).** Não encontrei binário pronto na release; ele é um pacote Rust à parte. Precisa de `cargo` (Rust) e `git`.
 ```bash
-data_dir=$(ai-memory status --json | jq -r .data_dir)
-cd "$data_dir/wiki"
-git remote add memoria git@github.com:CityouApp/cityou-memoria.git
-git push memoria HEAD:refs/heads/<seu-nome>          # um ramo por pessoa; repita de tempos em tempos
-
-# ler o caderno de um colega (só leitura)
-git fetch memoria <ramo-do-colega>
-git log FETCH_HEAD --oneline                          # ou: git show FETCH_HEAD:<caminho-da-pagina>
+git clone --branch v3.4.6 --depth 1 https://github.com/akitaonrails/ai-memory.git ~/ferramentas/ai-memory-fonte
+cargo build --release --manifest-path ~/ferramentas/ai-memory-fonte/companions/ai-memory-wikisync/Cargo.toml
+# o binário fica em ~/ferramentas/ai-memory-fonte/companions/ai-memory-wikisync/target/release/ai-memory-wikisync
 ```
+**2) Dizer onde está o ai-memory local e como entrar.** O servidor local do ai-memory escuta só no seu computador. O token fica num arquivo só do dono, dentro do diretório de dados (o nome exato depende da versão: veja `docs/install.md` do ai-memory). Passe-o por **variável de ambiente**, nunca na linha de comando, nunca no repositório:
+```bash
+export AI_MEMORY_SERVER_URL=http://127.0.0.1:49374
+export AI_MEMORY_AUTH_TOKEN=...      # do arquivo do diretório de dados; não cole em sessão de IA
+WS=~/ferramentas/ai-memory-fonte/companions/ai-memory-wikisync/target/release/ai-memory-wikisync
+```
+`--workspace cityou --project cityou` é o mesmo valor do `.ai-memory.toml` do repositório: com ele, todo mundo grava e lê no mesmo escopo. Os comandos abaixo trazem os argumentos por extenso (variáveis com vários argumentos não funcionam no zsh, o shell padrão do macOS).
 
-- **Um ramo por pessoa:** é o que evita o push recusado. Nunca empurre para o ramo de outra pessoa.
-- **Só `push` e leitura.** Não rode `merge`, `rebase` nem `force-push` dentro do `wiki/` com o servidor ligado (o ai-memory escreve nele por libgit2 e avisa para não fazer isso).
-- **Olhe o `wiki/` antes do primeiro push.** As páginas guardam o texto ao pé da letra: procure segredo, token, e-mail e dado pessoal ou de usuário. Repositório **privado** não é desculpa para deixar passar.
-- Os registros `log.md` não vão no git do wiki, e é melhor que não vão mesmo (são eventos brutos). O exemplo de backup agendado do ai-memory (`docs/examples/backup/`, com cópia do SQLite) é opcional e pode conter segredos: só use depois de ler.
-- O que um colega escreveu e vale para todos vira página em [`docs/memoria/`](memoria/README.md), por PR e revisada.
-- **Não verificado:** estes comandos vêm da documentação do ai-memory (`docs/backup.md`); o binário não foi executado e nenhum `git push memoria` foi feito. Quem rodar primeiro registre em `docs/known-issues.md` o que tropeçar.
+**3) Quem tem a memória (você): exportar e publicar.**
+```bash
+git clone git@github.com:CityouApp/cityou-memoria.git ~/cityou-memoria && cd ~/cityou-memoria
+"$WS" plan --workspace cityou --project cityou --dest ./wiki --include _rules --include decisions --include gotchas --include procedures            # ensaio: lista o que seria criado, não grava nada
+"$WS" export --workspace cityou --project cityou --dest ./wiki --include _rules --include decisions --include gotchas --include procedures --apply    # grava os .md em ./wiki
+find wiki -name '*.md'                                # LEIA cada um antes de publicar: segredo, e-mail, dado pessoal
+git add wiki && git commit -m "memória: <assunto>" && git push
+```
+**4) Quem recebe (outro computador seu, ou um colega): trazer para o ai-memory local.**
+```bash
+cd ~/cityou-memoria && git pull
+"$WS" sync --workspace cityou --project cityou --dest ./wiki --include _rules --include decisions --include gotchas --include procedures              # ensaio
+"$WS" sync --workspace cityou --project cityou --dest ./wiki --include _rules --include decisions --include gotchas --include procedures --apply      # importa para o ai-memory local
+```
+Daí a IA da pessoa consulta essas páginas pelo MCP do ai-memory, como qualquer outra memória, e o que ela escrever nessas famílias volta pelo mesmo caminho. **Sem ai-memory instalado** o colega ainda lê: são arquivos Markdown comuns em `~/cityou-memoria/wiki`.
+
+- **Só o que você nomear sai.** `--include` é uma lista explícita e `*` é recusado. As páginas de sessão (`sessions/`) ficam **de fora** de propósito: são as mais cheias de conversa e dado pessoal. Só inclua depois de ler.
+- **Privado não basta.** O repositório é privado, mas o texto vai ao pé da letra: revise antes de cada `push`.
+- **Conflito:** uma página alterada dos dois lados é recusada até você escolher (`--prefer repo` ou `--prefer server`). Não use `--propagate-deletes` no começo.
+- `.ai-memory-wikisync/state.json` é **por clone** e já vem com `.gitignore`; não o comite.
+- Opcional: `ai-memory-wikisync install-hook` roda o `sync` depois de cada `git merge`.
+- **Não verificado:** o wikisync não foi compilado nem executado aqui, e nenhum `export`, `push` ou `sync` foi feito. Os comandos vêm do `README.md` do próprio acessório. Ele é descrito como parte de uma funcionalidade em andamento (issue #986 do ai-memory, "fatias 1, 3, 4 e 5"), então pode ter arestas. Quem rodar primeiro registre em `docs/known-issues.md` o que tropeçar.
 
 ## Instalar (por pessoa, versão fixada, sem `curl | sh`)
 Pré-requisito: `git`. Leia antes `INSTALL_FOR_AGENTS.md` e `docs/install.md` do ai-memory se quiser.
