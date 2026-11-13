@@ -127,7 +127,7 @@ const kinds = new Map([...baseCatalog, ...Object.values(regionalCatalog).flat()]
 
 // A Ilha Inicial é de cenário (sem praça, sede, rua nem prédios de atividade), mas o jogador constrói nela o Farol,
 // a Cabana e o Píer (decidido em 13/11/2026). Uma cidade de cenário só aceita os tipos desta lista.
-const scenicBuildable = { 'ilha-inicial': ['island-lighthouse', 'island-cabin', 'island-pier'] }
+const scenicBuildable = { 'ilha-inicial': ['island-lighthouse', 'island-cabin', 'island-pier', 'island-hammock', 'island-palms', 'island-bonfire', 'island-statue', 'island-boat-small', 'island-boat-large'] }
 
 /** Tipos que o jogador pode construir numa cidade de cenário (vazio se ela é só para contemplar). */
 export function scenicBuildKinds(location) {

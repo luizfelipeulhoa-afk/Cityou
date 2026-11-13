@@ -21,5 +21,11 @@
   {"id":"dom-organizacao","label":"Prédio de Organização","cost":20,"model":null,"width":2,"depth":2,"height":2.4,"color":"#5cba8a","destination":null},
   {"id":"island-lighthouse","label":"Farol da Percepção","cost":60,"model":"/models/island/island-lighthouse.glb","width":3,"depth":3,"height":4.5,"color":"#e0604f","destination":null},
   {"id":"island-cabin","label":"Cabana do Primeiro Passo","cost":20,"model":"/models/island/island-cabin.glb","width":2,"depth":2,"height":1.6,"color":"#c79a5b","destination":null},
-  {"id":"island-pier","label":"Píer da Jornada","cost":60,"model":"/models/island/island-pier.glb","width":3,"depth":3,"height":1.8,"color":"#8d6a4a","destination":null}
+  {"id":"island-pier","label":"Píer da Jornada","cost":60,"model":"/models/island/island-pier.glb","width":3,"depth":3,"height":1.8,"color":"#8d6a4a","destination":null},
+  {"id":"island-hammock","label":"Rede da Calmaria","cost":15,"model":"/models/island/island-hammock.glb","width":2,"depth":2,"height":1.6,"color":"#d9644a","destination":null},
+  {"id":"island-palms","label":"Coqueiral","cost":15,"model":"/models/island/island-palms.glb","width":2,"depth":2,"height":2.3,"color":"#4ea477","destination":null},
+  {"id":"island-bonfire","label":"Fogueira da Prosa","cost":10,"model":"/models/island/island-bonfire.glb","width":1,"depth":1,"height":0.9,"color":"#ea7651","destination":null},
+  {"id":"island-statue","label":"Guardião Antigo","cost":40,"model":"/models/island/island-statue.glb","width":2,"depth":2,"height":2.1,"color":"#a99f98","destination":null},
+  {"id":"island-boat-small","label":"Canoa do Pescador","cost":25,"model":"/models/island/island-boat-small.glb","width":2,"depth":2,"height":0.5,"color":"#b07a4f","destination":null},
+  {"id":"island-boat-large","label":"Veleiro Encalhado","cost":60,"model":"/models/island/island-boat-large.glb","width":3,"depth":3,"height":2.4,"color":"#b07a4f","destination":null}
 ]
