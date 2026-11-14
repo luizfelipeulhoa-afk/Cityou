@@ -2,8 +2,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { FOOD_BASE } from '../shared/game/foods-base.js'
+import { FOOD_PORTIONS } from '../shared/game/foods-portions.js'
 
-const FIELDS = ['id', 'name', 'group', 'source', 'ref', 'kcal', 'protein', 'fat', 'carb', 'fiber']
+const FIELDS = ['id', 'name', 'group', 'source', 'ref', 'kcal', 'protein', 'fat', 'carb', 'fiber', 'originalName']
 const SOURCES = ['taco', 'usda-fnd', 'usda-sr']
 const foods = FOOD_BASE.map(row => Object.fromEntries(FIELDS.map((key, i) => [key, row[i]])))
 
@@ -38,6 +39,29 @@ test('energia bate com os macronutrientes (4-4-9) na maior parte da base', () =>
     return Math.abs(estimate - food.kcal) / food.kcal > 0.35
   })
   assert.ok(outside.length / withEnergy.length <= 0.02, `${outside.length} fora da conta, ex.: ${outside.slice(0, 3).map(f => f.name).join('; ')}`)
+})
+
+test('nome original em inglês existe para toda linha USDA e é vazio para a TACO', () => {
+  for (const food of foods) {
+    if (food.source === 'taco') assert.equal(food.originalName, '', food.id)
+    else assert.ok(food.originalName, `${food.id} sem nome original`)
+  }
+})
+
+test('porções em unidade apontam para alimentos existentes e têm peso positivo', () => {
+  const ids = new Set(foods.map(food => food.id))
+  for (const [id, portions] of Object.entries(FOOD_PORTIONS)) {
+    assert.ok(ids.has(id), `${id} não existe na base`)
+    assert.ok(portions.length > 0, `${id} sem porções`)
+    for (const [label, grams] of portions) {
+      assert.ok(label && typeof label === 'string', `${id} porção sem nome`)
+      assert.ok(Number.isFinite(grams) && grams > 0, `${id} ${label}=${grams}`)
+    }
+  }
+})
+
+test('ovo inteiro cru tem a unidade grande de 50 g (ovo não se pesa em gramas por padrão)', () => {
+  assert.deepEqual(FOOD_PORTIONS['taco-489'].find(([label]) => label === 'unidade grande'), ['unidade grande', 50])
 })
 
 test('a TACO e a USDA estão representadas', () => {
