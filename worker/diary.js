@@ -25,7 +25,9 @@ const MAX_QUANTITY = 1000
 const SEARCH_LIMIT = 20
 const NUTRIENTS = ['kcal', 'protein', 'fat', 'carb', 'fiber']
 
-const normalize = value => String(value).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+// Sem acento, minúsculo e sem pontuação: "arroz,integral" acha "Arroz, integral, cozido".
+const normalize = value => String(value).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  .replace(/[^a-z0-9%]+/g, ' ').trim()
 
 // Índice de busca: uma vez por processo. Cada linha de FOOD_BASE é
 // [id, nome, grupo, fonte, referência, kcal, proteína, gordura, carboidrato, fibra, nome original].
@@ -38,12 +40,13 @@ const per100g = (row, grams) => ({
   protein: round1(row[6] * grams / 100),
   fat: round1(row[7] * grams / 100),
   carb: round1(row[8] * grams / 100),
-  fiber: round1(row[9] * grams / 100),
+  // A fonte nem sempre traz fibra (838 linhas): fica null, e o total soma só os alimentos que têm o valor.
+  fiber: row[9] === null ? null : round1(row[9] * grams / 100),
 })
 
 function sumOf(entries) {
   const totals = Object.fromEntries(NUTRIENTS.map(key => [key, 0]))
-  for (const entry of entries) for (const key of NUTRIENTS) totals[key] += entry[key]
+  for (const entry of entries) for (const key of NUTRIENTS) totals[key] += entry[key] ?? 0
   return Object.fromEntries(NUTRIENTS.map(key => [key, key === 'kcal' ? Math.round(totals[key]) : round1(totals[key])]))
 }
 
@@ -185,7 +188,6 @@ export const diaryMethods = {
     const day = dayOf(body.day, 'o dia')
     if (day > todayInSaoPaulo()) throw new HttpError(422, 'Registre o que comeu hoje ou em um dia que já passou.', { day: 'Registre o que comeu hoje ou em um dia que já passou.' })
     const count = countFor(this.read(SCHEDULE_KIND, SCHEDULE_ID), day)
-    console.log('DBG', day, count, JSON.stringify(this.read(SCHEDULE_KIND, SCHEDULE_ID)))
     const meal = mealOf(body.meal, count)
     const row = foodOf(body.food_id)
     const grams = gramsOf(row[0], body.quantity, body.unit)

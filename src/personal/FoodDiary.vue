@@ -35,6 +35,8 @@ const editingId = ref(null)
 
 let searchTimer = null
 let searchToken = 0
+let editToken = 0
+const optionsList = ref(null)
 
 const kcal = value => Math.round(value).toLocaleString('pt-BR')
 const grams = value => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} g`
@@ -104,6 +106,7 @@ function saveSchedule() {
 }
 
 function chooseFood(item) {
+  searchToken++ // resposta de busca ainda em voo não repõe a lista depois da escolha
   food.value = item
   query.value = item.name
   results.value = []
@@ -112,6 +115,7 @@ function chooseFood(item) {
 }
 
 function clearFood() {
+  searchToken++
   food.value = null
   query.value = ''
   results.value = []
@@ -119,16 +123,18 @@ function clearFood() {
 }
 
 function cancelEdit() {
+  editToken++
   editingId.value = null
   quantity.value = '1'
   clearFood()
 }
 
-// Busca com atraso: a resposta de uma consulta antiga é descartada.
+// Busca com atraso: qualquer mudança no texto invalida a resposta que ainda está em voo.
 watch(query, text => {
   if (food.value && text === food.value.name) return
   food.value = null
   clearTimeout(searchTimer)
+  searchToken++
   const clean = text.trim()
   if (clean.length < 2) {
     results.value = []
@@ -157,6 +163,7 @@ watch(query, text => {
 
 // Editar: a pessoa pode trocar a refeição, a quantidade e a unidade. O alimento volta da busca pelo nome.
 async function startEdit(entry) {
+  const token = ++editToken // clicar em "Editar" de outro registro cancela este
   editingId.value = entry.id
   slot.value = entry.meal
   quantity.value = String(entry.quantity).replace('.', ',')
@@ -164,6 +171,7 @@ async function startEdit(entry) {
   message.value = ''
   try {
     const { foods } = await searchFoods(entry.food_name)
+    if (token !== editToken) return
     const found = foods.find(item => item.id === entry.food_id)
     if (!found) {
       message.value = 'Não achamos este alimento na busca. Apague o registro e adicione de novo.'
@@ -175,9 +183,22 @@ async function startEdit(entry) {
     results.value = []
     unit.value = entry.unit
   } catch (error) {
+    if (token !== editToken) return
     message.value = error.message
     cancelEdit()
   }
+}
+
+// Teclado na lista: seta para baixo entra na lista, setas andam entre as opções, Esc fecha e volta ao campo.
+function focusOption(index) {
+  const items = optionsList.value?.querySelectorAll('[role="option"]')
+  if (!items?.length) return
+  items[(index + items.length) % items.length].focus()
+}
+function optionKey(event, index) {
+  if (event.key === 'ArrowDown') { event.preventDefault(); focusOption(index + 1) }
+  else if (event.key === 'ArrowUp') { event.preventDefault(); index === 0 ? document.getElementById('fd-food')?.focus() : focusOption(index - 1) }
+  else if (event.key === 'Escape') { results.value = []; document.getElementById('fd-food')?.focus() }
 }
 
 function saveEntry() {
@@ -259,21 +280,23 @@ onMounted(() => goTo())
           </select>
         </label>
 
-        <label class="fd-search">Alimento
-          <input v-model="query" type="search" autocomplete="off" role="combobox" aria-autocomplete="list"
-            :aria-expanded="results.length > 0" aria-controls="fd-options" maxlength="80" :disabled="Boolean(editingId)"
-            placeholder="Digite, por exemplo: ovo, arroz, banana" :aria-invalid="Boolean(errors.food_id)" />
+        <div class="fd-search">
+          <label for="fd-food">Alimento</label>
+          <input id="fd-food" v-model="query" type="search" autocomplete="off" role="combobox" aria-autocomplete="list"
+            :aria-expanded="results.length > 0" :aria-controls="results.length ? 'fd-options' : undefined" maxlength="80"
+            :disabled="Boolean(editingId)" placeholder="Digite, por exemplo: ovo, arroz, banana"
+            :aria-invalid="Boolean(errors.food_id)" @keydown.down.prevent="focusOption(0)" @keydown.esc="results = []" />
           <span v-if="errors.food_id" class="fd-field-error">{{ errors.food_id }}</span>
-          <ul v-if="results.length" id="fd-options" class="fd-options" role="listbox" aria-label="Alimentos encontrados">
-            <li v-for="item in results" :key="item.id" role="option" tabindex="0" :aria-selected="false"
-              @click="chooseFood(item)" @keydown.enter.prevent="chooseFood(item)">
+          <ul v-if="results.length" id="fd-options" ref="optionsList" class="fd-options" role="listbox" aria-label="Alimentos encontrados">
+            <li v-for="(item, index) in results" :key="item.id" role="option" tabindex="-1" aria-selected="false"
+              @click="chooseFood(item)" @keydown.enter.prevent="chooseFood(item)" @keydown="optionKey($event, index)">
               <strong>{{ item.name }}</strong>
               <span>{{ kcal(item.per_100g.kcal) }} kcal por 100 g · {{ item.source === 'taco' ? 'TACO' : 'USDA' }}</span>
             </li>
           </ul>
-          <span v-else-if="searching" class="fd-muted">Buscando…</span>
-          <span v-else-if="searchError" class="fd-muted">{{ searchError }}</span>
-        </label>
+          <span v-else-if="searching" class="fd-muted" role="status">Buscando…</span>
+          <span v-else-if="searchError" class="fd-muted" role="status">{{ searchError }}</span>
+        </div>
 
         <div v-if="food" class="fd-chosen">
           <span>{{ food.name }} <button v-if="!editingId" type="button" class="quiet-button" @click="clearFood">Trocar</button></span>
@@ -356,7 +379,8 @@ h3{font-size:16px;font-weight:550;letter-spacing:-.2px;margin:0}
 .fd-form{display:grid;gap:14px;grid-template-columns:minmax(0,1fr) minmax(0,2fr);align-items:start}
 .fd-form select,.fd-form input,.fd-schedule select,.fd-week select{min-width:0;width:100%}
 .fd-editing{grid-column:1/-1;margin:0;font-size:12px;line-height:1.7;color:#f1d3b8;background:#e8b5a012;border:1px solid #e8b5a033;border-radius:10px;padding:10px 12px}
-.fd-search{position:relative}
+.fd-search{position:relative;display:flex;flex-direction:column;gap:8px}
+.fd-search>label{font-size:11px;color:#9da1b5}
 .fd-options{position:absolute;top:100%;left:0;right:0;z-index:5;margin:6px 0 0;padding:6px;list-style:none;background:#1c1f2b;border:1px solid #ffffff1a;border-radius:12px;max-height:300px;overflow:auto;box-shadow:0 14px 40px #0008}
 .fd-options li{display:flex;flex-direction:column;gap:3px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:#e2e3ef}
 .fd-options li:hover,.fd-options li:focus{background:#ffffff0f;outline:none}

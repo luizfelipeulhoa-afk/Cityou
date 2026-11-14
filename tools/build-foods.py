@@ -243,6 +243,8 @@ STATE_WORDS = {
     'grelhado': 3, 'grelhada': 3, 'assado': 4, 'assada': 4, 'assados': 4, 'assadas': 4, 'frito': 5, 'frita': 5,
     'fritos': 5, 'fritas': 5, 'milanesa': 6, 'empanado': 6, 'empanada': 6, 'refogado': 7, 'refogada': 7,
     'ensopado': 13, 'ensopada': 13, 'mexido': 16, 'mexida': 16,
+    # Enlatado e em conserva contam como preparo: milho cru não leva a medida do milho enlatado.
+    'enlatado': 20, 'enlatada': 20, 'enlatados': 20, 'conserva': 20,
 }
 PREP_ORDER = {1: [1, 99], 2: [2, 99], 3: [3, 99], 4: [4, 99], 5: [5, 99], 6: [6, 5, 99], 7: [7, 99], None: [99]}
 
@@ -270,7 +272,10 @@ def ibge_label(measure, ref):
     return measure.lower()
 
 
-def ibge_accepts(row, state):
+OTHER_DISHES = {'sopa', 'mingau', 'vinho', 'strogonoff', 'espetinho', 'bolinho', 'casquinha', 'ervilha', 'ovo'}
+
+
+def ibge_accepts(row, state, food_name=''):
     m, ref = plain(row['medida']), plain(row['referencia'])
     if m in IBGE_FRACTIONS:
         ok = IBGE_FRACTIONS[m] in ref
@@ -279,6 +284,14 @@ def ibge_accepts(row, state):
         ok = any(k in ref for k in IBGE_KEYS[m]) and not re.search(r'\b\d+/\d+\b|\b[2-9] |%', tail)
     else:
         ok = False
+    # O IBGE empresta a medida de um alimento parecido (bife bovino para o contrafilé, aipim para a mandioca), o que vale.
+    # Não vale quando a referência é de outro prato: sopa, mingau, taça de vinho, estrogonofe, espetinho, bolinho,
+    # ervilha para o milho, ovo para a omelete.
+    if ok and ' - ' in row['referencia']:
+        head = re.findall(r'[a-z]+', plain(row['referencia'].split(' - ', 1)[0]))
+        own = set(re.findall(r'[a-z]+', plain(row['alimento']))) | set(re.findall(r'[a-z]+', plain(food_name)))
+        if head and head[0] in OTHER_DISHES and head[0] not in own:
+            ok = False
     ref_states = states_in(row['referencia'].split(' - ', 1)[0])
     prep = int(row['preparo_cod'])
     if ok and ref_states and prep != 99 and prep not in ref_states:
@@ -304,7 +317,7 @@ def ibge_portions(base_rows, mapping, names):
         for prep in order:
             chosen = []
             for row in table.get((code, prep), []):
-                if not ibge_accepts(row, state):
+                if not ibge_accepts(row, state, names[food_id]):
                     continue
                 label = ibge_label(row['medida'], row['referencia'])
                 if label and not any(label == c[0] for c in chosen):

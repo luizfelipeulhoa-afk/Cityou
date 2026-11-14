@@ -116,3 +116,6 @@
 .wt-list time{color:var(--muted);font-size:.8rem}
 .wt-list small{color:var(--muted);font-size:.8rem;overflow-wrap:anywhere}
 @media(max-width:520px){.wt-list li{grid-template-columns:auto minmax(0,1fr) auto}.wt-list time{grid-column:1/-1}.wt-list small{grid-column:1/-1;order:3}.wt-hero .ag-btn{width:100%}}
+
+/* Registros antigos de refeição em texto livre (só leitura, abaixo do diário). */
+.old-meals{margin-bottom:26px}.old-meals summary{cursor:pointer;font-size:12px;color:var(--muted)}.old-meals .record-grid{margin-top:14px}

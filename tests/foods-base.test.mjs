@@ -105,3 +105,9 @@ test('nomes da TACO corrigidos e linhas que o xlsx marca como NA presentes', () 
   assert.equal(name('taco-272'), 'Óleo, de soja')
   assert.ok(!foods.some(food => food.source === 'taco' && /ü|Pêra|Geléia|,\S|\s\s| \d$/.test(food.name)))
 })
+
+test('medida emprestada de outro alimento ou preparo não entra (revisão do PR #48)', () => {
+  assert.equal(FOOD_PORTIONS['taco-44'], undefined) // milho cru: as colheres do IBGE são do milho enlatado
+  assert.deepEqual(FOOD_PORTIONS['taco-484'], [['unidade pequena com 1 ovo', 65]]) // omelete: sem colher de ovo mexido
+  assert.ok(!FOOD_PORTIONS['taco-45'].some(([label]) => label.startsWith('colher de arroz'))) // milho enlatado: sem a da ervilha
+})

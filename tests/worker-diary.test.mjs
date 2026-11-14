@@ -27,6 +27,7 @@ test('busca por nome, sem acento, com variantes e unidades', async () => {
   assert.ok(beans.length > 0)
   assert.ok(beans.every(food => food.name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes('feijao')))
 
+  assert.ok(searchFoods('arroz,integral').some(food => food.id === 'taco-1')) // pontuação não atrapalha
   const send = session()
   const found = await send('/api/personal/diary/foods?q=ovo%20cru')
   assert.ok(found.foods.some(food => food.id === EGG))
@@ -126,4 +127,15 @@ test('edita quantidade e refeição (dentro da programação); apaga; registro q
   assert.deepEqual(after.entries, [])
   await send(`/api/personal/diary/${id}`, { method: 'DELETE', status: 404 })
   await send(`/api/personal/diary/${GHOST_ID}`, { method: 'PUT', body: { quantity: 1 }, status: 404 })
+})
+
+test('fibra que a fonte não traz fica null e o total soma só os que têm', async () => {
+  const send = session()
+  await withDailyThree(send)
+  const day = dayFromToday(-3)
+  const butter = await send('/api/personal/diary', { method: 'POST', body: entry({ day, food_id: 'taco-261', quantity: 10, unit: 'g' }), status: 201 })
+  assert.equal(butter.entries.find(row => row.id === butter.created_id).fiber, null)
+  const both = await send('/api/personal/diary', { method: 'POST', body: entry({ day, food_id: 'taco-3', quantity: 100, unit: 'g' }), status: 201 })
+  const rice = both.entries.find(row => row.id === both.created_id)
+  assert.equal(both.totals.fiber, rice.fiber)
 })

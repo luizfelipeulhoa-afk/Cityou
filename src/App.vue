@@ -240,6 +240,8 @@ onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);window.removeEventListe
       <template v-else-if="route==='nutricao'">
         <NutritionBase />
         <FoodDiary />
+        <!-- Registros de refeição em texto livre de antes do diário: só leitura, não entram nos totais. -->
+        <details v-if="entryList('meal').length" class="surface old-meals"><summary>Registros antigos de refeição ({{ entryList('meal').length }}), anteriores ao diário. Não entram nos totais.</summary><div class="record-grid"><article v-for="item in entryList('meal')" :key="item.id" class="surface note-card"><span class="eyebrow">{{ formatDate(item.day) }}</span><h2>{{ item.title }}</h2><p>{{ item.body }}</p></article></div></details>
         
       </template>
       <template v-else-if="route==='autoconhecimento'">

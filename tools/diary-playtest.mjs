@@ -45,7 +45,10 @@ try {
   await option.waitFor({ timeout: 10000 })
   check('busca acha o arroz cozido da TACO', true, await diary.getByRole('option').count() + ' resultados')
   await page.screenshot({ path: '.verification/diary-2-busca.png' })
-  await option.click()
+  // Pelo teclado: seta para baixo entra na lista e Enter escolhe (o arroz cozido é o primeiro).
+  await diary.getByPlaceholder('Digite, por exemplo: ovo, arroz, banana').press('ArrowDown')
+  check('seta para baixo entra na lista', await page.evaluate(() => document.activeElement?.getAttribute('role') === 'option'))
+  await page.keyboard.press('Enter')
   const units = await diary.getByLabel('Unidade').locator('option').allInnerTexts()
   check('unidade em medida caseira brasileira', units.includes('colher de sopa cheia (25 g)'), units.slice(0, 4).join(' | '))
   await diary.getByLabel('Unidade').selectOption({ label: 'colher de sopa cheia (25 g)' })

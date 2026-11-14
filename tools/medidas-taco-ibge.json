@@ -403,7 +403,8 @@
   ],
   "taco-36": [
    "copo",
-   "prato"
+   "prato",
+   "colher"
   ],
   "taco-198": [
    "copo",
@@ -452,6 +453,9 @@
   ],
   "taco-527": [
    "escumadeira"
+  ],
+  "taco-533": [
+   "colher"
   ]
  }
 }
