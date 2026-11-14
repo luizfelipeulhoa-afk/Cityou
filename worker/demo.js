@@ -6,6 +6,10 @@ import { buildSummary } from '../shared/game/summary.js'
 import { kindForDomain, stageFor } from '../shared/game/buildings.js'
 import { newCity, newTown, withoutHeadquarters, withoutRetired, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
 import { HttpError, json, errorResponse, readJsonObject } from './http.js'
+import { dateFormatter, isDate, capOf, capMessage } from './records.js'
+import { agendaMethods } from './agenda.js'
+import { projectMethods } from './projects.js'
+import { weightMethods } from './weights.js'
 
 const START = SPACE_ORDER[0]
 // A ilha é só cenário; a cidade onde se constrói começa aberta no Rio de Janeiro.
@@ -20,9 +24,8 @@ const ADOPTION_HOLD_MS = 5 * 60 * 1000
 const SESSION_SECONDS = 30 * 24 * 60 * 60
 const previewEnabled = env => env?.CITYOU_TEST_OPEN_REGIONS === '1'
 const kinds = ['habit', 'goal', 'note', 'transaction', 'meal']
-const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' })
-const sources = Object.fromEntries(['fitness', 'documents', 'memories', 'events']
-  .map(key => [key, { connected: false, data: key === 'fitness' ? {} : [] }]))
+// Biblioteca e Memórias ainda não têm armazenamento próprio (etapa 4): chegam vazias e indisponíveis.
+const sources = Object.fromEntries(['documents', 'memories'].map(key => [key, { connected: false, data: [] }]))
 
 export function sessionToken(request) {
   return request.headers.get('Cookie')?.match(/(?:^|;\s*)cityou_demo=([a-f0-9]{64})(?:;|$)/)?.[1]
@@ -38,10 +41,18 @@ const routes = [
   [/^\/api\/personal$/, { GET: 'personal' }],
   [/^\/api\/personal\/entries$/, { POST: 'addEntry' }],
   [/^\/api\/personal\/entries\/([a-f0-9-]{36})\/checkin$/, { PUT: 'checkin' }],
+  [/^\/api\/personal\/events$/, { POST: 'addEvent' }],
+  [/^\/api\/personal\/events\/([a-f0-9-]{36})$/, { PUT: 'editEvent', DELETE: 'removeEvent' }],
+  [/^\/api\/personal\/projects$/, { GET: 'projectsList', POST: 'addProject' }],
+  [/^\/api\/personal\/projects\/([a-f0-9-]{36})$/, { PUT: 'editProject', DELETE: 'removeProject' }],
+  [/^\/api\/personal\/projects\/([a-f0-9-]{36})\/step-done$/, { POST: 'stepDone' }],
+  [/^\/api\/personal\/weights$/, { GET: 'weightsHistory', POST: 'addWeight' }],
+  [/^\/api\/personal\/weights\/([a-f0-9-]{36})$/, { PUT: 'editWeight', DELETE: 'removeWeight' }],
   [/^\/api\/personal\/tasks$/, { GET: 'tasks', POST: 'addTask' }],
   [/^\/api\/personal\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/personal\/proofs\/([a-f0-9-]{36})\/(\d{4}-\d{2}-\d{2})\/photo$/, { GET: 'proofPhoto' }],
   // Apelidos de /api/personal/tasks* por um deploy, para abas abertas com o bundle antigo (etapa 2). Saem na etapa 6.
+  [/^\/api\/workspace\/projects$/, { GET: 'projectsList' }],
   [/^\/api\/workspace\/tasks$/, { GET: 'tasks' }],
   [/^\/api\/workspace\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/city$/, { GET: 'city' }],
@@ -65,6 +76,15 @@ async function requireAdmin(request, env) {
   if (given !== expected) throw new HttpError(403, 'Token de administração inválido.')
 }
 
+/**
+ * Abre o Durable Object da sessão. `DO_LOCATION_HINT` (por exemplo `sam`) só vale para objetos ainda não criados:
+ * sem a variável nada muda. Medido em 13/11/2026: sem dica, a prévia leva ~120 ms só na ida e volta ao objeto (docs/BENCHMARKS.md).
+ */
+function sessionStub(env, key) {
+  const hint = env?.DO_LOCATION_HINT
+  return hint ? env.DEMO_SESSIONS.getByName(key, { locationHint: hint }) : env.DEMO_SESSIONS.getByName(key)
+}
+
 /** Nome do Durable Object com os dados da sessão de demonstração deste pedido, ou null sem cookie. */
 export async function demoKeyOf(request, env) {
   const token = sessionToken(request)
@@ -81,7 +101,7 @@ export function accountKey(id) {
 async function updateAdoption(env, key, path, account) {
   let response
   try {
-    response = await env.DEMO_SESSIONS.getByName(key).fetch(`https://cityou.internal${path}`, {
+    response = await sessionStub(env, key).fetch(`https://cityou.internal${path}`, {
       method: 'POST', headers: { [ACCOUNT_HEADER]: account },
     })
   } catch (error) {
@@ -101,10 +121,6 @@ async function reservedAccount(db, key) {
 }
 
 export async function demoApi(request, env, url, user = null, timing = null) {
-  // Projetos ainda não são guardados (etapa 5 do plano): o painel recebe a lista vazia.
-  if (url.pathname === '/api/workspace/projects' && request.method === 'GET') {
-    return json({ projects: [] })
-  }
   // Apelido para abas abertas com o bundle antigo da cidade, que ainda pedem os sinais de atividade do Fifones.
   // A cidade nova não pede mais (etapa 2). Sai na etapa 6.
   if (url.pathname === '/api/workspace/activity' && request.method === 'GET') {
@@ -123,17 +139,11 @@ export async function demoApi(request, env, url, user = null, timing = null) {
   if (user) forwarded.headers.set(ACCOUNT_HEADER, user.id)
   else forwarded.headers.delete(ACCOUNT_HEADER)
   // `do` = ida e volta ao Durable Object (inclui o trabalho dele): separa o servidor do banco no Server-Timing.
-  const call = () => env.DEMO_SESSIONS.getByName(key).fetch(forwarded)
+  const call = () => sessionStub(env, key).fetch(forwarded)
   const response = timing ? await timing.measure('do', call) : await call()
   const result = new Response(response.body, response)
   if (!user && result.status === 410) result.headers.append('Set-Cookie', sessionCookie(url))
   return result
-}
-
-function isDate(value) {
-  if (typeof value !== 'string' || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) return false
-  const date = new Date(value)
-  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && !value.startsWith('0000')
 }
 
 function titleOf(value) {
@@ -172,6 +182,8 @@ export class DemoSession {
     this.sql = ctx.storage.sql
     this.name = ctx.id.name
     this.db = env?.DB
+    this.env = env
+    this.month = null
     this.sql.exec('CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT, value TEXT NOT NULL, PRIMARY KEY (kind, id))')
     this.migrateCatalog()
   }
@@ -252,7 +264,8 @@ export class DemoSession {
     try {
       const owner = this.ownerFor(account)
       const writes = request.method !== 'GET'
-      const body = writes ? await readJsonObject(request, 24_000) : undefined
+      // DELETE não tem corpo: o servidor não lê nada e passa {}.
+      const body = !writes ? undefined : request.method === 'DELETE' ? {} : await readJsonObject(request, 24_000)
       let proof
       if (handler === 'checkin' && body.proof !== undefined) {
         try {
@@ -270,6 +283,7 @@ export class DemoSession {
       }
       return this.storage.transactionSync(() => {
         this.ownerFor(account)
+        this.month = url.searchParams.get('month')
         if (handler === 'city' || handler === 'cityAction' || handler === 'syncRewards') {
           this.requireLocation(location)
           return this[handler](body, location)
@@ -338,9 +352,12 @@ export class DemoSession {
     )
   }
 
-  add(kind, data) {
-    if (this.sql.exec('SELECT count(*) AS total FROM records WHERE kind = ?', kind).one().total >= 100) {
-      throw new HttpError(422, 'A demonstração aceita até 100 registros deste tipo.')
+  cap(kind) { return capOf(this.env, kind) }
+
+  // Tarefas e entradas seguem em 100 por tipo (pendência do plano); Agenda, Projetos e Peso passam o teto próprio.
+  add(kind, data, cap = null) {
+    if (this.sql.exec('SELECT count(*) AS total FROM records WHERE kind = ?', kind).one().total >= (cap ?? 100)) {
+      throw new HttpError(422, cap ? capMessage(cap) : 'A demonstração aceita até 100 registros deste tipo.')
     }
     const record = { ...data, id: crypto.randomUUID(), created_at: new Date().toISOString() }
     this.write(kind, record.id, record)
@@ -351,7 +368,10 @@ export class DemoSession {
     const proofs = this.list('proof').map(({ photo, ...rest }) => ({ ...rest, has_photo: Boolean(photo) }))
     const today = dateFormatter.format(new Date())
     const entries = this.list('entry')
-    return { entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), predios: [...this.buildingActivityIds()], sources }
+    return {
+      entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), predios: [...this.buildingActivityIds()],
+      tasks: this.list('task'), projects: this.list('project'), ...this.agendaView(), ...this.weightView(), sources,
+    }
   }
 
   personal() { return json(this.overview()) }
@@ -649,3 +669,5 @@ export class DemoSession {
     return json(worldSnapshot(next, this.travelOpen))
   }
 }
+
+Object.assign(DemoSession.prototype, agendaMethods, projectMethods, weightMethods)

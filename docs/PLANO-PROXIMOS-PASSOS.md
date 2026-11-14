@@ -166,3 +166,7 @@ Resumo do que mudou, resultado de cada comando, o que não foi verificado e as d
 ```
 
 Este prompt é para uma ferramenta com acesso real ao sistema. Confira os limites, as ações proibidas e os critérios de parada antes de colar.
+
+## Ideias propostas (informativo, fora das etapas)
+
+- **Animação "enxame de agentes"** para a página de apresentação e como modelo do histórico da Fita do Tempo: [docs/ideias/enxame-de-agentes.md](ideias/enxame-de-agentes.md). Depende de decisão do dono.

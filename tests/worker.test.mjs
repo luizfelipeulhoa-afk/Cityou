@@ -63,7 +63,7 @@ test('rota de dados separa o tempo do Durable Object no Server-Timing', async ()
   const cookie = sessionCookie(new URL(ORIGIN)).split(';')[0]
   const response = await call('/api/city', { headers: { Cookie: cookie } })
   assert.equal(response.status, 200)
-  assert.match(response.headers.get('Server-Timing'), /^total;dur=\d+(\.\d)?, do;dur=\d+(\.\d)?$/)
+  assert.match(response.headers.get('Server-Timing'), /^total;dur=\d+(\.\d)?(, cache;dur=\d+(\.\d)?)?, do;dur=\d+(\.\d)?$/)
 })
 
 test('rota desconhecida responde 404 em JSON, no formato lido por ApiError', async () => {

@@ -119,11 +119,15 @@ Ação principal: "Novo compromisso".
 
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
-| Novo compromisso | Fifones | `POST /api/events` | `events` | Cartão na ordem da data |
-| Ver compromisso | Fifones | `PATCH /api/events/{id}` | `events` | Formulário de edição, com "Apagar" |
-| Abrir agenda completa | Fifones | | | **Sai**: a própria tela passa a ser a agenda completa |
+| Novo compromisso | `POST /api/personal/events` (etapa 5) | `POST /api/events` | `records` (kind `event`) | Compromisso no dia escolhido da grade do mês; nenhuma moeda ou XP |
+| Marcar respiro / Tirar o respiro | `POST` com `kind: 'respiro'` ou `DELETE /api/personal/events/{id}` | | `records` | Dia com selo "Dia de respiro" e "Nada a cumprir"; recusado se o dia tem compromisso firme |
+| Editar | `PUT /api/personal/events/{id}` | `PATCH /api/events/{id}` | `records` | Mesmo formulário, preenchido |
+| Apagar (pede "Apagar mesmo?") | `DELETE /api/personal/events/{id}` | `DELETE /api/events/{id}` | `records` | O compromisso sai; sem desfazer por enquanto |
+| Setas do mês | `GET /api/personal?month=AAAA-MM` | | | Outro mês da grade |
 
-Vazio: "Sua agenda tem espaço." com "Novo compromisso".
+A grade mostra dia livre, com compromisso (ponto cheio), com "se der" (ponto vazado) e de respiro (sol). Nada é vermelho e não há aviso de atraso: o que passou fica em cinza com o selo "passou". Seu dia lista os compromissos de hoje.
+
+Vazio: "Um pouco de espaço livre também faz parte."
 
 ### Hábitos
 
@@ -155,11 +159,12 @@ Ação principal: "Registrar peso".
 
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
-| Registrar peso | Fifones | `PUT /api/weights/{dia}` | `weights` | "Última pesagem" e a lista atualizam |
-| Linha de pesagem | Nada | `PUT` ou `DELETE /api/weights/{dia}` | `weights` | Edição e "Apagar" |
-| Continuar avaliação (voz Gemini) | Fifones | | | **Sai** |
+| Registrar peso do dia | `POST /api/personal/weights` (etapa 5) | `PUT /api/weights/{dia}` | `records` (kind `weight`) | "Última pesagem", média de 7 dias, gráfico e lista atualizam; peso em kg com vírgula, convertido para gramas |
+| Editar (linha de pesagem) | `PUT /api/personal/weights/{id}` | `PUT /api/weights/{dia}` | `records` | Só o peso e a nota; o dia não muda |
+| Apagar (pede "Apagar mesmo?") | `DELETE /api/personal/weights/{id}` | `DELETE /api/weights/{dia}` | `records` | A pesagem sai e o dia fica livre de novo |
+| Continuar avaliação (voz Gemini) | saiu | | | **Saiu** |
 
-"Retornos registrados" sai junto com a avaliação. Vazio: "Seu gráfico começa com a primeira pesagem."
+O gráfico mostra as pesagens como pontos e a média de 7 dias como linha, com o texto neutro "Sua média está estável nas últimas 2 semanas." (ou "um pouco mais alta/baixa que há 2 semanas"). Sem meta, sem cor de bom ou ruim, sem moedas. "Retornos registrados" saiu junto com a avaliação. Vazio: "Seu gráfico começa com a primeira pesagem."
 
 ### Alimentação
 
@@ -213,8 +218,14 @@ Ação principal: "Novo projeto".
 
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
-| Gerenciar projetos, "Abrir meus projetos" | Fifones | `POST /api/projects` (vira "Novo projeto") | `projects` | Cartão novo |
-| Cartão do projeto | Fifones | `GET /api/tasks?project_id=…` | `tasks` | Abre o projeto com as tarefas dele; edição e "Arquivar" |
+| Novo projeto | `POST /api/personal/projects` (etapa 5) | `POST /api/projects` | `records` (kind `project`) | Cartão com a caixa "Qual é o próximo passo?" |
+| Guardar passo | `PUT /api/personal/projects/{id}` com `next_step` | | `records` | O botão vira "Concluí" |
+| Concluí | `POST /api/personal/projects/{id}/step-done` | | `records` | "N passos dados" e "E agora, qual é o próximo?" com a caixa vazia; sem moedas nem XP |
+| Editar | `PUT /api/personal/projects/{id}` | `PATCH /api/projects/{id}` | `records` | Nome e detalhes |
+| Guardar por enquanto / Retomar | `PUT` com `status` | | `records` | Passa para a aba "Guardados" e volta; reversível |
+| Apagar (pede "Apagar mesmo?") | `DELETE /api/personal/projects/{id}` | | `records` | O projeto sai |
+
+Sem prazo, sem contagem regressiva e sem cartões de "parado há N dias". Vazio: "Seu próximo projeto tem espaço aqui."
 
 ### Memórias
 

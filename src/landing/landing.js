@@ -1,7 +1,7 @@
 // Página de apresentação: animações de entrada, demonstração do ciclo do jogo e a janela de entrar / criar conta.
 // Sem framework e sem biblioteca de animação: CSS, IntersectionObserver e um pouco de estado.
 import './landing.css'
-import { safeNext } from '../fifones/api.js'
+import { clearCache, safeNext } from '../fifones/api.js'
 
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
 const $ = (selector, root = document) => root.querySelector(selector)
@@ -193,7 +193,7 @@ form.addEventListener('submit', async (event) => {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1' }, body: JSON.stringify(data),
     })
     const result = await response.json().catch(() => ({}))
-    if (response.ok) { location.assign(nextPath); return }
+    if (response.ok) { clearCache(); location.assign(nextPath); return }
     let placed = false
     for (const [name, message] of Object.entries(result.fields || {})) placed = fieldError(name, message) || placed
     if (!placed || response.status === 409) {
