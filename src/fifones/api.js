@@ -38,6 +38,22 @@ export function safeNext(raw, hash = '') {
   return raw.includes('#') || !/^#[\w\-/]*$/.test(hash) ? raw : raw + hash
 }
 
+// Estado em cache no navegador (atualiza por trás): o app mostra o último estado na hora e confirma com a rede.
+// Cada pedaço guarda só a leitura da própria conta; sai tudo ao sair da conta ou ao entrar (`clearCache`).
+const CACHE_PREFIX = 'cityou:swr:', CACHE_MAX_AGE = 24 * 3600 * 1000
+export function readCache(path) {
+  try {
+    const item = JSON.parse(localStorage.getItem(CACHE_PREFIX + path) || 'null')
+    return item && Date.now() - item.t < CACHE_MAX_AGE ? item.data : null
+  } catch { return null }
+}
+export function writeCache(path, data) {
+  try { localStorage.setItem(CACHE_PREFIX + path, JSON.stringify({ t: Date.now(), data })) } catch { /* Cota cheia ou navegação privada: só perde o atalho. */ }
+}
+export function clearCache() {
+  try { Object.keys(localStorage).filter(key => key.startsWith(CACHE_PREFIX)).forEach(key => localStorage.removeItem(key)) } catch { /* Sem acesso: nada a limpar. */ }
+}
+
 /** Sair da conta: só vai para a página inicial se o servidor confirmou; senão lança erro e a pessoa continua dentro. */
 export async function signOut() {
   let response
@@ -45,6 +61,7 @@ export async function signOut() {
     response = await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1' }, body: '{}' })
   } catch { throw new ApiError('Sem conexão. Você continua dentro da conta.', 0) }
   if (!response.ok) throw new ApiError('Não foi possível sair agora. Tente de novo.', response.status)
+  clearCache()
   topWindow().location.assign('/')
 }
 
@@ -61,6 +78,7 @@ let signedOut = false
 function goToLogin() {
   if (signedOut) return
   signedOut = true
+  clearCache()
   const top = topWindow()
   const next = top.location.pathname + top.location.search + top.location.hash
   top.location.assign(`/?entrar=1&next=${encodeURIComponent(next)}`)
@@ -118,8 +136,24 @@ export const loadCity = async () => {
 // Tarefas reais, guardadas no Durable Object da pessoa (etapa 2).
 export const loadTasks = () => api('/api/personal/tasks')
 export const completeTask = id => api(`/api/personal/tasks/${encodeURIComponent(id)}/complete`, 'POST', {})
-// Projetos ainda chegam vazios: ficam reais na etapa 5.
-export const loadProjects = () => api('/api/workspace/projects')
+export const loadProjects = () => api('/api/personal/projects')
+// Agenda real (etapa 5). Toda escrita devolve o estado novo de /api/personal (do mês pedido): a tela não faz GET depois.
+const monthQuery = month => month ? '?month=' + encodeURIComponent(month) : ''
+export const loadPersonal = month => api('/api/personal' + monthQuery(month))
+export const addEvent = (body, month) => api('/api/personal/events' + monthQuery(month), 'POST', body)
+export const editEvent = (id, body, month) => api(`/api/personal/events/${encodeURIComponent(id)}` + monthQuery(month), 'PUT', body)
+export const removeEvent = (id, month) => api(`/api/personal/events/${encodeURIComponent(id)}` + monthQuery(month), 'DELETE')
+// Peso real: uma pesagem por dia, em gramas. A tendência (média de 7 dias) vem pronta do servidor.
+export const loadWeights = () => api('/api/personal/weights')
+export const addWeight = body => api('/api/personal/weights', 'POST', body)
+export const editWeight = (id, body) => api(`/api/personal/weights/${encodeURIComponent(id)}`, 'PUT', body)
+export const removeWeight = id => api(`/api/personal/weights/${encodeURIComponent(id)}`, 'DELETE')
+// Projetos reais: um nome e um próximo passo. `stepDone` só o servidor conta.
+const projectPath = id => `/api/personal/projects/${encodeURIComponent(id)}`
+export const addProject = body => api('/api/personal/projects', 'POST', body)
+export const editProject = (id, body) => api(projectPath(id), 'PUT', body)
+export const removeProject = id => api(projectPath(id), 'DELETE')
+export const stepDone = id => api(projectPath(id) + '/step-done', 'POST', {})
 export const syncRewards = () => api('/api/rewards/sync' + cityQuery, 'POST', {})
 export const cityAction = action => api('/api/city/actions' + cityQuery, 'POST',
   { ...action, request_id: action.request_id || crypto.randomUUID() }, { retry: true })

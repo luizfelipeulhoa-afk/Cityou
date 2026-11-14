@@ -3,6 +3,8 @@
   "name": "cityou-test",
   "main": "worker/index.js",
   "compatibility_date": "2026-11-09",
+  // Tetos baixos só nos testes (worker/records.js, capOf): produção usa 100 projetos, 1000 compromissos e 1500 pesagens.
+  "vars": { "CITYOU_TEST_CAPS": "{\"event\":3,\"project\":3,\"weight\":12}" },
   "d1_databases": [
     { "binding": "DB", "database_name": "cityou-test", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
   ],
