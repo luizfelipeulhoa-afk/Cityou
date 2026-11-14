@@ -95,13 +95,23 @@ try {
   await diary.getByLabel('Quantidade').fill('100')
   await diary.getByRole('button', { name: 'Adicionar ao dia' }).click()
   await diary.locator('.fd-meal li', { hasText: 'Feijão, carioca, cozido' }).waitFor()
-  await diary.getByPlaceholder('Digite, por exemplo: ovo, arroz, banana').fill('banana prata')
-  await diary.getByRole('option', { name: /Banana, prata, crua/ }).click()
-  check('depois de gramas, o próximo começa em gramas', (await diary.getByLabel('Unidade').inputValue()) === 'g')
+  const pick = async (text, name) => {
+    await diary.getByPlaceholder('Digite, por exemplo: ovo, arroz, banana').fill(text)
+    await diary.getByRole('option', { name }).click()
+    return diary.getByLabel('Unidade').inputValue()
+  }
+  // Alimento que se conta começa em unidade mesmo para quem pesa o resto (o dono come 4 ovos, não 200 g).
+  check('banana começa em unidade mesmo depois de gramas', (await pick('banana prata', /Banana, prata, crua/)) === 'unidade')
+  check('ovo frito começa em unidade mesmo depois de gramas', (await pick('ovo frito', /Ovo, de galinha, inteiro, frito/)) === 'unidade média')
+  // Quem pesa o ovo uma vez continua pesando o ovo.
+  await diary.getByLabel('Unidade').selectOption('g')
+  await diary.getByLabel('Quantidade').fill('50')
+  await diary.getByRole('button', { name: 'Adicionar ao dia' }).click()
+  await diary.locator('.fd-meal li', { hasText: 'Ovo, de galinha, inteiro, frito' }).waitFor()
   await page.reload()
-  await diary.getByPlaceholder('Digite, por exemplo: ovo, arroz, banana').fill('arroz cozido')
-  await diary.getByRole('option', { name: /Arroz, tipo 1, cozido/ }).click()
-  check('a preferência por gramas continua depois de recarregar', (await diary.getByLabel('Unidade').inputValue()) === 'g')
+  check('a última unidade do mesmo alimento vale depois de recarregar (ovo em gramas)', (await pick('ovo frito', /Ovo, de galinha, inteiro, frito/)) === 'g')
+  check('alimento sem unidade segue a preferência por gramas', (await pick('arroz integral cozido', /Arroz, integral, cozido/)) === 'g')
+  check('alimento já registrado volta na medida usada (arroz em colher)', (await pick('arroz tipo 1 cozido', /Arroz, tipo 1, cozido/)) === 'colher de sopa cheia')
   await diary.getByRole('button', { name: 'Trocar' }).click()
 
   // Mudar a quantidade de refeições: 3 por dia.
