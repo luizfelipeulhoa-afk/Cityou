@@ -57,6 +57,7 @@ const routes = [
   // Alimentação: diário de refeições (worker/diary.js). A busca usa a base de alimentos do próprio servidor.
   [/^\/api\/personal\/diary$/, { GET: 'diary', POST: 'addDiary' }],
   [/^\/api\/personal\/diary\/foods$/, { GET: 'diaryFoods' }],
+  [/^\/api\/personal\/diary\/schedule$/, { PUT: 'setDiarySchedule' }],
   [/^\/api\/personal\/diary\/([a-f0-9-]{36})$/, { PUT: 'editDiary', DELETE: 'removeDiary' }],
   // Alimentação: base calórica (worker/nutrition.js).
   [/^\/api\/personal\/nutrition$/, { GET: 'nutrition', DELETE: 'removeNutrition' }],

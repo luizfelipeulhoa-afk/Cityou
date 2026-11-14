@@ -1,15 +1,25 @@
-// Diário alimentar da aba Alimentação: a pessoa busca um alimento pelo nome (lista fechada da base TACO e USDA),
-// escolhe uma unidade ou gramas e informa a quantidade. Não há texto livre de refeição: o servidor só aceita um
-// `food_id` da base e calcula as calorias e os macronutrientes a partir dela (`shared/game/foods-base.js`), então
-// o mesmo alimento dá o mesmo número para todo mundo. Nada aqui paga moedas ou XP.
+// Diário alimentar da aba Alimentação: a pessoa escolhe quantas refeições faz por dia (igual todos os dias da semana ou
+// uma quantidade por dia da semana), busca um alimento pelo nome (lista fechada da base TACO e USDA), escolhe uma
+// unidade ou gramas, informa a quantidade e pode editar ou apagar. Não há texto livre de refeição: o servidor só aceita
+// um `food_id` da base e calcula as calorias e os macronutrientes a partir dela (`shared/game/foods-base.js`), então o
+// mesmo alimento dá o mesmo número para todo mundo. Nada aqui paga moedas ou XP.
 import { HttpError, json } from './http.js'
 import { exact, dayOf, todayInSaoPaulo } from './records.js'
 import { FOOD_BASE } from '../shared/game/foods-base.js'
 import { FOOD_PORTIONS } from '../shared/game/foods-portions.js'
 
 const KIND = 'diary'
-export const MEALS = [['cafe', 'Café da manhã'], ['almoco', 'Almoço'], ['lanche', 'Lanche'], ['jantar', 'Jantar'], ['outros', 'Outros']]
-const MEAL_IDS = MEALS.map(([id]) => id)
+const SCHEDULE_KIND = 'diary_schedule'
+const SCHEDULE_ID = 'schedule'
+export const MAX_MEALS = 8
+export const WEEKDAYS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
+// Nomes para 2 a 5 refeições; a partir de 6, ou quando não há nome para a posição, vale "Refeição N".
+const SLOT_NAMES = {
+  2: ['Café da manhã', 'Jantar'],
+  3: ['Café da manhã', 'Almoço', 'Jantar'],
+  4: ['Café da manhã', 'Almoço', 'Lanche', 'Jantar'],
+  5: ['Café da manhã', 'Lanche da manhã', 'Almoço', 'Lanche da tarde', 'Jantar'],
+}
 const MAX_GRAMS = 5000
 const MAX_QUANTITY = 1000
 const SEARCH_LIMIT = 15
@@ -39,6 +49,14 @@ function sumOf(entries) {
 
 function portionsOf(id) {
   return (FOOD_PORTIONS[id] ?? []).map(([label, grams]) => ({ label, grams }))
+}
+
+/** Dia da semana (0 = domingo) de um dia AAAA-MM-DD. */
+export const weekdayOf = day => new Date(`${day}T12:00:00Z`).getUTCDay()
+
+/** Nome da refeição na posição `slot` (1 a MAX_MEALS) de um dia com `count` refeições. */
+export function slotLabel(slot, count) {
+  return SLOT_NAMES[count]?.[slot - 1] ?? `Refeição ${slot}`
 }
 
 /** Busca por nome, sem acento e sem distinguir maiúsculas. Todas as palavras precisam aparecer no nome. */
@@ -81,15 +99,38 @@ export function gramsOf(foodId, quantity, unit) {
   return Math.round(grams)
 }
 
-function mealOf(value) {
-  if (!MEAL_IDS.includes(value)) throw new HttpError(422, 'Escolha a refeição.', { meal: 'Escolha a refeição.' })
-  return value
-}
-
 function foodOf(id) {
   const row = typeof id === 'string' ? FOODS.get(id) : undefined
   if (!row) throw new HttpError(422, 'Escolha um alimento da lista.', { food_id: 'Escolha um alimento da lista.' })
   return row
+}
+
+/** Número de refeições de um dia pela programação (0 se a pessoa ainda não escolheu). */
+function countFor(schedule, day) {
+  return schedule ? schedule.by_weekday[weekdayOf(day)] : 0
+}
+
+function mealOf(value, count) {
+  const fields = {}
+  if (!Number.isInteger(value) || value < 1 || value > MAX_MEALS) fields.meal = 'Escolha a refeição.'
+  else if (value > count) fields.meal = count ? `Este dia tem ${count} refeições. Escolha uma delas.` : 'Escolha quantas refeições você faz por dia antes de registrar.'
+  if (Object.keys(fields).length) throw new HttpError(422, 'Confira os campos marcados.', fields)
+  return value
+}
+
+function scheduleOf(body) {
+  exact(body, ['daily', 'meals', 'by_weekday'])
+  const fields = {}
+  const valid = n => Number.isInteger(n) && n >= 1 && n <= MAX_MEALS
+  if (typeof body.daily !== 'boolean') fields.daily = 'Escolha se é igual todos os dias.'
+  else if (body.daily) {
+    if (!valid(body.meals)) fields.meals = `Informe de 1 a ${MAX_MEALS} refeições por dia.`
+  } else if (!Array.isArray(body.by_weekday) || body.by_weekday.length !== 7 || !body.by_weekday.every(valid)) {
+    fields.by_weekday = `Informe de 1 a ${MAX_MEALS} refeições para cada dia da semana.`
+  }
+  if (Object.keys(fields).length) throw new HttpError(422, 'Confira os campos marcados.', fields)
+  const by_weekday = body.daily ? Array(7).fill(body.meals) : body.by_weekday.slice()
+  return { daily: body.daily, meals: body.daily ? body.meals : null, by_weekday, updated_at: new Date().toISOString() }
 }
 
 export const diaryMethods = {
@@ -98,16 +139,26 @@ export const diaryMethods = {
       .toArray().map(row => JSON.parse(row.value))
   },
 
-  /** Dia pedido (padrão: hoje, em São Paulo): registros, totais por refeição e do dia, e a meta aceita, se houver. */
+  /** Dia pedido (padrão: hoje, em São Paulo): programação de refeições, registros, totais por refeição e do dia, e a meta aceita. */
   diaryView(chosen) {
     const day = chosen ?? (this.day ? dayOf(this.day, 'o dia') : todayInSaoPaulo())
+    const schedule = this.read(SCHEDULE_KIND, SCHEDULE_ID)
+    const count = countFor(schedule, day)
     const entries = this.diaryEntries(day).sort((a, b) =>
-      MEAL_IDS.indexOf(a.meal) - MEAL_IDS.indexOf(b.meal) || a.created_at.localeCompare(b.created_at))
+      a.meal - b.meal || a.created_at.localeCompare(b.created_at))
+    // Registros de um dia com mais refeições (antes de a pessoa reduzir a programação) aparecem como refeições extras.
+    const shown = Math.max(count, ...entries.map(entry => entry.meal), 0)
     const target = this.nutritionRecord('target')
     return {
       day,
+      weekday: weekdayOf(day),
+      weekday_name: WEEKDAYS[weekdayOf(day)],
+      schedule: schedule ? { daily: schedule.daily, meals: schedule.meals, by_weekday: schedule.by_weekday } : null,
       entries,
-      meals: MEALS.map(([id, label]) => ({ id, label, totals: sumOf(entries.filter(entry => entry.meal === id)) })),
+      meals: Array.from({ length: shown }, (_, index) => {
+        const slot = index + 1
+        return { id: slot, label: slotLabel(slot, count), totals: sumOf(entries.filter(entry => entry.meal === slot)) }
+      }),
       totals: sumOf(entries),
       target: target ? { low: target.low, high: target.high } : null,
     }
@@ -117,11 +168,20 @@ export const diaryMethods = {
 
   diaryFoods() { return json({ foods: searchFoods(this.query) }) },
 
+  /** Programação: `daily` true com `meals` (igual todo dia) ou `daily` false com `by_weekday` (sete números, domingo primeiro). */
+  setDiarySchedule(body) {
+    const schedule = scheduleOf(body)
+    this.write(SCHEDULE_KIND, SCHEDULE_ID, schedule)
+    return json(this.diaryView())
+  },
+
   addDiary(body) {
     exact(body, ['day', 'meal', 'food_id', 'quantity', 'unit'])
     const day = dayOf(body.day, 'o dia')
     if (day > todayInSaoPaulo()) throw new HttpError(422, 'Registre o que comeu hoje ou em um dia que já passou.', { day: 'Registre o que comeu hoje ou em um dia que já passou.' })
-    const meal = mealOf(body.meal)
+    const count = countFor(this.read(SCHEDULE_KIND, SCHEDULE_ID), day)
+    console.log('DBG', day, count, JSON.stringify(this.read(SCHEDULE_KIND, SCHEDULE_ID)))
+    const meal = mealOf(body.meal, count)
     const row = foodOf(body.food_id)
     const grams = gramsOf(row[0], body.quantity, body.unit)
     const record = {
@@ -138,7 +198,9 @@ export const diaryMethods = {
     const current = this.read(KIND, id)
     if (!current) throw new HttpError(404, 'Este registro não existe.')
     const next = { ...current, updated_at: new Date().toISOString() }
-    if (body.meal !== undefined) next.meal = mealOf(body.meal)
+    if (body.meal !== undefined) {
+      next.meal = mealOf(body.meal, countFor(this.read(SCHEDULE_KIND, SCHEDULE_ID), current.day))
+    }
     if (body.quantity !== undefined || body.unit !== undefined) {
       const quantity = body.quantity ?? current.quantity
       const unit = body.unit ?? current.unit

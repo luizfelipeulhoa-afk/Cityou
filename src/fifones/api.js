@@ -180,6 +180,8 @@ export const loadDiary = day => api(DIARY + (day ? `?day=${encodeURIComponent(da
 export const searchFoods = query => api(DIARY + '/foods?q=' + encodeURIComponent(query))
 export const addDiaryEntry = body => api(DIARY, 'POST', body)
 export const removeDiaryEntry = id => api(`${DIARY}/${encodeURIComponent(id)}`, 'DELETE')
+export const editDiaryEntry = (id, body) => api(`${DIARY}/${encodeURIComponent(id)}`, 'PUT', body)
+export const saveDiarySchedule = body => api(DIARY + '/schedule', 'PUT', body)
 // Composição corporal da aba Fitness (worker/body.js). As escritas devolvem a lista e a média das últimas medidas.
 const BODY = '/api/personal/body-composition'
 export const loadBodyComposition = () => api(BODY)

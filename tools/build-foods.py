@@ -148,6 +148,31 @@ def add_portion(bucket, label, grams, amount):
         bucket.append([label, per_unit])
 
 
+# Palavras inglesas que sobraram nos nomes traduzidos da USDA (só minúsculas: marcas em maiúsculas ficam como estão).
+POLISH = [
+    (r'\bwith\b', 'com'), (r'\band\b', 'e'), (r'\bwithout\b', 'sem'), (r'\bfrom\b', 'de'),
+    (r'\braw\b', 'cru'), (r'\bcooked\b', 'cozido'), (r'\bfresh\b', 'fresco'), (r'\bdried\b', 'seco'),
+    (r'\broasted\b', 'assado'), (r'\bbaked\b', 'assado'), (r'\bboiled\b', 'cozido em água'), (r'\bfried\b', 'frito'),
+    (r'\bbroiled\b', 'grelhado'), (r'\bcanned\b', 'enlatado'), (r'\bfrozen\b', 'congelado'), (r'\bwhole\b', 'integral'),
+    (r'\bunsalted\b', 'sem sal'), (r'\bsalt\b', 'sal'), (r'\bsweetened\b', 'adoçado'), (r'\bunsweetened\b', 'sem açúcar'),
+    (r'\bfilled\b', 'recheado'), (r'\bmixed\b', 'misto'), (r'\bstyle\b', 'estilo'), (r'\bsmall\b', 'pequeno'),
+    (r'\blarge\b', 'grande'), (r'\bmedium\b', 'médio'), (r'\bcommercially prepared\b', 'industrializado'),
+    (r'\blow carb\b', 'baixo carboidrato'), (r'\bnot further specified\b', 'sem outra especificação'), (r'\bNFS\b', 'sem outra especificação'),
+]
+
+
+def polish(name):
+    """Limpa o nome traduzido: palavras inglesas restantes, espaços duplos e vírgula sobrando no fim."""
+    # Só o texto fora dos parênteses: as glosas em inglês dentro deles (eye of round, salt pork) ficam como estão.
+    parts = re.split(r'(\([^()]*\))', name)
+    for i in range(0, len(parts), 2):
+        for pattern, word in POLISH:
+            parts[i] = re.sub(pattern, word, parts[i])
+    name = ''.join(parts)
+    name = re.sub(r'\s+', ' ', name).strip()
+    return name.rstrip(', ').strip()
+
+
 def main():
     final = json.load(open(f'{SCRATCH}/foods-final.json', encoding='utf-8'))
     pt_map = json.load(open(os.path.join(REPO, 'tools', 'traducao-usda-pt.json'), encoding='utf-8'))
@@ -156,9 +181,9 @@ def main():
     rows = []
     for x in final:
         if x['src'] == 'taco':
-            name, en = x['name'], ''
+            name, en = re.sub(r'\s+', ' ', x['name']).strip(), ''
         else:
-            name, en = pt_map[x['id']], x['name']
+            name, en = polish(pt_map[x['id']]), x['name']
         rows.append({**x, 'name': name, 'en': en, 'group': GROUP_PT.get(x['group'], x['group'])
                      if x['src'] != 'taco' else x['group']})
 
@@ -171,7 +196,8 @@ def main():
         key = r['name'].lower()
         if key in seen:
             if r['src'] == 'usda-sr' and seen[key]['src'] == 'usda-sr':
-                r['name'] = f"{r['name']} ({r['en']})"
+                # Colisão entre duas linhas da USDA: o número da referência diferencia (o nome inglês fica em `originalName`).
+                r['name'] = f"{r['name']} (USDA {r['ref']})"
                 key2 = r['name'].lower()
                 if key2 in seen:
                     dropped += 1
