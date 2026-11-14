@@ -1,6 +1,6 @@
 # Gera shared/game/foods-base.js e shared/game/foods-portions.js a partir das fontes oficiais.
 # Uso: python3 tools/build-foods.py <pasta-de-trabalho>
-#   <pasta-de-trabalho> contém: foods-final.json, pt/pt-map.json (ids -> nome em português),
+#   <pasta-de-trabalho> contém: foods-final.json, e a tradução dos nomes USDA (tools/traducao-usda-pt.json, ids -> nome em português),
 #   usda/sr/FoodData_Central_sr_legacy_food_csv_2018-04/ e corrigido/fjson/<arquivo Foundation>.json
 import json, csv, re, collections, os, sys
 
@@ -150,7 +150,7 @@ def add_portion(bucket, label, grams, amount):
 
 def main():
     final = json.load(open(f'{SCRATCH}/foods-final.json', encoding='utf-8'))
-    pt_map = json.load(open(f'{SCRATCH}/pt/pt-map.json', encoding='utf-8'))
+    pt_map = json.load(open(os.path.join(REPO, 'tools', 'traducao-usda-pt.json'), encoding='utf-8'))
     src_rank = {'taco': 0, 'usda-fnd': 1, 'usda-sr': 2}
 
     rows = []
