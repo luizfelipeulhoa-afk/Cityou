@@ -5,8 +5,8 @@ Atualizado em 13/11/2026. Para continuar em outra IA ou com outro dev: `node too
 ## Rumo ao MVP
 
 - **Objetivo:** entregar a primeira versão utilizável do Cityou, com painel pessoal e cidade 3D ligados aos dados do próprio app, sem depender do Fifones.
-- **O que falta:** integrar tarefas e Missões (etapa 2), migrar o catálogo e preservar as cidades salvas (3), tirar os atalhos e iframes legados do painel (4), ligar Agenda, Projetos e Peso aos dados reais (5) e concluir a segurança e o corte do legado (6). Ainda falta validar contas e latência na prévia e medir em celular físico. A tabela abaixo acompanha também a ambientação e a Fita do Tempo previstas no plano.
-- **Próximo passo:** (1) **conferir a etapa 2 no navegador** (o código entrou na `main` com o PR #34, com 77 testes, 41 do Worker e 59 do `pytest` verdes, mas ninguém abriu a tela): Missões lista tarefas reais do Worker, o menu da cidade abre as abas certas do painel e a sessão vencida leva à entrada sem repetir a requisição; (2) entrar o **PR #35** (montanha atrás do Cristo, ai-memory e `CLAUDE.md` conferido por teste); (3) **etapa 3** (catálogo e migração), o maior risco técnico do plano.
+- **O que falta:** as etapas 2 a 5 estão no código e na `main` (PRs #34, #37, #38 e #40 para a etapa 5) e as etapas 2 a 4 foram conferidas no navegador num Worker local com contas (13/11/2026). Faltam segurança e corte do legado (6), o resto da ambientação (7b), a Fita do Tempo (8) e o portão para abrir contas (10, proposta). A latência da prévia ainda passa do alvo de 60 ms no servidor (piso de ~130 ms, ver a etapa 5). Falta validar contas numa prévia publicada e medir em celular físico.
+- **Próximo passo:** (1) entrar o PR #39 (`claude/etapa-2-sessao-vencida`, Squash and merge) depois de conferir que a CI segue verde sobre a `main` atual; (2) **etapa 6** (segurança e corte do legado): CSP em `Report-Only` primeiro, pronta quando `npm test`, `npm run test:worker` e `npm run test:session` passam e o cabeçalho novo estiver em `Report-Only`; (3) decisão do dono sobre a latência (cache de leitura já está; falta escolher entre escrita otimista generalizada e Smart Placement).
 
 ## Em andamento por branch
 
@@ -17,6 +17,7 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 | `claude/etapa-4-painel-sem-iframe` | Etapa 4: painel sem iframe do Fifones, aba Conta, Salvo/Salvando…/Sem conexão, "Em breve" (Agenda, Projetos, Fitness, Biblioteca, Estudos), Sair em todas as páginas, `next` do login validado | 13/11/2026 |
 | `claude/etapa-4-painel-sem-iframe` (inclui a etapa 5) | Etapa 5: Agenda, Projetos e Peso reais, juntada à etapa 4 | 13/11/2026 |
 | `claude/blissful-gates-qmt20l` | Montanha atrás do Cristo (`crop.keep`, névoa e malha), ai-memory (configuração, regras e roteiro do `wikisync`), documentos reconciliados e teste que confere o `CLAUDE.md` (PR #35, aberto) | 13/11/2026 |
+| `claude/etapa-2-sessao-vencida` | Acompanhamento da etapa 2: 401 impede a nova tentativa de outro pedido; sessão vencida com a cidade ou o mapa no painel abre a entrada na janela principal; teste da etapa 3 na CI; `npm run test:session` | 13/11/2026 |
 
 ## O que já entrou na `main` (PR → etapa)
 | PR | O que entrou | Etapa do plano |
@@ -33,8 +34,12 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 | #32 | Contas, isolamento do Durable Object, migrações do D1, benchmarks, Vite 6.4 | 6 (parte) |
 | #33 | Leitura obrigatória, gancho de sessão, `AGENTS.md`, agentes `builder` e `reviewer`, skill `reflect`, revisão em `council/` | organização |
 | #34 | Etapa 2: tarefas reais, cliente único, cidade sem iframe (entrou na `main` em 13/11/2026) | 2 |
+| #35 | Montanha atrás do Cristo (`crop.keep`), ai-memory, `CLAUDE.md` conferido por teste | fora do plano e organização |
+| #36 | Checkpoint: etapa 2 conferida no navegador (Missões, menu da cidade avulsa, 401) | 2 |
+| #37 | Etapa 3: catálogo sem IA e StuntSync, Sede Cityou, destinos como aba, migração com reembolso único | 3 |
+| #38 | Etapa 4: painel sem iframe do Fifones, aba Conta, Salvo/Salvando, "Em breve", Sair em todas as páginas, `next` validado | 4 |
 
-Testes (13/11/2026): `main` depois do #33: `npm test` 74, `npm run test:worker` 36, build ok. Esta branch depois de juntar o #34: `npm test` 77, Worker 41, `pytest` 59, build ok. Não rodados: testes de navegador (`test:terrain`, `test:world`) depois da junção e a conferência da etapa 2 no navegador.
+Testes (13/11/2026, branch `claude/etapa-2-sessao-vencida` sobre a `main` `c93d88b`): `npm test` 81, `npm run test:worker` 86 (com `tests/catalog-migration.test.mjs`, que antes não rodava em nenhum script nem na CI), build ok, `npm run test:session` 32/32 num Worker local com contas e login obrigatório (`wrangler.test-session.jsonc`). Não rodados nesta rodada: `pytest`, `test:terrain` e `test:world`.
 
 ## Decisões do dono (13/11/2026): todas aprovadas
 1. Reembolso de 100% das peças de IA e StuntSync retiradas (recalculado pelo servidor, uma vez).
@@ -46,15 +51,15 @@ Testes (13/11/2026): `main` depois do #33: `npm test` 74, `npm run test:worker` 
 "Esqueci a senha" fica fora até haver e-mail com domínio.
 7. **Pacote conservador do PORTAR-KIT** (decisão do dono, 13/11/2026; respostas A, B, C, D, F e G): 6 domínios do Cityou, economia atual, prédio sobe sem exigir tarefas, beta por convite, sem assistente de IA, uma organização.
 
-## Estado das etapas (ordem: 1 ✔ → 7a ✔ → 9 ✔ → 2 → 3 a 6 → 7b → 8)
+## Estado das etapas (ordem: 1 ✔ → 7a ✔ → 9 ✔ → 2 ✔ → 3 ✔ → 4 ✔ → 5 e 6 → 7b → 8)
 | Etapa | Estado |
 |---|---|
 | 1 Medição de base | Feita. Falta a base da prévia publicada |
 | 7a Prédio e terreno como uma coisa só | Feita. Entrada animada e fade do terreno foram para a 7b |
 | 9 Rua automática (ocupar todo o terreno) | Implementada: prévia, confirmação, cobrança única e testes |
-| 2 Tarefas reais, cliente único, cidade sem iframe | Feita e conferida no navegador (13/11/2026, Worker local em modo de teste, Chromium): Missões lista a tarefa real e concluir dá +10; os cinco itens do menu chegam a `/app#/<aba>`; 401 leva a `/?entrar=1&next=%2Fcity` sem repetir pedido. Não conferido: a cidade embutida no painel (iframe) e celular |
-| 3 Catálogo e migração | Não começada |
-| 4 Painel sem iframe | Não começada |
+| 2 Tarefas reais, cliente único, cidade sem iframe | Feita (#34) e conferida no navegador com conta sintética (13/11/2026, `npm run test:session`): duas tarefas criadas no painel, uma concluída no painel e outra em Missões, +10 cada, persistem ao recarregar e reenviar não credita de novo; os cinco itens do menu abrem a aba certa na cidade avulsa e na embutida (na janela principal); sem "Vamos reconectar". Corrigido no acompanhamento: nova tentativa depois de 401 e entrada dentro do quadro. Não conferido: celular |
+| 3 Catálogo e migração | Feita no código (#37); teste de migração verde e agora na CI. Falta conferir no navegador uma cidade guardada com peças antigas |
+| 4 Painel sem iframe | Feita no código (#38). Conferidos: "Em breve" em Agenda, Projetos, Biblioteca e Fitness; volta à aba depois de entrar (`/app#/cidade`, `/app#/mundo`). Falta: 390 px e as miniaturas da ilha |
 | 5 Agenda, Projetos e Peso reais | Feita em três commits (13/11/2026, falta só ela entrar na `main`). **1 Agenda feita** (`worker/agenda.js`, `worker/records.js`, `tests/worker-agenda.test.mjs`, aba Agenda do painel); **2 Projetos feita** (`worker/projects.js`, `tests/worker-projects.test.mjs`, aba Projetos, `/api/workspace/projects` virou apelido); **3 Peso feito** (`worker/weights.js`, `tests/worker-weights.test.mjs`, aba Fitness com gráfico da média de 7 dias). Fica de fora: latência comparada com a base da etapa 1 e Biblioteca e Memórias (`sources`, etapa 4) |
 | 6 Segurança e corte do legado | Correções de contas e dependências adiantadas. CSP, cabeçalho novo e corte do legado pendentes |
 | 7b Resto da ambientação | Não começada |
@@ -67,15 +72,15 @@ Testes (13/11/2026): `main` depois do #33: `npm test` 74, `npm run test:worker` 
 No Rio, escolher o lote de um prédio mostra a ligação mais curta à rede e o custo total. Confirmar grava o prédio e até 30 trechos de rua na mesma ação. Testes cobrem saldo insuficiente, áreas protegidas, caminho bloqueado e reenvio sem cobrança dupla. O teste de navegador é `node tools/auto-road-playtest.mjs <url-do-worker-em-modo-teste>`. A próxima etapa do plano é a 2.
 
 ### Etapa 2: tarefas reais, cliente único, cidade sem iframe
-**Estado:** código na `main` (PR #34); falta a conferência no navegador.
+**Estado:** na `main` (PR #34) e conferida no navegador (`npm run test:session`). O acompanhamento corrigiu dois casos de sessão vencida: um pedido com `retry` que falhava na rede depois de outro receber 401 fazia uma segunda tentativa (`api()` agora confere a sessão a cada tentativa; teste em `tests/session.test.mjs`); e, com o painel aberto, entrar em Minha cidade ou Mapa-mundo levava a página de entrada para dentro do quadro (o `pageGate` responde 302 ao documento do iframe; `src/landing/landing.js` agora abre a entrada na janela principal com `next` da aba do painel, validado por `safeNext`).
 `GET /api/personal/tasks` e concluir tarefa (apelidos para `/api/workspace/tasks*` por um deploy); saem `connected` e `source`; um `api()` único com 401 → `/?entrar=1&next=…` (copiar o padrão de `reloadPage` em `CityApp.vue`); `goToPanel(aba)`; saem `openWorkspace`, o diálogo, `setActivity`, a sondagem de 10 s e a atividade do `CityApp.vue`. Pronto quando: Missões lista tarefas, nenhum "8765" ou "offline" em `src/CityApp.vue`, os itens do menu chegam a `/app#/<aba>`.
 
 ### Etapa 4: painel sem iframe (feita no código, 13/11/2026)
 
-`src/App.vue` não tem mais `openBridge`, `openDocument` nem iframe do Fifones (só mapa e cidade). Aba `conta` (nome, e-mail, Sair; na demonstração "Criar conta para guardar"); indicador Salvo/Salvando…/Sem conexão; Agenda, Projetos, Fitness, Biblioteca e Estudos mostram "Em breve" até a etapa 5. `signOut()`, `safeNext()` e `loadAccount()` em `src/fifones/api.js`: o Sair só redireciona se o servidor confirmou e aparece também na cidade e no mapa avulsos; a página de entrada devolve para a aba de antes (`/app#/habitos`) e só aceita `next` de página do app. Teste: `tests/session.test.mjs`. **Falta:** conferir no navegador (390 px, voltar à aba depois de entrar) e as miniaturas da ilha (`tools/catalog-previews.mjs` com `?local=ilha-inicial`).
+`src/App.vue` não tem mais `openBridge`, `openDocument` nem iframe do Fifones (só mapa e cidade). Aba `conta` (nome, e-mail, Sair; na demonstração "Criar conta para guardar"); indicador Salvo/Salvando…/Sem conexão; Agenda, Projetos, Fitness, Biblioteca e Estudos mostram "Em breve" até a etapa 5. `signOut()`, `safeNext()` e `loadAccount()` em `src/fifones/api.js`: o Sair só redireciona se o servidor confirmou e aparece também na cidade e no mapa avulsos; a página de entrada devolve para a aba de antes (`/app#/habitos`) e só aceita `next` de página do app. Teste: `tests/session.test.mjs`. Voltar à aba depois de entrar foi conferido no navegador (13/11/2026). **Falta:** 390 px e as miniaturas da ilha (`tools/catalog-previews.mjs` com `?local=ilha-inicial`).
 
 ### Etapa 3: catálogo e migração
-**Feita no código (branch `claude/etapa-3-catalogo-migracao`, PR aberto após a conferência):** `RETIRED_KINDS`/`withoutRetired` em `worker/city.js` (custo só no servidor); `DemoSession.migrateCatalog()` roda no construtor, regrava Ilha e cidades regionais, credita custo + melhorias uma vez (marca `migration:catalog-3`); padrão do objetivo virou `'tasks'`; 5 GLB e 5 PNG apagados; destinos são nome de aba. Testes: `tests/catalog-migration.test.mjs`. `pytest` do backend local: `tests/test_activity.py` removido (só testava as peças aposentadas; `backend/activity.py` virou código morto, sai com o backend na etapa 6) e `test_backend.py` usa um prédio 3 x 2 só de teste no lugar do StuntSync. Falta conferir no navegador.
+**Na `main` (PR #37):** `RETIRED_KINDS`/`withoutRetired` em `worker/city.js` (custo só no servidor); `DemoSession.migrateCatalog()` roda no construtor, regrava Ilha e cidades regionais, credita custo + melhorias uma vez (marca `migration:catalog-3`); padrão do objetivo virou `'tasks'`; 5 GLB e 5 PNG apagados; destinos são nome de aba. Testes: `tests/catalog-migration.test.mjs`. `pytest` do backend local: `tests/test_activity.py` removido (só testava as peças aposentadas; `backend/activity.py` virou código morto, sai com o backend na etapa 6) e `test_backend.py` usa um prédio 3 x 2 só de teste no lugar do StuntSync. Falta conferir no navegador.
 Atenção: o #30 já tirou a Sede Fifones do Rio e de toda cidade piloto (`withoutHeadquarters`); o item "Sede Cityou" só vale para as cidades antigas.
 Destino de prédio vira nome de aba; Sede Cityou; saem IA (chatgpt, claude, gemini, grok) e StuntSync com custo numa tabela só do servidor; **migrar o estado guardado antes de qualquer ação** (peça de tipo desconhecido derruba `occupiedTiles`, `city-layout.js:142-147`), reembolso recalculado (custo + melhorias) uma vez, marca "já migrado"; trocar o padrão `'stunt'` de `CityApp.vue:92`; apagar os GLB. Testes: cidade guardada com `stunt` nível 3 carrega, credita o valor exato uma vez e aceita nova construção.
 
@@ -101,7 +106,7 @@ A revisão em `council/COUNCIL_SINTESE.md` achou problemas que nenhuma etapa cob
 
 | Item | Etapa sugerida | Pronto quando |
 |---|---|---|
-| Sessão vencida dentro do quadro do painel abre a página de apresentação dentro do quadro; a página de apresentação trata falha de rede como "contas desligadas"; consulta de 30 s da cidade | 2 | Teste de navegador com sessão vencida no painel, na cidade e no mapa |
+| ~~Sessão vencida dentro do quadro do painel abre a página de apresentação dentro do quadro~~ (corrigido, `npm run test:session`); a página de apresentação trata falha de rede como "contas desligadas"; consulta de 30 s da cidade | 2 | Teste de navegador com sessão vencida no painel, na cidade e no mapa |
 | "Exportar meus dados" e "Apagar minha conta" na aba Conta; barra de moedas e nível lendo o `resumo`; etapa do prédio e comprovações no painel | 4 | Exportar devolve tudo; apagar remove o objeto e as sessões; com teste |
 | Dividir `worker/demo.js` por assunto, só movendo código; editar e apagar registro; `request_id` ao criar; janela de datas no servidor (`canMarkDay`) | 5 | Testes passam antes e depois da divisão; reenvio não duplica |
 | Limite por IP e cadastro com convite; renovação e limpeza de sessão; registro de cadastro, login, bloqueio e moedas de teste; custo do hash de senha medido numa prévia; API com 503 quando o banco cai; limite da foto de comprovação igual ao da regra | 6 | Testes e a medida em `docs/BENCHMARKS.md` |
@@ -127,6 +132,13 @@ npm test && npm run test:worker && npm run build
 npx wrangler dev --port 8787 --ip 127.0.0.1 --var CITYOU_TEST_OPEN_REGIONS:1
 CITYOU_CHROME=/opt/pw-browsers/chromium node tools/city-look.mjs http://127.0.0.1:8787 --label antes
 CITYOU_CHROME=/opt/pw-browsers/chromium npm run perf:city -- http://127.0.0.1:8787 --runs 3
+```
+Conferência da sessão e das tarefas no navegador (dados sintéticos, D1 local):
+```bash
+npm run build
+npx wrangler d1 migrations apply cityou-test-session --local -c wrangler.test-session.jsonc
+npx wrangler dev -c wrangler.test-session.jsonc --port 8787 --ip 127.0.0.1
+CITYOU_CHROME=/opt/pw-browsers/chromium npm run test:session -- http://127.0.0.1:8787
 ```
 Não reconstrua o `dist` (`npm run build`) enquanto o bench roda: a medida sai contaminada.
 

@@ -1,0 +1,20 @@
+{
+  // Conferência no navegador (tools/session-playtest.mjs): como wrangler.test-login.jsonc (D1 local, login
+  // obrigatório) e servindo o dist. Só local e com dados sintéticos; aplique migrations/ antes (--local).
+  "name": "cityou-test-session",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-11-09",
+  "vars": { "REQUIRE_LOGIN": "true" },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/", "/index.html", "/app", "/app.html", "/city", "/city.html", "/world", "/world.html"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "cityou-test-session", "database_id": "00000000-0000-0000-0000-000000000002", "migrations_dir": "migrations" }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
+  },
+  "migrations": [{ "tag": "demo-v1", "new_sqlite_classes": ["DemoSession"] }]
+}

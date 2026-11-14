@@ -28,3 +28,27 @@ test('cache do navegador: guarda, devolve, limpa e não quebra sem localStorage'
   assert.equal(readCache('/velho'), null)
   delete globalThis.localStorage
 })
+
+// Por último: depois dele o cliente fica com a sessão encerrada (estado do módulo).
+test('401 de um pedido impede a nova tentativa de outro que falhou na rede', async () => {
+  const { api } = await import('../src/fifones/api.js')
+  const visits = []
+  const win = { location: { pathname: '/city', search: '', hash: '', assign: url => visits.push(url) } }
+  win.parent = win
+  globalThis.window = win
+  let failFirst
+  const calls = []
+  globalThis.fetch = (path) => {
+    calls.push(path)
+    if (calls.length === 1) return new Promise((_, reject) => { failFirst = () => reject(new TypeError('rede caiu')) })
+    return Promise.resolve({ status: 401, ok: false, json: async () => ({ message: 'Sessão vencida.' }) })
+  }
+  const withRetry = api('/api/city/actions', 'POST', { request_id: 'r1' }, { retry: true })
+  await assert.rejects(api('/api/personal/tasks'), { status: 401 })
+  failFirst()
+  await assert.rejects(withRetry, { status: 401 })
+  assert.equal(calls.length, 2, 'nenhuma segunda tentativa depois do 401')
+  assert.deepEqual(visits, ['/?entrar=1&next=%2Fcity'])
+  await assert.rejects(api('/api/city'), { status: 401 })
+  assert.equal(calls.length, 2)
+})

@@ -1,7 +1,12 @@
 // Página de apresentação: animações de entrada, demonstração do ciclo do jogo e a janela de entrar / criar conta.
 // Sem framework e sem biblioteca de animação: CSS, IntersectionObserver e um pouco de estado.
 import './landing.css'
-import { clearCache, safeNext } from '../fifones/api.js'
+import { clearCache, safeNext, topWindow } from '../fifones/api.js'
+
+// Sessão vencida com a cidade ou o mapa abertos no painel: o `pageGate` manda o quadro para cá. A entrada abre na
+// janela principal e volta depois para a aba do painel em que a pessoa estava (`next` validado por `safeNext`).
+const host = topWindow()
+if (host !== window) host.location.replace(`/?entrar=1&next=${encodeURIComponent(safeNext(host.location.pathname + host.location.search + host.location.hash))}`)
 
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
 const $ = (selector, root = document) => root.querySelector(selector)

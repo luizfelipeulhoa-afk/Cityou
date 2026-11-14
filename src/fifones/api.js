@@ -89,9 +89,10 @@ function goToLogin() {
  * servidor. `retry` repete uma vez em falha de rede (só para ações com request_id, que o servidor não repete).
  */
 export async function api(path, method = 'GET', body, { retry = false, keepalive = false } = {}) {
-  if (signedOut) throw new ApiError(LOGIN_MESSAGE, 401)
   let lastError
   for (let attempt = 0; attempt < (retry ? 2 : 1); attempt++) {
+    // Conferido a cada tentativa: outro pedido pode ter recebido 401 enquanto este esperava a rede.
+    if (signedOut) throw new ApiError(LOGIN_MESSAGE, 401)
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 14000)
     try {
