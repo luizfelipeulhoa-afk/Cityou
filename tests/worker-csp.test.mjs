@@ -6,11 +6,12 @@ import { CSP_REPORT_ONLY } from '../worker/csp.js'
 
 useHarnesses()
 
-test('CSP vai só em Report-Only, sem bloqueio, sem wasm-unsafe-eval e com relatório', () => {
+test('CSP vai só em Report-Only, com WASM liberado e sem JS eval, com relatório', () => {
   assert.match(CSP_REPORT_ONLY, /default-src 'self'/)
   assert.match(CSP_REPORT_ONLY, /object-src 'none'/)
   assert.match(CSP_REPORT_ONLY, /report-uri \/api\/csp-report/)
-  assert.doesNotMatch(CSP_REPORT_ONLY, /wasm-unsafe-eval/)
+  assert.match(CSP_REPORT_ONLY, /script-src 'self' 'wasm-unsafe-eval'/)
+  assert.doesNotMatch(CSP_REPORT_ONLY, /'unsafe-eval'/, 'JS eval continua bloqueado')
 })
 
 test('cabeçalhos básicos em toda resposta da API', async () => {

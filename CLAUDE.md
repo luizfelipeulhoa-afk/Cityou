@@ -171,7 +171,7 @@ Com D1 ligado, `/app`, `/city` e `/world` pedem login (`pageGate` em `worker/ind
 - Testes no padrão de `tests/test_personal.py` (`TestClient` com `base_url='http://127.0.0.1:8766'`).
 - `GET /api/personal/tasks` e `POST /api/personal/tasks/{id}/complete` (etapa 2) são as mesmas funções de `/api/workspace/tasks*`, ligadas no fim de `backend/personal.py`: localmente as tarefas continuam vindo da fonte Fifones opcional (README). Teste em `tests/test_task_routes.py`.
 
-**Cabeçalhos e CSP (etapa 6, 13/11/2026):** `worker/csp.js` guarda a política, em `Content-Security-Policy-Report-Only` só nas páginas HTML (`securityHeaders` em `worker/index.js`, também nas páginas que o `pageGate` redireciona). Relatórios de violação chegam em `POST /api/csp-report` (só log, sem gravar). Conferência no navegador: `node tools/csp-probe.mjs <url>`. Ainda não bloqueia: o WASM do meshopt viola a política (ver `docs/known-issues.md`).
+**Cabeçalhos e CSP (etapa 6, 13/11/2026):** `worker/csp.js` guarda a política, em `Content-Security-Policy-Report-Only` só nas páginas HTML (`securityHeaders` em `worker/index.js`, também nas páginas que o `pageGate` redireciona). Relatórios de violação chegam em `POST /api/csp-report` (só log, sem gravar). Conferência no navegador: `node tools/csp-probe.mjs <url>`. Ainda não bloqueia. `script-src` aceita `'wasm-unsafe-eval'` (decisão de 13/11/2026: o meshopt dos GLB compila WASM; JS eval segue bloqueado).
 
 ## Backend novo (em especificação)
 
