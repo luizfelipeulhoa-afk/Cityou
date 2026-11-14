@@ -2,6 +2,7 @@
 // Contrato em docs/API.md.
 import { HttpError, createTiming, errorResponse } from './http.js'
 import { health } from './routes/health.js'
+import { CSP_REPORT_ONLY, CSP_REPORT_MAX } from './csp.js'
 import { accountKey, demoApi, demoKeyOf, sessionCookie, sessionToken } from './demo.js'
 import { cachedRead, invalidate, isCacheableRead, markWrite, recentWrite } from './edge-cache.js'
 import { accountsEnabled, authApi, sessionTokenOf, sessionUser } from './auth.js'
@@ -13,6 +14,15 @@ const routes = [
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
+
+/** Relatório de violação do navegador: só registra no log (sem gravar nada), tamanho limitado, sem exigir cabeçalho de escrita. */
+async function cspReport(request) {
+  if (request.method !== 'POST') throw new HttpError(405, 'Use POST.')
+  const text = (await request.text()).slice(0, CSP_REPORT_MAX)
+  console.warn(JSON.stringify({ message: 'csp: violação (Report-Only)', report: text }))
+  return new Response(null, { status: 204 })
+}
+
 /** Escritas precisam vir do próprio site: cabeçalho que um formulário de outro site não envia + mesma origem. */
 function guardWrite(request, url) {
   if (!WRITE_METHODS.has(request.method)) return
@@ -23,10 +33,21 @@ function guardWrite(request, url) {
   if (!sameOrigin) throw new HttpError(403, 'Origem inválida.')
 }
 
+/** Cabeçalhos de segurança de toda resposta (páginas e API). Copia a resposta: a do ASSETS pode vir imutável. */
+function securityHeaders(response) {
+  const copy = new Response(response.body, response)
+  copy.headers.set('X-Content-Type-Options', 'nosniff')
+  copy.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  copy.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()')
+  if ((copy.headers.get('Content-Type') || '').includes('text/html')) copy.headers.set('Content-Security-Policy-Report-Only', CSP_REPORT_ONLY)
+  return copy
+}
+
 /** Login obrigatório: só vale com o banco de contas ligado (sem ele ninguém consegue entrar). */
 const loginRequired = env => accountsEnabled(env) && env.REQUIRE_LOGIN === 'true'
 
 async function handleApi(request, env, ctx, url, timing) {
+  if (url.pathname === '/api/csp-report') return cspReport(request)
   guardWrite(request, url)
   const matches = routes.filter(([, path]) => path === url.pathname)
   if (!matches.length) {
@@ -74,13 +95,13 @@ export default {
     const url = new URL(request.url)
     if (!url.pathname.startsWith('/api/')) {
       const gate = await pageGate(request, env, url)
-      if (gate) return gate
+      if (gate) return securityHeaders(gate)
       const asset = env.ASSETS ? await env.ASSETS.fetch(request) : new Response('Not found', { status: 404 })
-      if (request.method !== 'GET' || !asset.ok || !asset.headers.get('Content-Type')?.startsWith('text/html') || sessionToken(request)) return asset
+      if (request.method !== 'GET' || !asset.ok || !asset.headers.get('Content-Type')?.startsWith('text/html') || sessionToken(request)) return securityHeaders(asset)
       const response = new Response(asset.body, asset)
       response.headers.set('Cache-Control', 'private, no-store')
       response.headers.append('Set-Cookie', sessionCookie(url))
-      return response
+      return securityHeaders(response)
     }
     const timing = createTiming()
     let response
@@ -95,8 +116,7 @@ export default {
       }
     }
     response.headers.set('Cache-Control', 'no-store')
-    response.headers.set('X-Content-Type-Options', 'nosniff')
     response.headers.set('Server-Timing', timing.header())
-    return response
+    return securityHeaders(response)
   },
 }
