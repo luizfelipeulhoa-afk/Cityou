@@ -14,6 +14,7 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 
 | Branch | O que está fazendo | Desde |
 |---|---|---|
+| `claude/alimentacao-calculo` | Alimentação: base calórica completa (cálculo, rotas no Durable Object, cartão na aba, testes), PR #45 | 14/11/2026 |
 | `claude/etapa-4-painel-sem-iframe` | Etapa 4: painel sem iframe do Fifones, aba Conta, Salvo/Salvando…/Sem conexão, "Em breve" (Agenda, Projetos, Fitness, Biblioteca, Estudos), Sair em todas as páginas, `next` do login validado | 13/11/2026 |
 | `claude/etapa-4-painel-sem-iframe` (inclui a etapa 5) | Etapa 5: Agenda, Projetos e Peso reais, juntada à etapa 4 | 13/11/2026 |
 | `claude/blissful-gates-qmt20l` | Montanha atrás do Cristo (`crop.keep`, névoa e malha), ai-memory (configuração, regras e roteiro do `wikisync`), documentos reconciliados e teste que confere o `CLAUDE.md` (PR #35, aberto) | 13/11/2026 |

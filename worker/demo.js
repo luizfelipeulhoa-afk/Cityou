@@ -10,6 +10,8 @@ import { dateFormatter, isDate, capOf, capMessage } from './records.js'
 import { agendaMethods } from './agenda.js'
 import { projectMethods } from './projects.js'
 import { weightMethods } from './weights.js'
+import { nutritionMethods } from './nutrition.js'
+import { bodyMethods } from './body.js'
 
 const START = SPACE_ORDER[0]
 // A ilha é só cenário; a cidade onde se constrói começa aberta no Rio de Janeiro.
@@ -48,6 +50,16 @@ const routes = [
   [/^\/api\/personal\/projects\/([a-f0-9-]{36})\/step-done$/, { POST: 'stepDone' }],
   [/^\/api\/personal\/weights$/, { GET: 'weightsHistory', POST: 'addWeight' }],
   [/^\/api\/personal\/weights\/([a-f0-9-]{36})$/, { PUT: 'editWeight', DELETE: 'removeWeight' }],
+  // Composição corporal da aba Fitness (worker/body.js).
+  [/^\/api\/personal\/body-composition$/, { GET: 'bodyComposition', POST: 'addBodyComposition' }],
+  [/^\/api\/personal\/body-composition\/([a-f0-9-]{36})$/, { PUT: 'editBodyComposition', DELETE: 'removeBodyComposition' }],
+  // Alimentação: base calórica (worker/nutrition.js).
+  [/^\/api\/personal\/nutrition$/, { GET: 'nutrition', DELETE: 'removeNutrition' }],
+  [/^\/api\/personal\/nutrition\/profile$/, { PUT: 'saveNutritionProfile' }],
+  [/^\/api\/personal\/nutrition\/screening$/, { GET: 'screeningAnswers', POST: 'sendScreening' }],
+  [/^\/api\/personal\/nutrition\/screening\/answers$/, { DELETE: 'removeScreeningAnswers' }],
+  [/^\/api\/personal\/nutrition\/target$/, { POST: 'acceptNutritionTarget' }],
+  [/^\/api\/personal\/nutrition\/plan$/, { PUT: 'saveNutritionPlan', DELETE: 'removeNutritionPlan' }],
   [/^\/api\/personal\/tasks$/, { GET: 'tasks', POST: 'addTask' }],
   [/^\/api\/personal\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/personal\/proofs\/([a-f0-9-]{36})\/(\d{4}-\d{2}-\d{2})\/photo$/, { GET: 'proofPhoto' }],
@@ -303,7 +315,8 @@ export class DemoSession {
         }
         return json({ message: error.message, detail: error.message, city: this.citySnapshot(location) }, error.status)
       }
-      if (error instanceof HttpError) return errorResponse(error.status, error.message)
+      // `fields` (quando houver) diz à tela qual campo marcar em vermelho.
+      if (error instanceof HttpError) return errorResponse(error.status, error.message, error.fields)
       throw error
     }
   }
@@ -672,4 +685,4 @@ export class DemoSession {
   }
 }
 
-Object.assign(DemoSession.prototype, agendaMethods, projectMethods, weightMethods)
+Object.assign(DemoSession.prototype, agendaMethods, projectMethods, weightMethods, nutritionMethods, bodyMethods)

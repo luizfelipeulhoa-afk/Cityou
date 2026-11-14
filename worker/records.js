@@ -13,7 +13,7 @@ export function isDate(value) {
 }
 
 // Tetos por conta: um tipo que cresce todo dia (peso) precisa de mais espaço que um cadastro (projetos).
-export const RECORD_CAPS = { project: 100, event: 1000, weight: 1500 }
+export const RECORD_CAPS = { project: 100, event: 1000, weight: 1500, bodycomp: 1500 }
 
 /** Teto do tipo. `CITYOU_TEST_CAPS` (JSON) só existe nas configurações de teste e baixa o teto para os testes. */
 export function capOf(env, kind) {

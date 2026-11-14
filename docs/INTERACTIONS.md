@@ -162,6 +162,8 @@ Ação principal: "Registrar peso".
 | Registrar peso do dia | `POST /api/personal/weights` (etapa 5) | `PUT /api/weights/{dia}` | `records` (kind `weight`) | "Última pesagem", média de 7 dias, gráfico e lista atualizam; peso em kg com vírgula, convertido para gramas |
 | Editar (linha de pesagem) | `PUT /api/personal/weights/{id}` | `PUT /api/weights/{dia}` | `records` | Só o peso e a nota; o dia não muda |
 | Apagar (pede "Apagar mesmo?") | `DELETE /api/personal/weights/{id}` | `DELETE /api/weights/{dia}` | `records` | A pesagem sai e o dia fica livre de novo |
+| Composição corporal → "Registrar medida" | `POST /api/personal/body-composition` | | `records` (kind `bodycomp`) | Dia, gordura (%), massa magra (kg, opcional), método e nota; campos inválidos em vermelho. Mostra a média das últimas 3 medidas (60 dias) e o aviso de que um valor isolado varia alguns pontos |
+| Apagar (linha da medida, pede "Apagar mesmo?") | `DELETE /api/personal/body-composition/{id}` | | `records` | A medida sai e a média é refeita |
 | Continuar avaliação (voz Gemini) | saiu | | | **Saiu** |
 
 O gráfico mostra as pesagens como pontos e a média de 7 dias como linha, com o texto neutro "Sua média está estável nas últimas 2 semanas." (ou "um pouco mais alta/baixa que há 2 semanas"). Sem meta, sem cor de bom ou ruim, sem moedas. "Retornos registrados" saiu junto com a avaliação. Vazio: "Seu gráfico começa com a primeira pesagem."
@@ -177,6 +179,21 @@ Ação principal: "Registrar refeição".
 | Continuar entrevista sobre alimentação | Fifones | | | **Sai** |
 
 Erro próprio: data futura ("Registre uma refeição já realizada.").
+
+**Base calórica** (cartão no topo da aba, `src/personal/NutritionBase.vue`; rotas em `docs/API.md`, `worker/nutrition.js`). Uma etapa por vez:
+
+| Etapa | O que a pessoa faz | Rota | Retorno |
+|---|---|---|---|
+| Avaliação | Altura, ano de nascimento, sexo, atividade, meta, treino de força, gestação (só sexo feminino) → "Salvar avaliação" | `PUT /api/personal/nutrition/profile` | Campo inválido ou vazio fica em vermelho com a mensagem (cliente e `fields` do servidor) |
+| Triagem (opcional) | Primeiro um aviso ("Algumas perguntas sobre a sua relação com a comida": é sobre transtornos alimentares, é importante responder mas não é obrigatório, deixa o cálculo mais adequado, só a pessoa vê) com "Pular por agora" e "Responder as perguntas"; depois a pergunta sobre diagnóstico ou tratamento (sim, não, prefiro não responder) e as cinco do SCOFF → "Continuar" | `POST /api/personal/nutrition/screening` | Sinal de risco: mostra o gasto para manter o peso, sem sugestão de déficit, com indicação de profissional de saúde. "Refazer a triagem" fica no rodapé |
+| Dados incompletos | Sem pesagem nos últimos 30 dias: "Dados incompletos", com o Peso em vermelho e link para Fitness | | |
+| Base | Mostra a estimativa, a frase aprovada ("Sugestão de déficit: 500 kcal por dia, com base em estudos. Vale conversar com um profissional de nutrição para ajustar ao seu caso."), gasto, TMB, proteína, peso usado e "Fontes" | `GET /api/personal/nutrition` | Com IMC ≥ 30, aviso neutro de precisão |
+| Usar como minha meta / Usar a estimativa nova | Aceita a estimativa | `POST /api/personal/nutrition/target` | A meta não muda sozinha; depois de 3 semanas, compara a direção do peso com a meta e, se não bate, sugere um profissional |
+| Minha dieta | Calorias, proteína (opcional), observação → "Salvar dieta"; "Editar", "Apagar" | `PUT`/`DELETE /api/personal/nutrition/plan` | Abaixo da TMB: aviso aprovado ("...a decisão é sua."), grava mesmo assim |
+| Ver/Apagar minhas respostas da triagem | Só a própria pessoa (diagnóstico e as cinco, se respondidas) | `GET /api/personal/nutrition/screening`, `DELETE .../screening/answers` | O resultado da triagem fica |
+| Editar avaliação / Apagar meus dados de alimentação (pede confirmação) | | `PUT .../profile`, `DELETE /api/personal/nutrition` | Pesagens ficam |
+
+Fora do alcance: menores de 18 (texto sobre crescimento, conversar com a família e um profissional), maiores de 80 e gestação/amamentação (a necessidade aumenta e o app não recomenda déficit) não recebem números, cada um com texto próprio. Conferência no navegador: `node tools/nutrition-playtest.mjs <url>`.
 
 ### Autoconhecimento
 

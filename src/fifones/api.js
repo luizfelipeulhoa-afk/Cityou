@@ -162,3 +162,20 @@ export const loadWorldProgress = () => api('/api/world/progress')
 export const travelTo = local => api('/api/world/travel', 'POST', { local, request_id: crypto.randomUUID() }, { retry: true })
 // O servidor junta o progresso enviado ao guardado e devolve o resultado (idempotente).
 export const saveWorldProgress = (progress, { keepalive = false } = {}) => api('/api/world/progress', 'PUT', progress, { keepalive })
+// Alimentação: base calórica (worker/nutrition.js). Toda escrita devolve o estado novo da aba.
+const NUTRITION = '/api/personal/nutrition'
+export const loadNutrition = () => api(NUTRITION)
+export const saveNutritionProfile = body => api(NUTRITION + '/profile', 'PUT', body)
+export const sendScreening = (diagnosis, answers) => api(NUTRITION + '/screening', 'POST', { diagnosis, answers })
+export const loadScreeningAnswers = () => api(NUTRITION + '/screening')
+export const removeScreeningAnswers = () => api(NUTRITION + '/screening/answers', 'DELETE')
+export const acceptNutritionTarget = () => api(NUTRITION + '/target', 'POST', {})
+export const saveNutritionPlan = body => api(NUTRITION + '/plan', 'PUT', body)
+export const removeNutritionPlan = () => api(NUTRITION + '/plan', 'DELETE')
+export const removeNutrition = () => api(NUTRITION, 'DELETE')
+// Composição corporal da aba Fitness (worker/body.js). As escritas devolvem a lista e a média das últimas medidas.
+const BODY = '/api/personal/body-composition'
+export const loadBodyComposition = () => api(BODY)
+export const addBodyComposition = body => api(BODY, 'POST', body)
+export const editBodyComposition = (id, body) => api(`${BODY}/${encodeURIComponent(id)}`, 'PUT', body)
+export const removeBodyComposition = id => api(`${BODY}/${encodeURIComponent(id)}`, 'DELETE')

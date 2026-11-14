@@ -76,6 +76,8 @@ Todas têm as colunas comuns (`id`, `user_id`, `created_at`, `updated_at`, `dele
 | `meals` | `title`, `body`, `day` (não pode ser futuro), `meal_time` NULL | (`user_id`, `day`) | Alimentação → "Registrar refeição" | Cartão na lista |
 | `notes` | `kind` (`note`, `reflection`, `memory`), `title`, `body`, `day` | (`user_id`, `kind`, `day`) | Seu dia → "Anotar" (`note`); Autoconhecimento → "Registrar meu momento" (`reflection`); Memórias → "Nova memória" (`memory`) | Cartão no topo da lista da área |
 | `weights` | `day`, `grams`, `note`; único por (`user_id`, `day`) | (`user_id`, `day`) | Fitness → "Registrar peso" | "Última pesagem" e a lista "Sua evolução" |
+| `records` kind `bodycomp` (Durable Object da conta) | `day`, `fat_pct`, `lean_grams` (ou `null`), `method` (`bia`, `skinfold`, `dexa`, `other`), `note`; uma por dia | por dia | Fitness → "Registrar medida" | Média das 3 mais recentes; alimenta a proteína da base calórica |
+| `records` kind `nutrition` (Durable Object da conta; ids `profile`, `screening`, `target`, `plan`) | `profile`: `height_cm`, `sex`, `birth_year`, `activity`, `goal`, `resistance_training`, `pregnant`; `screening`: `answers` (5 booleanos ou `null` se apagadas), `positive`, `day`; `target`: `low`, `high`, `goal`, `day`; `plan`: `kcal`, `protein_g`, `note` | um registro por id | Alimentação → base calórica | Ver `docs/API.md`. As respostas da triagem só saem pela rota da própria conta. O peso não é duplicado: vem de `weight` |
 | `documents` (fase B8) | `name`, `mime`, `size_bytes`, `r2_key` | (`user_id`) | Biblioteca → "Adicionar material" | Capa na grade; o arquivo fica no R2 |
 
 Marcações diárias (sem `id` próprio nem `deleted_at`; desmarcar grava `done = 0`):

@@ -91,6 +91,12 @@ A tabela PR → etapa está em `docs/CHECKPOINT.md`. O que muda no plano:
 - **Fora do plano, já na `main`:** Fifo e personagens ambiente (#29, #30), calçadão decorativo e morro em patamares (#31), 23 prédios com GLB (#27, #29), seis decorações da ilha (#23).
 - **Etapa 6 adiantada pelo #32** (contas, isolamento do Durable Object, migrações, Vite 6.4); CSP, cabeçalho novo e corte do FastAPI continuam pendentes.
 
+## Alimentação: base calórica (pedido do dono, 14/11/2026)
+
+Fora da sequência das etapas, por pedido do dono. Regras aprovadas no projeto "CityouApp" do claude.ai (`nutricao/decisoes-2026-11-14.md` e `nutricao/decisoes-backend-2026-11-14.md`). Arquivos: `shared/game/nutrition.js`, `worker/nutrition.js`, `src/personal/NutritionBase.vue`, `src/fifones/api.js`, `docs/API.md`, `docs/INTERACTIONS.md`, `docs/DATA-MODEL.md`.
+
+Pronto quando: `npm test` e `npm run test:worker` verdes (com `tests/nutrition.test.mjs` e `tests/worker-nutrition.test.mjs`); `npm run test:nutrition` passa num Worker local com contas (avaliação com campo vazio em vermelho, triagem, "Dados incompletos" sem pesagem, base com o texto aprovado, meta aceita, dieta abaixo da TMB avisa e grava, respostas vistas e apagadas, triagem positiva sem números, celular sem rolagem lateral); o dono revisou os textos. Pendências conhecidas: equação brasileira de Anjos (depois de conferir os coeficientes), troca de equação por faixa de IMC, modelo dinâmico de previsão de peso (hoje a comparação é só pela direção do peso depois de 3 semanas) e a versão brasileira validada do SCOFF.
+
 ## Etapa 10 (proposta): portão para abrir contas
 Só depois das etapas 2 a 6: D1 separado para a prévia, migrações aplicadas, fluxo de conta inteiro no navegador numa prévia, restauração ensaiada, e privacidade, termos e idade revisados por advogado. Lista e critério em "Itens sem dono no plano" do `docs/CHECKPOINT.md` e em `council/COUNCIL_SINTESE.md`.
 

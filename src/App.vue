@@ -1,6 +1,8 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Icon from './personal/Icon.vue'
+import NutritionBase from './personal/NutritionBase.vue'
+import BodyComposition from './personal/BodyComposition.vue'
 // Cliente único da API (etapa 2): o mesmo `api()` da cidade, que trata o 401 levando a pessoa para entrar.
 import { readCache, signOut, writeCache, addEvent, addProject, addWeight, api, completeTask, editEvent, editProject, editWeight, removeEvent, removeProject, removeWeight, stepDone } from './fifones/api.js'
 import { photoToDataUrl } from './personal/proof.js'
@@ -231,8 +233,10 @@ onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);window.removeEventListe
           <div v-else class="gentle-empty"><Icon name="fitness" :size="32" /><p>Seu gráfico começa com a primeira pesagem.</p></div>
         </section>
         <section v-if="weights.length" class="surface wt-list"><div class="surface-heading"><h2>Suas pesagens</h2></div><ul><li v-for="weight in weights" :key="weight.id"><time>{{ formatDate(weight.day) }}</time><strong>{{ kg(weight.grams) }} kg</strong><small v-if="weight.note">{{ weight.note }}</small><span class="ag-row-actions"><button class="ag-link" @click="showWeight(weight)">Editar</button><button class="ag-link" :disabled="saving" @click="dropWeight(weight)">{{ confirmWeight===weight.id?'Apagar mesmo?':'Apagar' }}</button></span></li></ul></section>
+        <BodyComposition />
       </template>
       <template v-else-if="route==='nutricao'">
+        <NutritionBase />
         <section class="nutrition-banner surface"><span class="nutrition-art" aria-hidden="true"><i /><i /><i /></span><div><span class="eyebrow">UM OLHAR PARA SUA ALIMENTAÇÃO</span><h2>Primeiro, conhecer sua rotina.</h2><p>Registre refeições, horários e quantidades. Nenhum nutriente é estimado sem informação suficiente.</p><button class="primary-btn" @click="showForm('meal')"><Icon name="plus" :size="17" />Registrar refeição</button></div></section><div class="record-grid"><article v-for="item in entryList('meal')" :key="item.id" class="surface note-card"><span class="eyebrow">{{ formatDate(item.day) }}</span><h2>{{ item.title }}</h2><p>{{ item.body }}</p></article></div>
       </template>
       <template v-else-if="route==='autoconhecimento'">
