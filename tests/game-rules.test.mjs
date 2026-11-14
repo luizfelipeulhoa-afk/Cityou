@@ -318,3 +318,41 @@ test('Rio: o calçadão já vem posto na orla, é decoração e não conta para 
   assert.equal(city.placements.some(item => item.id === pieces[0].id), false)
   assert.equal(city.credits, before + getBuilding('rio-calcadao').cost / 2)
 })
+
+import { FRONT_STEP, facingRotation } from '../shared/game/city-layout.js'
+
+test('o prédio nasce virado para a rua: gira para o lado da rua, sem trocar a pegada, e deixa em paz o que já olha para ela', () => {
+  assert.deepEqual(FRONT_STEP, [[0, 1], [-1, 0], [0, -1], [1, 0]])
+  const key = (x, y) => tileKey(x, y)
+  const road = (...tiles) => new Set(tiles.map(([x, y]) => key(x, y)))
+  const house = (rotation, x = 5, y = 5) => ({ kind: 'rio-casa', x, y, rotation }) // 2 × 2: ocupa (5..6, 5..6)
+  // Rua em frente (rotação 0 olha para +y): nada muda.
+  assert.equal(facingRotation(house(0), road([5, 7])), 0)
+  // Rua a oeste (x = 4): a frente tem de ir para −x (rotação 1).
+  assert.equal(facingRotation(house(0), road([4, 5])), 1)
+  // Rua ao norte (y = 4): rotação 2. Rua a leste (x = 7): rotação 3.
+  assert.equal(facingRotation(house(0), road([5, 4])), 2)
+  assert.equal(facingRotation(house(0), road([7, 6])), 3)
+  // Sem rua encostada, ou rua só na diagonal: fica como veio.
+  assert.equal(facingRotation(house(2), road([8, 8], [4, 4])), 2)
+  // Se a frente já dá numa rua, mesmo havendo outras, a escolha da pessoa vale.
+  assert.equal(facingRotation(house(3), road([7, 5], [4, 5])), 3)
+  // Prédio 3 × 2 (largura 3, profundidade 2): só troca entre rotações da mesma pegada (0 ↔ 2, 1 ↔ 3).
+  const wide = rotation => ({ kind: 'rio-kiosk', x: 5, y: 5, rotation })
+  assert.equal(facingRotation(wide(0), road([5, 4])), 2)
+  assert.equal(facingRotation(wide(0), road([4, 5])), 0)
+  // Decoração e árvore não giram.
+  assert.equal(facingRotation({ kind: 'rio-calcadao', x: 5, y: 5, rotation: 0 }, road([4, 5])), 0)
+  assert.equal(facingRotation({ kind: 'tree', x: 5, y: 5, rotation: 0 }, road([4, 5])), 0)
+})
+
+test('Rio: o servidor vira o prédio novo para a rua que o liga à cidade', () => {
+  const city = { ...newCity('cristo-redentor', true), revision: 0 }
+  // A rua semente corre em y = 9 (x de 6 a 10): uma casa logo ao norte dela, com a frente para o norte (rotação 2), vira para o sul.
+  const build = (kind, x, y, rotation, revision) => applyCityAction(city, {
+    type: 'build', kind, x, y, rotation, placement_id: null, expected_revision: revision, request_id: `vira-${revision}`,
+  }, 'cristo-redentor', true)
+  build('rio-casa', 9, 7, 2, 0) // ocupa (9..10, 7..8); a rua está em y = 9, ao sul: rotação 0
+  const placed = city.placements.find(item => item.kind === 'rio-casa')
+  assert.equal(placed.rotation, 0)
+})

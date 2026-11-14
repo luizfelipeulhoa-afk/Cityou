@@ -118,3 +118,19 @@ test('redutor: chega perto da meta sem estragar a forma, o UV nem os índices', 
     assert.ok(area < 0, `triângulo ${t / 3} invertido ou degenerado (${area})`)
   }
 })
+
+// A cidade enterra a base redonda de cada GLB no terreno (`base` no catálogo, em MODEL_BASES): sem ela o disco aparece
+// embaixo do prédio. A medida do catálogo tem de bater com a do arquivo (tools/model-bases.mjs), com folga para o que
+// foi ajustado a olho (árvores, barcos).
+import { measureBase } from '../tools/model-bases.mjs'
+
+test('catálogo: todo GLB do Rio e da ilha traz a espessura da base redonda, perto da medida do arquivo', () => {
+  const items = [...getCityCatalog('cristo-redentor'), ...getCityCatalog('ilha-inicial')]
+    .filter(item => item.model?.startsWith('/models/rio/') || item.model?.startsWith('/models/island/'))
+  assert.ok(items.length >= 32, `${items.length} itens com modelo`)
+  for (const item of items) {
+    assert.ok(Number.isFinite(item.base) && item.base > 0.04 && item.base < 0.2, `${item.id}: base ${item.base}`)
+    const measured = measureBase(fs.readFileSync(path.join(PUBLIC, item.model)))
+    assert.ok(Math.abs(item.base - measured) < 0.05, `${item.id}: catálogo ${item.base}, arquivo ${measured}`)
+  }
+})

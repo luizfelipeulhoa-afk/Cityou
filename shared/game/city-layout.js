@@ -101,7 +101,22 @@ function building(id, label, width, depth, height, color, cost, destination = nu
 // Prédios do Rio com GLB próprio (Tripo, reduzidos por tools/optimize-city-models.mjs para cerca de 6 a 8 mil
 // triângulos). Cada GLB traz o seu disco de calçadão; a cidade o ajusta a 90% da área. `height` é a altura que o
 // modelo tem ao ocupar 90% da área, para a trava de altura da cidade não encolher o prédio.
-const rioModel = id => ({ model: `/models/rio/${id}.glb`, preview: `/previews/${id}.png` })
+// Espessura da base redonda de cada GLB (o disco de calçadão que o Tripo põe no pé do prédio), na unidade do próprio
+// modelo (o maior lado do modelo vale 1): a cidade enterra o modelo nessa altura no terreno, e só o prédio sai do chão,
+// sem a base redonda. Medida pelo maior plano virado para cima perto do chão de cada arquivo e conferida a olho com o
+// modelo enterrado (tools/model-bases.mjs mede de novo). Um modelo novo precisa da sua entrada (`npm test` confere).
+export const MODEL_BASES = {
+  'rio-academia-grande': 0.083, 'rio-academia': 0.098, 'rio-arvore-coqueiro': 0.095, 'rio-arvore-flamboyant': 0.125,
+  'rio-arvore-mangueira': 0.063, 'rio-bombeiro': 0.123, 'rio-bonde': 0.113, 'rio-casa': 0.078, 'rio-casarao': 0.066,
+  'rio-comunidade': 0.108, 'rio-edificio-deco': 0.068, 'rio-feira-barraca': 0.053, 'rio-hospital': 0.083,
+  'rio-igreja': 0.066, 'rio-laje': 0.093, 'rio-milho': 0.118, 'rio-picole': 0.093, 'rio-policia': 0.108,
+  'rio-predio-comercial': 0.083, 'rio-prefeitura': 0.113, 'rio-quiosque-coco': 0.068, 'rio-salva-vidas': 0.063,
+  'rio-sobradinho': 0.088,
+  'island-boat-large': 0.178, 'island-boat-small': 0.083, 'island-bonfire': 0.113, 'island-cabin': 0.108,
+  'island-hammock': 0.178, 'island-lighthouse': 0.063, 'island-palms': 0.115, 'island-pier': 0.093, 'island-statue': 0.16,
+}
+
+const rioModel = id => ({ model: `/models/rio/${id}.glb`, preview: `/previews/${id}.png`, base: MODEL_BASES[id] })
 
 const regionalCatalog = {
   'ilha-inicial': [
@@ -110,7 +125,7 @@ const regionalCatalog = {
     building('island-dhoni', 'Oficina de dhoni', 3, 2, 2.1, '#985b43', 40, 'projetos'),
     building('island-market', 'Mercado de pescado', 3, 2, 2.5, '#e5ac55', 50, 'tarefas'),
     building('island-fiber', 'Ateliê de fibra vegetal', 3, 3, 2.4, '#bc784a', 60),
-    ...catalogFile.filter(islandOnly),
+    ...catalogFile.filter(islandOnly).map(item => (MODEL_BASES[item.id] ? { ...item, base: MODEL_BASES[item.id] } : item)),
   ],
   'cristo-redentor': [
     building('rio-sobrado', 'Sobrado com comércio', 2, 2, 4.2, '#ddaf77', 20, null, { hill: true }),
@@ -204,6 +219,34 @@ export function connectedRoads(placements) {
     }
   }
   return connected
+}
+
+// Para onde o prédio olha em cada rotação (a frente dos modelos é +Z, e a rotação gira -90° por passo): o passo
+// [dx, dy], em tiles, da frente. Rotação 0 olha para +y (para baixo na tela), a 1 para −x, a 2 para −y, a 3 para +x.
+export const FRONT_STEP = [[0, 1], [-1, 0], [0, -1], [1, 0]]
+
+/**
+ * O prédio vira para a rua: se a frente dele já dá numa rua (`roads`, as chaves dos tiles), a rotação não muda; senão
+ * gira para o lado em que há rua, sem trocar a pegada (um prédio 3 × 2 só vai de 0 para 2 e de 1 para 3). Sem rua ao
+ * lado (decoração, morro), fica como estava.
+ */
+export function facingRotation(placement, roads) {
+  const item = getBuilding(placement.kind)
+  const rotation = placement.rotation ?? 0
+  if (!item || item.decoration || placement.kind === 'road' || placement.kind === 'tree') return rotation
+  const tiles = occupiedTiles(placement)
+  const own = new Set(tiles.map(({ x, y }) => tileKey(x, y)))
+  const faces = side => {
+    const [dx, dy] = FRONT_STEP[side]
+    return tiles.some(({ x, y }) => !own.has(tileKey(x + dx, y + dy)) && roads.has(tileKey(x + dx, y + dy)))
+  }
+  if (faces(rotation)) return rotation
+  const square = item.width === item.depth
+  for (const side of [(rotation + 1) % 4, (rotation + 3) % 4, (rotation + 2) % 4]) {
+    if (!square && side % 2 !== rotation % 2) continue
+    if (faces(side)) return side
+  }
+  return rotation
 }
 
 export function hasRoadFrontage(placement, roads) {

@@ -48,7 +48,13 @@ interior: são prédios de cenário e de exemplo, sem ligação com tarefas ou h
 - A cidade os carrega como qualquer GLB do catálogo (`CityWorld.loadModel`): faces planas e superfície fosca
   (`applyGlbStyle`), base ajustada a 90% da área, fundo em y = 0, sombras ligadas.
 - Cada modelo traz o seu **disco de calçadão** (a base redonda). Por isso eles não levam o disco de 10 lados de
-  `seatBuilding`, que é da página de teste do terreno.
+  `seatBuilding`, que é da página de teste do terreno. Na cidade o disco **fica enterrado no terreno** (14/11/2026):
+  `base` no catálogo (de `MODEL_BASES`, na unidade do modelo) é a espessura dele, e `CityWorld.loadModel` desce o
+  modelo essa espessura (× a escala), então só o prédio sai do chão. `node tools/model-bases.mjs` mede o disco de um
+  arquivo (o maior plano virado para cima perto do chão); um modelo novo precisa da entrada em `MODEL_BASES`, e
+  `tests/city-models.test.mjs` confere o valor contra a medida.
+- Em volta de cada prédio do Rio, `lotGround.js` põe um tapete de bordas macias e a calçada que o liga à rua, e o servidor
+  gira o prédio novo para a rua (`facingRotation`); detalhes em `docs/TERRAIN.md`.
 
 ## Orçamento
 

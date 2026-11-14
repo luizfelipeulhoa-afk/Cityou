@@ -1,5 +1,5 @@
 import {
-  connectedRoads, getBuilding, getCityCatalog, getCityLayout, hasRoadFrontage, isPilotCity, isScenicCity,
+  connectedRoads, facingRotation, getBuilding, getCityCatalog, getCityLayout, hasRoadFrontage, isPilotCity, isScenicCity,
   placementProblem, previewBuild, previewRoadPath, roadPath, scenicBuildKinds, startingPromenade, tileKey,
 } from '../shared/game/city-layout.js'
 import { RULES } from '../shared/game/rules.js'
@@ -181,6 +181,8 @@ function applyPlacement(city, action, context) {
     const roads = road.tiles.map(({ x, y }) => ({
       id: crypto.randomUUID(), kind: 'road', x, y, rotation: 0, level: 1,
     }))
+    // O prédio nasce virado para a rua (a que já existia ou a que a rua automática acabou de ligar a ele).
+    placement.rotation = facingRotation(placement, connectedRoads([...city.placements, ...roads]))
     city.placements.push(...roads, placement)
     const name = placement.nome || item.label
     return { amount: -cost, label: road.tiles.length ? `Construiu ${name} e ${road.tiles.length} trechos de rua` : `Construiu ${name}` }
@@ -201,6 +203,8 @@ function applyPlacement(city, action, context) {
     Object.assign(placement, { x, y, rotation: rotation ?? placement.rotation })
     validateSite(context, placement)
     validateRoadChange(context, city.placements[index], placement)
+    // No lote novo o prédio também vira para a rua.
+    placement.rotation = facingRotation(placement, connectedRoads(city.placements.filter(existing => existing.id !== placement.id)))
     city.placements[index] = placement
     return { amount: 0, label: `Moveu ${item.label}` }
   }
