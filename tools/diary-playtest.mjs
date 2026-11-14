@@ -87,6 +87,23 @@ try {
   await diary.locator('.fd-meal li', { hasText: 'Ovo, de galinha' }).waitFor({ state: 'detached' })
   check('apagar tira o registro', !(await call('/api/personal/diary')).data.entries.some(e => e.food_id === 'taco-488'))
 
+  // Quem registra em gramas começa em gramas no próximo alimento (pedido do dono).
+  await diary.getByPlaceholder('Digite, por exemplo: ovo, arroz, banana').fill('feijao carioca cozido')
+  await diary.getByRole('option', { name: /Feijão, carioca, cozido/ }).click()
+  check('depois de medida caseira, o próximo começa na medida', (await diary.getByLabel('Unidade').inputValue()) !== 'g')
+  await diary.getByLabel('Unidade').selectOption('g')
+  await diary.getByLabel('Quantidade').fill('100')
+  await diary.getByRole('button', { name: 'Adicionar ao dia' }).click()
+  await diary.locator('.fd-meal li', { hasText: 'Feijão, carioca, cozido' }).waitFor()
+  await diary.getByPlaceholder('Digite, por exemplo: ovo, arroz, banana').fill('banana prata')
+  await diary.getByRole('option', { name: /Banana, prata, crua/ }).click()
+  check('depois de gramas, o próximo começa em gramas', (await diary.getByLabel('Unidade').inputValue()) === 'g')
+  await page.reload()
+  await diary.getByPlaceholder('Digite, por exemplo: ovo, arroz, banana').fill('arroz cozido')
+  await diary.getByRole('option', { name: /Arroz, tipo 1, cozido/ }).click()
+  check('a preferência por gramas continua depois de recarregar', (await diary.getByLabel('Unidade').inputValue()) === 'g')
+  await diary.getByRole('button', { name: 'Trocar' }).click()
+
   // Mudar a quantidade de refeições: 3 por dia.
   await diary.getByRole('button', { name: 'Mudar refeições' }).click()
   await diary.getByLabel('Refeições por dia').selectOption('3')

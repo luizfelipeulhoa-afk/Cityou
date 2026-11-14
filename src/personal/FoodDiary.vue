@@ -105,12 +105,23 @@ function saveSchedule() {
   run(() => saveDiarySchedule(body), () => { scheduleOpen.value = false })
 }
 
+// Unidade preferida (pedido do dono, 14/11/2026): quem registrou em gramas começa em gramas no próximo alimento; quem
+// usou medida caseira começa na primeira medida. Fica no navegador (comodidade por aparelho); sem acesso ao
+// armazenamento, vale o padrão de sempre (a primeira medida).
+const UNIT_KEY = 'cityou.diario.unidade'
+function preferredUnit() {
+  try { return localStorage.getItem(UNIT_KEY) } catch { return null }
+}
+function rememberUnit(chosen) {
+  try { localStorage.setItem(UNIT_KEY, chosen === 'g' ? 'g' : 'medida') } catch { /* sem armazenamento: só não lembra */ }
+}
+
 function chooseFood(item) {
   searchToken++ // resposta de busca ainda em voo não repõe a lista depois da escolha
   food.value = item
   query.value = item.name
   results.value = []
-  unit.value = item.portions[0]?.label ?? 'g'
+  unit.value = preferredUnit() === 'g' ? 'g' : item.portions[0]?.label ?? 'g'
   errors.value = {}
 }
 
@@ -204,16 +215,18 @@ function optionKey(event, index) {
 function saveEntry() {
   const number = Number(String(quantity.value).replace(',', '.'))
   if (editingId.value) {
-    run(() => editDiaryEntry(editingId.value, { meal: slot.value, quantity: number, unit: unit.value }), cancelEdit)
+    const chosen = unit.value
+    run(() => editDiaryEntry(editingId.value, { meal: slot.value, quantity: number, unit: chosen }), () => { rememberUnit(chosen); cancelEdit() })
     return
   }
   if (!food.value) {
     errors.value = { food_id: 'Escolha um alimento da lista.' }
     return
   }
+  const chosen = unit.value
   run(
-    () => addDiaryEntry({ day: view.value.day, meal: slot.value, food_id: food.value.id, quantity: number, unit: unit.value }),
-    () => cancelEdit(),
+    () => addDiaryEntry({ day: view.value.day, meal: slot.value, food_id: food.value.id, quantity: number, unit: chosen }),
+    () => { rememberUnit(chosen); cancelEdit() },
   )
 }
 
