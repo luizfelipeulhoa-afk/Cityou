@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import Icon from './personal/Icon.vue'
 import NutritionBase from './personal/NutritionBase.vue'
+import FoodDiary from './personal/FoodDiary.vue'
 import BodyComposition from './personal/BodyComposition.vue'
 // Cliente único da API (etapa 2): o mesmo `api()` da cidade, que trata o 401 levando a pessoa para entrar.
 import { readCache, signOut, writeCache, addEvent, addProject, addWeight, api, completeTask, editEvent, editProject, editWeight, removeEvent, removeProject, removeWeight, stepDone } from './fifones/api.js'
@@ -237,6 +238,7 @@ onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);window.removeEventListe
       </template>
       <template v-else-if="route==='nutricao'">
         <NutritionBase />
+        <FoodDiary />
         <section class="nutrition-banner surface"><span class="nutrition-art" aria-hidden="true"><i /><i /><i /></span><div><span class="eyebrow">UM OLHAR PARA SUA ALIMENTAÇÃO</span><h2>Primeiro, conhecer sua rotina.</h2><p>Registre refeições, horários e quantidades. Nenhum nutriente é estimado sem informação suficiente.</p><button class="primary-btn" @click="showForm('meal')"><Icon name="plus" :size="17" />Registrar refeição</button></div></section><div class="record-grid"><article v-for="item in entryList('meal')" :key="item.id" class="surface note-card"><span class="eyebrow">{{ formatDate(item.day) }}</span><h2>{{ item.title }}</h2><p>{{ item.body }}</p></article></div>
       </template>
       <template v-else-if="route==='autoconhecimento'">

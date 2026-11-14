@@ -173,6 +173,13 @@ export const acceptNutritionTarget = () => api(NUTRITION + '/target', 'POST', {}
 export const saveNutritionPlan = body => api(NUTRITION + '/plan', 'PUT', body)
 export const removeNutritionPlan = () => api(NUTRITION + '/plan', 'DELETE')
 export const removeNutrition = () => api(NUTRITION, 'DELETE')
+
+// Diário alimentar (worker/diary.js). A busca e os números vêm do servidor; o navegador só envia o `food_id` escolhido.
+const DIARY = '/api/personal/diary'
+export const loadDiary = day => api(DIARY + (day ? `?day=${encodeURIComponent(day)}` : ''))
+export const searchFoods = query => api(DIARY + '/foods?q=' + encodeURIComponent(query))
+export const addDiaryEntry = body => api(DIARY, 'POST', body)
+export const removeDiaryEntry = id => api(`${DIARY}/${encodeURIComponent(id)}`, 'DELETE')
 // Composição corporal da aba Fitness (worker/body.js). As escritas devolvem a lista e a média das últimas medidas.
 const BODY = '/api/personal/body-composition'
 export const loadBodyComposition = () => api(BODY)
