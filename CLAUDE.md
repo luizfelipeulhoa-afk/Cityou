@@ -59,7 +59,7 @@ Decisão fechada: o 3D migra para **TresJS** (`@tresjs/core`), não para React T
 
 - Estado: fase 0. As páginas de produção ainda são imperativas e não importam o TresJS. Existem a base (`glbMaterial.js`, `glbLoader.js`, `useGlb.js`, `GlbModel.vue`, `SpaceMarkerNode.vue`) e o laboratório `/tres-lab.html`, só no `npm run dev` (`TresLab.vue`; fora das entradas do build).
 - Regra visual de todo GLB, em `src/tres/glbMaterial.js` (`applyGlbStyle`): `flatShading = true`, `needsUpdate = true`, `metalness = 0`, `roughness = 1`, sem os mapas de metal e rugosidade. Já vale nas três cargas de hoje (`SpaceMarker.loadModel`, `CityWorld.loadLandmark`, `CityWorld.loadModel`). Carga nova de GLB passa por ela (`loadGlb`, `useGlb` ou `GlbModel`).
-- **Cidade, prédio e terreno como uma coisa só (13/11/2026):** `CityWorld` lê luz, céu, névoa e tone mapping da tabela por região `src/terrain/lighting.js` (o Rio usa a luz com que o terreno foi calibrado, sem tone mapping; ilha e cidades antigas mantêm o cenário à mão). Os GLB da cidade são convertidos para `MeshLambertMaterial` (`src/tres/lambert.js`) e a base bege que o Tripo gera no pé do prédio recebe um degradê até a cor do chão (`src/tres/groundBlend.js`, só onde há terreno). **A cidade não tem shadow map nem `PointLight`:** a sombra é de contato, um quad por prédio num `InstancedMesh` (`makeContactShadows`, +1 draw). `material()` de `sceneEnvironment.js` devolve Lambert, salvo vidro, água e mar (rugosidade abaixo de 0,6), que seguem Standard. `SpaceMarker.js` ainda tem a própria `toLambert` (o globo clona; unificar na etapa 7b). Fotos antes/depois: `node tools/city-look.mjs <url> --label x` (imagens em `.verification/`, e lista materiais, luzes e sombras da cena).
+- **Cidade, prédio e terreno como uma coisa só (13/11/2026):** `CityWorld` lê luz, céu, névoa e tone mapping da tabela por região `src/terrain/lighting.js` (o Rio usa a luz com que o terreno foi calibrado, sem tone mapping; ilha e cidades antigas mantêm o cenário à mão). Os GLB da cidade são convertidos para `MeshLambertMaterial` (`src/tres/lambert.js`) e a base redonda que o Tripo gera no pé do prédio fica **enterrada no terreno** (14/11/2026, `MODEL_BASES` em `shared/game/city-layout.js` e `CityWorld.loadModel`; antes ela só ganhava um degradê até a cor do chão, `src/tres/groundBlend.js`, que agora só vale para um modelo sem `base` no catálogo). **A cidade não tem shadow map nem `PointLight`:** a sombra é de contato, um quad por prédio num `InstancedMesh` (`makeContactShadows`, +1 draw). `material()` de `sceneEnvironment.js` devolve Lambert, salvo vidro, água e mar (rugosidade abaixo de 0,6), que seguem Standard. `SpaceMarker.js` ainda tem a própria `toLambert` (o globo clona; unificar na etapa 7b). Fotos antes/depois: `node tools/city-look.mjs <url> --label x` (imagens em `.verification/`, e lista materiais, luzes e sombras da cena).
 - `vite.config.js` usa as opções de template do TresJS: tags `Tres*` e `primitive` são elementos da cena. Não crie componente Vue com nome começando em `Tres`.
 - Objeto do three em `shallowRef` ou `markRaw`, nunca em `ref`; nada reativo por quadro (use `useLoop`); `<primitive>` não libera nada, quem cria libera.
 - A API do TresJS 5 difere de exemplos antigos: confira em `node_modules/@tresjs/core/dist/*.d.ts`.
@@ -92,22 +92,32 @@ Nove prédios de exemplo construíveis na cidade do Rio (barraca de feira, casa 
 - Prompts de novos prédios da cidade (carrinhos de picolé e de milho, academia grande, prefeitura, casas, prédios, hospital, 4 árvores típicas do Rio, comunidade do morro, polícia, bombeiro, o Maracanã — de propósito o maior prédio da cidade — e um shopping center, o segundo maior): `docs/PROMPTS-CIDADE.md`. Nenhum desses últimos oito tem GLB ainda (propostas, sem imagem gerada).
 - De `docs/PROMPTS-CIDADE.md` já têm GLB (13/11/2026): Prefeitura, Casa térrea, Carrinho de picolé, Sobrado colorido, Prédio comercial, Carrinho de milho, Hospital, Academia grande, Delegacia de polícia, Corpo de bombeiros, Coqueiro, Flamboyant, Mangueira e Comunidade do morro — todos reduzidos (3 a 6 mil triângulos) e no catálogo do Rio (`docs/PREDIOS-RIO.md`, 23 prédios com GLB ao todo). Faltam o Maracanã e o shopping center do mesmo guia.
 - A miniatura do menu vem de `item.preview`; gere com `node tools/catalog-previews.mjs <url-do-worker> rio-`.
+- **Sem a base redonda (14/11/2026):** todo GLB do catálogo traz a espessura do disco do pé dele (`base`, vem de `MODEL_BASES` em `shared/game/city-layout.js`, na unidade do modelo, onde o maior lado vale 1). `CityWorld.loadModel` desce o modelo essa espessura (× a escala) mais a folga até o topo do terreno, então só o prédio sai do chão, com o jardim, os degraus e os vasos que o disco carregava; a sombra de contato encolhe (`record.sunk`). Modelo novo precisa da sua entrada (`npm test` confere contra a medida do arquivo): `node tools/model-bases.mjs` mede o disco (o maior plano virado para cima perto do chão) e compara com o catálogo; confira a olho com o modelo enterrado, porque árvores e barcos medem mal.
+- **Chão e calçada (14/11/2026, só o Rio):** `src/fifones/lotGround.js` desenha, por prédio, um tapete de bordas macias sob o lote (terra e mato) e a calçada que liga o prédio à rua: uma faixa rente à frente do lote, do lado da rua, com um acesso mais largo na porta. Duas malhas instanciadas (2 draws), recalculadas por `CityWorld.refreshLotGround` a cada estado (prédios e ruas); nada vai ao servidor. Não há calçada no morro nem para decoração.
+- **O prédio nasce virado para a rua:** `facingRotation` (`shared/game/city-layout.js`; `FRONT_STEP` diz para onde cada rotação olha, a frente do modelo é +Z) gira o prédio para o lado da rua quando a frente dele não dá numa (sem trocar a pegada de um 3 × 2). O Worker aplica ao construir (com a rua automática que acabou de ligá-lo) e ao mover; girar à mão continua valendo depois.
 
 ## Personagens ambiente da cidade (`src/fifones/characters.js`)
 
 Primeiro personagem (13/11/2026): **Fifo**, no Rio (`cristo-redentor`). É só cenário (sem estado no servidor,
-ninguém constrói nem move) — a lista por região fica em `characters.js` (id, `model`, `height`, `speed` e `path`, o
-caminho em tiles da cidade) e `CityWorld.loadCharacters()` carrega cada um do jeito de qualquer GLB do catálogo
-(`applyGlbStyle`, `toLambertScene`, faces planas), escalado pela altura (0,42: bem menor que o menor prédio).
-`CityWorld.animateCharacters` faz o personagem andar o caminho em ida e volta, de frente para onde vai, com um
-balanço leve de passo (o modelo não tem rig); com movimento reduzido ele fica parado. O Fifo sai da praça, desce a
-rua até a avenida da praia e passeia pelo calçadão. Modelo em `public-fifones/models/characters/fifo.glb`.
+ninguém constrói nem move) — a lista por região fica em `characters.js` (id, `model`, `height`, `speed`, `path`, o
+caminho em tiles da cidade, e `stepLength`, opcional) e `CityWorld.loadCharacters()` carrega cada um do jeito de
+qualquer GLB do catálogo (`applyGlbStyle`, `toLambertScene`, faces planas), escalado pela altura (0,42: bem menor que o
+menor prédio). `CityWorld.animateCharacters` faz o personagem andar o caminho em ida e volta, de frente para onde vai,
+virando devagar nas esquinas e parando um instante nas pontas; a caminhada dos ossos é de `src/fifones/characterRig.js`
+(`createWalkRig`), no ritmo da velocidade: pernas e braços em oposição, joelho e cotovelo dobrando, quadril girando e
+subindo e descendo, tronco inclinado. Com movimento reduzido ele fica parado, de braços baixos. O Fifo sai da praça,
+desce a rua até a avenida da praia e passeia pelo calçadão. Modelo em `public-fifones/models/characters/fifo.glb`.
 
-- O GLB do Fifo tem 9 malhas com o mesmo material (um personagem real, não um prédio de uma peça só):
-  `tools/optimize-city-models.mjs` exige uma malha de uma parte e recusa. A textura foi recomprimida à mão
-  (script de uso único, sem reduzir a malha: 17.973 triângulos, 1,2 MB) tirando o mapa de normais, que o material
-  de faces planas da cidade não lê mesmo. Se entrar outro personagem assim, vale generalizar o redutor para
-  várias malhas antes de repetir o script à mão.
+- O GLB do Fifo já vem com esqueleto Mixamo (`mixamorig*`, 65 ossos, em T-pose), mas **sem animação e com os pesos de
+  pele embaralhados** (o tronco segue o polegar, as pernas seguem o braço: só parecem certos na T-pose). `characterRig.js`
+  refaz os pesos por proximidade aos ossos ao carregar (`skinByProximity`: um segmento por osso, mistura suave; como o
+  peso depende só da posição, as nove peças em que o Tripo cortou o corpo seguem emendadas) e gira os ossos por quadro,
+  em rotações no espaço do modelo (acumuladas pela cadeia de ossos, sem depender dos eixos locais de cada osso). Serve a
+  qualquer personagem com ossos Mixamo; sem eles, `createWalkRig` devolve `null` e o personagem fica na T-pose.
+- O GLB tem 9 malhas com o mesmo material: `tools/optimize-city-models.mjs` exige uma malha de uma parte e recusa. A
+  textura foi recomprimida à mão (`tools/one-off/pack-character.mjs`, sem reduzir a malha: 17.973 triângulos, 1,2 MB)
+  tirando o mapa de normais, que o material de faces planas da cidade não lê mesmo. Se entrar outro personagem assim,
+  vale generalizar o redutor para várias malhas antes de repetir o script à mão.
 - Prompts e propostas de personagens (o Explorador estilizado, a Tartaruga-marinha): `docs/PROMPTS-PERSONAGENS.md`
   — são referência de estilo, não o Fifo (que veio pronto, num estilo mais realista).
 

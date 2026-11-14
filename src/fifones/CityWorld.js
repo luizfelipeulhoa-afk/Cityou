@@ -11,10 +11,12 @@ import { toLambertScene } from '../tres/lambert.js'
 import { applyGroundBlendTo } from '../tres/groundBlend.js'
 import { lightingFor } from '../terrain/lighting.js'
 import { WORLD_MODELS_MANIFEST } from '../world/worldSpaces.js'
-import { getCityLayout, HILL_STEP, hillLevelAt, isPilotCity, placementProblem, previewBuild, tileKey } from '../../shared/game/city-layout.js'
+import { FRONT_STEP, getCityLayout, HILL_STEP, hillLevelAt, isPilotCity, placementProblem, previewBuild, tileKey } from '../../shared/game/city-layout.js'
 import { createTapGesture } from '../interaction/tapGesture.js'
 import { buildRioFallback, createCoreBuilding, createEnvironment, LANDMARK_FOOTPRINT, LANDMARK_HEIGHT, material } from './sceneEnvironment.js'
 import { CHARACTERS } from './characters.js'
+import { createWalkRig } from './characterRig.js'
+import { createLotGround } from './lotGround.js'
 
 const CENTER = 8
 // Altura do chão sob o prédio (acima do platô, para a base não brigar com o chão no z-buffer).
@@ -108,7 +110,6 @@ export default class CityWorld {
     // Luz e céu vêm da tabela da região (src/terrain/lighting.js): o Rio usa a luz com que o terreno foi calibrado.
     this.look = lightingFor(callbacks.region?.id)
     this.groundColor = new THREE.Color(this.look.ground ?? 0xffffff) // compartilhada por todos os prédios (degradê de base)
-    this.hillGroundColor = new THREE.Color(0x4e9f5d).lerp(new THREE.Color(0xb07a4f), 0.4) // o chão dos patamares do morro
     this.scene.background = new THREE.Color(this.look.sky)
     this.scene.fog = new THREE.Fog(this.look.sky, this.look.fog.near, this.look.fog.far)
     this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 180)
@@ -168,6 +169,8 @@ export default class CityWorld {
     // Selection proxies only take part in raycasts.
     this.picking.visible = false
     this.makeGround()
+    // O chão em volta de cada prédio do Rio e a calçada até a rua (lotGround.js); a ilha não tem rua.
+    this.lotGround = this.region?.id === 'cristo-redentor' ? createLotGround(this.scene, this.gridSize ** 2) : null
     this.makeContactShadows()
     if (this.pilot) this.makeRoads()
     this.makeIndicators()
@@ -494,9 +497,50 @@ export default class CityWorld {
     if (!next.has(this.inUseId)) this.inUseId = null
     this.refreshGround()
     this.refreshRoads()
+    this.refreshLotGround()
     this.refreshSelection()
     this.refreshPreview()
     this.refreshShadows()
+  }
+
+  // O tapete de cada lote e a calçada até a rua (lotGround.js). A calçada fica do lado da rua para onde o prédio olha
+  // (a frente do modelo, FRONT_STEP[rotação]); sem rua nesse lado, do primeiro lado que tem. No morro e nas
+  // decorações não há calçada nem rua: só o tapete (o morro já tem o próprio chão).
+  refreshLotGround() {
+    if (!this.lotGround) return
+    const roads = new Set(this.state.placements.filter(item => item.kind === 'road').map(({ x, y }) => tileKey(x, y)))
+    const patches = [], walks = []
+    for (const record of this.records.values()) {
+      const { placement, footprint: area } = record
+      const definition = this.definitions.get(placement.kind)
+      if (!area || !definition || coreKinds.has(placement.kind) || definition.decoration) continue
+      patches.push({ x: area.x, z: area.z, width: area.width + 0.5, depth: area.depth + 0.5, y: area.lift + 0.01, hill: area.lift > 0 })
+      if (area.lift > 0) continue
+      const cells = footprint(placement, definition)
+      const own = new Set(cells.map(({ x, y }) => tileKey(x, y)))
+      const rotation = placement.rotation || 0
+      for (const side of [rotation, (rotation + 3) % 4, (rotation + 1) % 4, (rotation + 2) % 4]) {
+        const [dx, dy] = FRONT_STEP[side]
+        // O ponto da rua mais perto do meio do lado: é por ele que a calçada sai.
+        const lateral = cell => dx ? cell.y - CENTER : cell.x - CENTER
+        const middle = dx ? area.z : area.x
+        const door = cells.filter(cell => !own.has(tileKey(cell.x + dx, cell.y + dy)) && roads.has(tileKey(cell.x + dx, cell.y + dy)))
+          .sort((a, b) => Math.abs(lateral(a) - middle) - Math.abs(lateral(b) - middle))[0]
+        if (!door) continue
+        const half = (dx ? area.width : area.depth) / 2, across = dx ? area.depth : area.width
+        // Do fundo do prédio até a borda do asfalto (que fica a 0,13 do lote): só o trecho do meio aparece.
+        const reach = 0.13 + 0.04, from = half * 0.8, length = half + reach - from
+        const axis = from + length / 2
+        const angle = Math.atan2(dx, dy)
+        walks.push({ x: area.x + dx * axis, z: area.z + dy * axis, width: across * 0.94, length, angle, y: area.lift + 0.016 })
+        // O acesso da porta: mais largo e mais fundo, no tile da rua mais perto do meio.
+        const doorLateral = THREE.MathUtils.clamp(lateral(door), middle - across / 2 + 0.4, middle + across / 2 - 0.4)
+        const deep = half * 0.62, wide = half + reach - deep
+        walks.push({ x: dx ? area.x + dx * (deep + wide / 2) : doorLateral, z: dx ? doorLateral : area.z + dy * (deep + wide / 2), width: 0.56, length: wide, angle, y: area.lift + 0.02 })
+        break
+      }
+    }
+    this.lotGround.update({ patches, walks })
   }
 
   createRecord(placement, definition, key) {
@@ -700,15 +744,24 @@ export default class CityWorld {
         const size = bounds.getSize(new THREE.Vector3())
         const scale = character.height / Math.max(size.y, 0.01)
         const center = bounds.getCenter(new THREE.Vector3())
+        // O esqueleto é lido na T-pose, antes de escalar e mover o modelo.
+        const rig = createWalkRig(resource.scene, { stepLength: character.stepLength })
+        resource.scene.traverse(object => { if (object.isSkinnedMesh) object.frustumCulled = false })
         resource.scene.scale.setScalar(scale)
         resource.scene.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale)
         const walker = new THREE.Group()
         walker.name = `Personagem · ${character.name}`
         walker.add(resource.scene)
-        const points = character.path.map(([x, y]) => new THREE.Vector3(x - CENTER, 0, y - CENTER))
+        const points = character.path.map(([x, y]) => new THREE.Vector3(x - CENTER, 0.06, y - CENTER))
         const lengths = points.slice(1).map((point, index) => point.distanceTo(points[index]))
-        this.walkers.push({ object: walker, points, lengths, total: lengths.reduce((a, b) => a + b, 0), speed: character.speed })
+        const first = points[1].clone().sub(points[0])
+        this.walkers.push({
+          object: walker, points, lengths, total: lengths.reduce((a, b) => a + b, 0), speed: character.speed, rig, scale,
+          distance: 0, direction: 1, pause: 0, heading: Math.atan2(first.x, first.z),
+        })
         walker.position.copy(points[0])
+        walker.rotation.y = Math.atan2(first.x, first.z)
+        rig?.update(0, 0, scale)
         this.environment.group.add(walker)
       } catch {
         // A cidade segue sem o personagem se o GLB não carregar.
@@ -716,23 +769,34 @@ export default class CityWorld {
     }
   }
 
-  // Ida e volta no caminho, em velocidade constante, de frente para onde anda, com um balanço leve de passo (o
-  // modelo não tem rig). Com movimento reduzido, o personagem fica parado no começo do caminho.
+  // Ida e volta no caminho, em velocidade constante, de frente para onde anda, virando devagar nas esquinas e no fim
+  // (onde para um instante). Os ossos andam pelo ciclo de characterRig.js, no ritmo da velocidade. Com movimento
+  // reduzido, o personagem fica parado no começo do caminho, de braços baixos.
   animateCharacters(time) {
+    const dt = Math.min(0.1, time - (this.lastWalkTime ?? time))
+    this.lastWalkTime = time
     for (const walker of this.walkers) {
-      if (this.reducedMotion || !walker.total) continue
-      const cycle = walker.total * 2
-      let distance = (time * walker.speed) % cycle
-      const forward = distance <= walker.total
-      if (!forward) distance = cycle - distance
-      let index = 0
-      while (index < walker.lengths.length - 1 && distance > walker.lengths[index]) distance -= walker.lengths[index++]
+      if (this.reducedMotion || !walker.total) { walker.rig?.update(dt, 0, walker.scale); continue }
+      let moving = false
+      if (walker.pause > 0) walker.pause -= dt
+      else {
+        walker.distance += walker.direction * walker.speed * dt
+        if (walker.distance >= walker.total || walker.distance <= 0) {
+          walker.distance = THREE.MathUtils.clamp(walker.distance, 0, walker.total)
+          walker.direction *= -1
+          walker.pause = 1.6
+        } else moving = true
+      }
+      let rest = walker.distance, index = 0
+      while (index < walker.lengths.length - 1 && rest > walker.lengths[index]) rest -= walker.lengths[index++]
       const from = walker.points[index], to = walker.points[index + 1]
-      walker.object.position.lerpVectors(from, to, Math.min(1, distance / walker.lengths[index]))
-      walker.object.position.y = 0.06 + Math.abs(Math.sin(time * 9)) * 0.012
-      const sign = forward ? 1 : -1
-      walker.object.rotation.y = Math.atan2((to.x - from.x) * sign, (to.z - from.z) * sign)
-      walker.object.rotation.z = Math.sin(time * 9) * 0.04
+      walker.object.position.lerpVectors(from, to, Math.min(1, rest / walker.lengths[index]))
+      // Na volta o personagem anda de frente para o outro lado do mesmo trecho; a curva é suave, não um giro seco.
+      const target = Math.atan2((to.x - from.x) * walker.direction, (to.z - from.z) * walker.direction)
+      const turn = Math.atan2(Math.sin(target - walker.heading), Math.cos(target - walker.heading))
+      walker.heading += THREE.MathUtils.clamp(turn, -6 * dt, 6 * dt)
+      walker.object.rotation.y = walker.heading
+      walker.rig?.update(dt, moving ? walker.speed : 0, walker.scale)
     }
   }
 
@@ -770,10 +834,9 @@ export default class CityWorld {
           }
         }
       })
-      // A base bege do GLB assume a cor do chão da região (só onde há terreno real): o prédio nasce do terreno.
-      // No morro da comunidade o degradê de base vai para o chão do patamar (mais terra que mata), à altura dele.
+      // Sem `base` no catálogo (modelo novo ainda sem a medida), a base bege do GLB assume a cor do chão da região.
       const lift = this.groundHeight(record.placement.x, record.placement.y)
-      if (this.look.ground !== null) applyGroundBlendTo(model, { ground: lift ? this.hillGroundColor : this.groundColor, range: this.look.groundFade, baseY: BUILDING_BASE_Y + lift })
+      if (!definition.base && this.look.ground !== null) applyGroundBlendTo(model, { ground: this.groundColor, range: this.look.groundFade, baseY: BUILDING_BASE_Y + lift })
       const bounds = new THREE.Box3().setFromObject(model)
       const size = bounds.getSize(new THREE.Vector3())
       const center = bounds.getCenter(new THREE.Vector3())
@@ -784,12 +847,17 @@ export default class CityWorld {
       const normalized = new THREE.Group()
       normalized.add(model)
       normalized.scale.setScalar(scale)
-      normalized.position.set(-center.x * scale, -bounds.min.y * scale, -center.z * scale)
+      // A base redonda do GLB (o disco que o Tripo põe no pé do prédio) fica enterrada no terreno: o modelo desce a
+      // espessura dela (`definition.base`, na unidade do modelo) mais a folga até o topo do terreno, e só o prédio
+      // sai do chão, com o jardim, os degraus e os vasos que o disco carregava.
+      const sink = definition.base ? definition.base * scale + BUILDING_BASE_Y + 0.02 : 0
+      normalized.position.set(-center.x * scale, -bounds.min.y * scale - sink, -center.z * scale)
       group.add(normalized)
       disposeOwned(record.sim.mesh, true)
       record.sim.setMesh(group)
       record.loaded = true
-      record.height = size.y * scale
+      record.height = size.y * scale - sink
+      record.sunk = sink > 0
       this.prepareLogoPivots(record, model)
       this.captureMaterials(record)
       record.selected = undefined
@@ -1066,8 +1134,10 @@ export default class CityWorld {
     for (const record of this.records.values()) {
       if (!record.footprint || record.placement.kind === 'road' || record.placement.kind === 'tree' || index >= this.contactShadows.instanceMatrix.count) continue
       const { x, z, width, depth, lift } = record.footprint
-      dummy.position.set(x, BUILDING_BASE_Y + (lift ?? 0) + 0.004, z)
-      dummy.scale.set(width * scale, 1, depth * scale)
+      dummy.position.set(x, (lift ?? 0) + (record.sunk ? 0.022 : BUILDING_BASE_Y + 0.004), z)
+      // Sem a base redonda, a sombra só precisa aninhar o prédio no chão: um halo menor que o do disco.
+      const spread = record.sunk ? scale * 0.74 : scale
+      dummy.scale.set(width * spread, 1, depth * spread)
       dummy.updateMatrix()
       this.contactShadows.setMatrixAt(index++, dummy.matrix)
     }
@@ -1233,6 +1303,7 @@ export default class CityWorld {
     this.observer?.disconnect()
     for (const dispose of this.disposers) dispose()
     this.controls?.dispose()
+    this.lotGround?.dispose()
     const textures = new Set(), geometries = new Set(), mats = new Set()
     const collect = object => object.traverse((child) => {
       if (child.geometry) geometries.add(child.geometry)

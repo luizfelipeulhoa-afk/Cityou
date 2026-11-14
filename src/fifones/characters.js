@@ -5,7 +5,8 @@
 export const CHARACTERS = {
   'cristo-redentor': [
     // Fifo, o primeiro personagem do Cityou: sai da praça, desce a rua até a avenida da praia e passeia pelo
-    // calçadão de Copacabana. Modelo fornecido pelo responsável do projeto, sem rig: o passo é um balanço leve.
+    // calçadão de Copacabana. Modelo fornecido pelo responsável do projeto, com esqueleto Mixamo e sem animação: a
+    // caminhada é de characterRig.js (`stepLength`, opcional, é o passo na unidade do modelo).
     {
       id: 'fifo', name: 'Fifo', model: '/models/characters/fifo.glb', height: 0.42, speed: 0.55,
       path: [[6.6, 9.4], [10.4, 9.4], [10.4, 19.4], [13.5, 19.4], [13.5, 22.5], [19.4, 22.5]],
