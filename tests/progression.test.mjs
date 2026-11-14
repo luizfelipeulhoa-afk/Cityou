@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { progression } from '../src/fifones/progression.js'
-const catalog = [{ id: 'stunt', cost: 80, destination: '/#/projects' }, {id: 'tasks', cost: 30, destination: '/#/tarefas'}, {id: 'tree', cost: 3}]
+const catalog = [{id: 'tasks', cost: 80, destination: 'tarefas'}, {id: 'tree', cost: 3}]
 test('Welcome gift and historical tasks do not complete a milestone', () => {
   const p = progression({ credits: 50, earned: 0, reward_count: 0, catalog, placements: [{kind: 'headquarters'}] })
   assert.equal(p.missing, 30); assert.equal(p.taskEquivalent, 3); assert.equal(p.withinLevel, 0)
@@ -18,7 +18,7 @@ test('Only a functional space satisfies the construction milestone', () => {
 })
 test('Goals handle sufficient balance, invalid saved IDs, and empty state', () => {
   const p = progression({credits: 85, catalog}, 'invalid')
-  assert.equal(p.goal.id, 'stunt'); assert.equal(p.goalPercent, 100); assert.equal(p.missing, 0)
+  assert.equal(p.goal.id, 'tasks'); assert.equal(p.goalPercent, 100); assert.equal(p.missing, 0)
   assert.equal(progression().goal, undefined)
 })
 test('Reopening at ten actions keeps the correct next milestone', () => {

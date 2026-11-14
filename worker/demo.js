@@ -4,8 +4,14 @@ import { DOMAINS, RULES } from '../shared/game/rules.js'
 import { ProofError, parseProof, sha256Hex } from '../shared/game/proof.js'
 import { buildSummary } from '../shared/game/summary.js'
 import { kindForDomain, stageFor } from '../shared/game/buildings.js'
-import { newCity, newTown, withoutHeadquarters, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
-import { HttpError, json, errorResponse } from './http.js'
+import { newCity, newTown, withoutHeadquarters, withoutRetired, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
+import { HttpError, json, errorResponse, readJsonObject } from './http.js'
+import { dateFormatter, isDate, capOf, capMessage } from './records.js'
+import { agendaMethods } from './agenda.js'
+import { projectMethods } from './projects.js'
+import { weightMethods } from './weights.js'
+import { nutritionMethods } from './nutrition.js'
+import { bodyMethods } from './body.js'
 
 const START = SPACE_ORDER[0]
 // A ilha é só cenário; a cidade onde se constrói começa aberta no Rio de Janeiro.
@@ -14,12 +20,14 @@ const DEFAULT_CITY = 'cristo-redentor'
 const withOpenDefault = progress => normalizeProgress({ ...progress, desbloqueados: [...progress.desbloqueados, DEFAULT_CITY], concluidos: [...progress.concluidos, START] })
 const COOKIE = 'cityou_demo'
 const ACCOUNT_HEADER = 'X-Cityou-Account'
+const HOLD_PATH = '/internal/hold-for-adoption'
+const ADOPT_PATH = '/internal/adopt'
+const ADOPTION_HOLD_MS = 5 * 60 * 1000
 const SESSION_SECONDS = 30 * 24 * 60 * 60
 const previewEnabled = env => env?.CITYOU_TEST_OPEN_REGIONS === '1'
 const kinds = ['habit', 'goal', 'note', 'transaction', 'meal']
-const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' })
-const sources = Object.fromEntries(['fitness', 'documents', 'memories', 'events']
-  .map(key => [key, { connected: false, data: key === 'fitness' ? {} : [] }]))
+// Biblioteca e Memórias ainda não têm armazenamento próprio (etapa 4): chegam vazias e indisponíveis.
+const sources = Object.fromEntries(['documents', 'memories'].map(key => [key, { connected: false, data: [] }]))
 
 export function sessionToken(request) {
   return request.headers.get('Cookie')?.match(/(?:^|;\s*)cityou_demo=([a-f0-9]{64})(?:;|$)/)?.[1]
@@ -35,8 +43,28 @@ const routes = [
   [/^\/api\/personal$/, { GET: 'personal' }],
   [/^\/api\/personal\/entries$/, { POST: 'addEntry' }],
   [/^\/api\/personal\/entries\/([a-f0-9-]{36})\/checkin$/, { PUT: 'checkin' }],
-  [/^\/api\/personal\/tasks$/, { POST: 'addTask' }],
+  [/^\/api\/personal\/events$/, { POST: 'addEvent' }],
+  [/^\/api\/personal\/events\/([a-f0-9-]{36})$/, { PUT: 'editEvent', DELETE: 'removeEvent' }],
+  [/^\/api\/personal\/projects$/, { GET: 'projectsList', POST: 'addProject' }],
+  [/^\/api\/personal\/projects\/([a-f0-9-]{36})$/, { PUT: 'editProject', DELETE: 'removeProject' }],
+  [/^\/api\/personal\/projects\/([a-f0-9-]{36})\/step-done$/, { POST: 'stepDone' }],
+  [/^\/api\/personal\/weights$/, { GET: 'weightsHistory', POST: 'addWeight' }],
+  [/^\/api\/personal\/weights\/([a-f0-9-]{36})$/, { PUT: 'editWeight', DELETE: 'removeWeight' }],
+  // Composição corporal da aba Fitness (worker/body.js).
+  [/^\/api\/personal\/body-composition$/, { GET: 'bodyComposition', POST: 'addBodyComposition' }],
+  [/^\/api\/personal\/body-composition\/([a-f0-9-]{36})$/, { PUT: 'editBodyComposition', DELETE: 'removeBodyComposition' }],
+  // Alimentação: base calórica (worker/nutrition.js).
+  [/^\/api\/personal\/nutrition$/, { GET: 'nutrition', DELETE: 'removeNutrition' }],
+  [/^\/api\/personal\/nutrition\/profile$/, { PUT: 'saveNutritionProfile' }],
+  [/^\/api\/personal\/nutrition\/screening$/, { GET: 'screeningAnswers', POST: 'sendScreening' }],
+  [/^\/api\/personal\/nutrition\/screening\/answers$/, { DELETE: 'removeScreeningAnswers' }],
+  [/^\/api\/personal\/nutrition\/target$/, { POST: 'acceptNutritionTarget' }],
+  [/^\/api\/personal\/nutrition\/plan$/, { PUT: 'saveNutritionPlan', DELETE: 'removeNutritionPlan' }],
+  [/^\/api\/personal\/tasks$/, { GET: 'tasks', POST: 'addTask' }],
+  [/^\/api\/personal\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/personal\/proofs\/([a-f0-9-]{36})\/(\d{4}-\d{2}-\d{2})\/photo$/, { GET: 'proofPhoto' }],
+  // Apelidos de /api/personal/tasks* por um deploy, para abas abertas com o bundle antigo (etapa 2). Saem na etapa 6.
+  [/^\/api\/workspace\/projects$/, { GET: 'projectsList' }],
   [/^\/api\/workspace\/tasks$/, { GET: 'tasks' }],
   [/^\/api\/workspace\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/city$/, { GET: 'city' }],
@@ -60,6 +88,15 @@ async function requireAdmin(request, env) {
   if (given !== expected) throw new HttpError(403, 'Token de administração inválido.')
 }
 
+/**
+ * Abre o Durable Object da sessão. `DO_LOCATION_HINT` (por exemplo `sam`) só vale para objetos ainda não criados:
+ * sem a variável nada muda. Medido em 13/11/2026: sem dica, a prévia leva ~120 ms só na ida e volta ao objeto (docs/BENCHMARKS.md).
+ */
+function sessionStub(env, key) {
+  const hint = env?.DO_LOCATION_HINT
+  return hint ? env.DEMO_SESSIONS.getByName(key, { locationHint: hint }) : env.DEMO_SESSIONS.getByName(key)
+}
+
 /** Nome do Durable Object com os dados da sessão de demonstração deste pedido, ou null sem cookie. */
 export async function demoKeyOf(request, env) {
   const token = sessionToken(request)
@@ -68,56 +105,57 @@ export async function demoKeyOf(request, env) {
   return sha256Hex(new TextEncoder().encode(previewEnabled(env) ? `test:${token}` : token))
 }
 
-export async function demoApi(request, env, url, user = null, timing = null) {
-  if (url.pathname === '/api/workspace/projects' && request.method === 'GET') {
-    return json({ connected: false, projects: [] })
+export function accountKey(id) {
+  return sha256Hex(new TextEncoder().encode(`account:${id}`))
+}
+
+/** As operações internas não são encaminhadas por nenhuma rota pública. */
+async function updateAdoption(env, key, path, account) {
+  let response
+  try {
+    response = await sessionStub(env, key).fetch(`https://cityou.internal${path}`, {
+      method: 'POST', headers: { [ACCOUNT_HEADER]: account },
+    })
+  } catch (error) {
+    console.error(JSON.stringify({ message: 'Adoção dos dados não confirmada', error: String(error) }))
   }
+  if (response?.status === 410) throw new HttpError(410, 'A demonstração venceu. Tente novamente para criar uma conta nova.')
+  if (response?.status === 403) throw new HttpError(409, 'A demonstração já foi vinculada. Entre na sua conta.')
+  if (!response?.ok) throw new HttpError(503, 'Não foi possível vincular seus dados. Tente entrar novamente.')
+}
+
+export const holdAccountData = (env, key, account) => updateAdoption(env, key, HOLD_PATH, account)
+export const adoptAccountData = (env, key, account) => updateAdoption(env, key, ADOPT_PATH, account)
+
+async function reservedAccount(db, key) {
+  if (!db || !key) return null
+  return (await db.prepare('SELECT id FROM users WHERE data_key = ?').bind(key).first())?.id ?? null
+}
+
+export async function demoApi(request, env, url, user = null, timing = null) {
+  // Apelido para abas abertas com o bundle antigo da cidade, que ainda pedem os sinais de atividade do Fifones.
+  // A cidade nova não pede mais (etapa 2). Sai na etapa 6.
   if (url.pathname === '/api/workspace/activity' && request.method === 'GET') {
-    return json({ connected: false, activity: null })
+    return json({ activity: null })
   }
   const route = routes.find(([pattern]) => pattern.test(url.pathname))
   if (!route) throw new HttpError(404, 'Rota não encontrada.')
   if (!Object.hasOwn(route[1], request.method)) throw new HttpError(405, 'Método não permitido.')
   if (route[1].POST === 'adminCredits') await requireAdmin(request, env)
   // Com conta, os dados são os da conta em qualquer navegador; sem conta, os da demonstração deste navegador.
-  const key = user?.data_key ?? await demoKeyOf(request, env)
+  const key = user ? (user.data_key ?? await accountKey(user.id)) : await demoKeyOf(request, env)
   if (!key) throw new HttpError(401, 'Abra o Cityou novamente com os cookies habilitados.')
+  if (!user && await reservedAccount(env.DB, key)) throw new HttpError(403, 'Estes dados pertencem a uma conta.')
   // O cabeçalho interno é sempre reescrito aqui: o navegador não consegue se passar por conta.
   const forwarded = new Request(request)
   if (user) forwarded.headers.set(ACCOUNT_HEADER, user.id)
   else forwarded.headers.delete(ACCOUNT_HEADER)
   // `do` = ida e volta ao Durable Object (inclui o trabalho dele): separa o servidor do banco no Server-Timing.
-  const call = () => env.DEMO_SESSIONS.getByName(key).fetch(forwarded)
+  const call = () => sessionStub(env, key).fetch(forwarded)
   const response = timing ? await timing.measure('do', call) : await call()
-  return new Response(response.body, response)
-}
-
-async function readBody(request) {
-  const reader = request.body?.getReader()
-  if (!reader) throw new HttpError(422, 'Envie os dados do registro.')
-  const decoder = new TextDecoder()
-  let text = ''
-  let size = 0
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done) break
-    size += value.byteLength
-    if (size > 24_000) {
-      await reader.cancel()
-      throw new HttpError(413, 'O registro é muito grande.')
-    }
-    text += decoder.decode(value, { stream: true })
-  }
-  let body
-  try { body = JSON.parse(text + decoder.decode()) } catch { throw new HttpError(422, 'Dados inválidos.') }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(422, 'Dados inválidos.')
-  return body
-}
-
-function isDate(value) {
-  if (typeof value !== 'string' || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) return false
-  const date = new Date(value)
-  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && !value.startsWith('0000')
+  const result = new Response(response.body, response)
+  if (!user && result.status === 410) result.headers.append('Set-Cookie', sessionCookie(url))
+  return result
 }
 
 function titleOf(value) {
@@ -154,19 +192,92 @@ export class DemoSession {
     this.travelOpen = env?.TRAVEL_OPEN !== 'false'
     this.storage = ctx.storage
     this.sql = ctx.storage.sql
+    this.name = ctx.id.name
+    this.db = env?.DB
+    this.env = env
+    this.month = null
     this.sql.exec('CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT, value TEXT NOT NULL, PRIMARY KEY (kind, id))')
+    this.migrateCatalog()
+  }
+
+  // Etapa 3: antes de qualquer ação, tira das cidades guardadas as peças que saíram do catálogo (uma peça de tipo
+  // desconhecido derruba `occupiedTiles`) e credita o reembolso uma só vez. A marca `migration:catalog-3` impede repetir.
+  migrateCatalog() {
+    if (this.read('migration', 'catalog-3')) return
+    let refund = 0
+    const writes = []
+    for (const { id, value } of this.sql.exec("SELECT id, value FROM records WHERE kind = 'regional-city'").toArray()) {
+      const region = JSON.parse(value)
+      const result = withoutRetired(region.placements ?? [])
+      if (!result.removed) continue
+      refund += result.refund
+      writes.push(['regional-city', id, { ...region, placements: result.placements, revision: (region.revision ?? 0) + 1 }])
+    }
+    let home = this.read('city', 'state')
+    if (home) {
+      const result = withoutRetired(home.placements ?? [])
+      if (result.removed) {
+        refund += result.refund
+        home = { ...home, placements: result.placements }
+        writes.push(['city', 'state', home])
+      }
+    }
+    if (refund > 0) {
+      home ??= newCity(START, this.testMode)
+      recordChange(home, 'Reembolso: prédios retirados do catálogo', refund)
+      writes.push(['city', 'state', home])
+    }
+    for (const [kind, id, value] of writes) this.write(kind, id, value)
+    this.write('migration', 'catalog-3', { at: new Date().toISOString(), refund })
+  }
+
+  ownerFor(account) {
+    const owner = this.read('account', 'owner')
+    if (owner && owner !== account) throw new HttpError(403, 'Estes dados pertencem a uma conta.')
+    if (this.read('account', 'expired')) throw new HttpError(410, 'A demonstração venceu. Tente novamente para iniciar outra.')
+    if (!account && this.read('account', 'hold_until') > Date.now()) {
+      throw new HttpError(403, 'Estes dados estão sendo vinculados a uma conta.')
+    }
+    return owner
+  }
+
+  holdForAdoption(account) {
+    this.ownerFor(account)
+    this.write('account', 'hold_until', Date.now() + ADOPTION_HOLD_MS)
+  }
+
+  async adopt(account) {
+    if (!this.ownerFor(account)) this.write('account', 'owner', account)
+    await this.storage.deleteAlarm()
   }
 
   async fetch(request) {
     const url = new URL(request.url)
     const path = url.pathname
+    const account = request.headers.get(ACCOUNT_HEADER)
+    if ((path === HOLD_PATH || path === ADOPT_PATH) && request.method === 'POST') {
+      try {
+        if (!account) throw new HttpError(403, 'Conta ausente.')
+        if (path === HOLD_PATH) this.holdForAdoption(account)
+        else await this.adopt(account)
+      } catch (error) {
+        if (error instanceof HttpError) return errorResponse(error.status, error.message)
+        throw error
+      }
+      return new Response(null, { status: 204 })
+    }
     const location = url.searchParams.get('local') ?? DEFAULT_CITY
-    const [pattern, handlers] = routes.find(([pattern]) => pattern.test(path))
+    const route = routes.find(([pattern]) => pattern.test(path))
+    if (!route) return errorResponse(404, 'Rota não encontrada.')
+    const [pattern, handlers] = route
+    if (!Object.hasOwn(handlers, request.method)) return errorResponse(405, 'Método não permitido.')
     const handler = handlers[request.method]
     const [, id, second] = path.match(pattern)
     try {
+      const owner = this.ownerFor(account)
       const writes = request.method !== 'GET'
-      const body = writes ? await readBody(request) : undefined
+      // DELETE não tem corpo: o servidor não lê nada e passa {}.
+      const body = !writes ? undefined : request.method === 'DELETE' ? {} : await readJsonObject(request, 24_000)
       let proof
       if (handler === 'checkin' && body.proof !== undefined) {
         try {
@@ -178,15 +289,15 @@ export class DemoSession {
         }
       }
       // Dados de uma conta não vencem: o alarme de 30 dias vale só para a demonstração sem conta.
-      const account = request.headers.get(ACCOUNT_HEADER)
-      if (account && !this.read('account', 'owner')) {
-        this.write('account', 'owner', account)
-        await this.storage.deleteAlarm()
-      }
-      if (writes && !this.read('account', 'owner') && await this.storage.getAlarm() === null) {
+      if (account && !owner) await this.adopt(account)
+      if (writes && !account && await this.storage.getAlarm() === null && !this.ownerFor(account)) {
         await this.storage.setAlarm(Date.now() + SESSION_SECONDS * 1000)
       }
       return this.storage.transactionSync(() => {
+        this.ownerFor(account)
+        // `?month=` só vale na leitura do mês pedido; numa escrita um mês inválido é ignorado (não derruba a escrita).
+        const month = url.searchParams.get('month')
+        this.month = writes && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month ?? '') ? null : month
         if (handler === 'city' || handler === 'cityAction' || handler === 'syncRewards') {
           this.requireLocation(location)
           return this[handler](body, location)
@@ -196,17 +307,40 @@ export class DemoSession {
         return this[handler](body, id, proof)
       })
     } catch (error) {
-      if (error instanceof HttpError && handler === 'cityAction' && error.status !== 403 && error.status !== 404) {
+      if (error instanceof HttpError && handler === 'cityAction' && ![403, 404, 410].includes(error.status)) {
+        // A leitura do corpo pode ceder a execução enquanto outra requisição adota o objeto.
+        try { this.ownerFor(account) } catch (accessError) {
+          if (accessError instanceof HttpError) return errorResponse(accessError.status, accessError.message)
+          throw accessError
+        }
         return json({ message: error.message, detail: error.message, city: this.citySnapshot(location) }, error.status)
       }
-      if (error instanceof HttpError) return errorResponse(error.status, error.message)
+      // `fields` (quando houver) diz à tela qual campo marcar em vermelho.
+      if (error instanceof HttpError) return errorResponse(error.status, error.message, error.fields)
       throw error
     }
   }
 
-  alarm() {
+  async alarm() {
+    if (this.read('account', 'owner') || this.read('account', 'expired')) return
+    // Uma adoção interrompida pode ter sido reservada no D1 sem confirmação do objeto.
+    let reserved
+    try { reserved = await reservedAccount(this.db, this.name) } catch (error) {
+      console.error(JSON.stringify({ message: 'Expiração adiada: D1 indisponível', error: String(error) }))
+      if (!this.read('account', 'owner')) await this.storage.setAlarm(Date.now() + ADOPTION_HOLD_MS)
+      return
+    }
+    if (reserved) return this.adopt(reserved)
     if (this.read('account', 'owner')) return
-    this.sql.exec('DELETE FROM records')
+    const holdUntil = this.read('account', 'hold_until')
+    if (holdUntil > Date.now()) {
+      await this.storage.setAlarm(holdUntil)
+      return
+    }
+    this.storage.transactionSync(() => {
+      this.sql.exec('DELETE FROM records')
+      this.write('account', 'expired', true)
+    })
   }
 
   read(kind, id) {
@@ -233,9 +367,12 @@ export class DemoSession {
     )
   }
 
-  add(kind, data) {
-    if (this.sql.exec('SELECT count(*) AS total FROM records WHERE kind = ?', kind).one().total >= 100) {
-      throw new HttpError(422, 'A demonstração aceita até 100 registros deste tipo.')
+  cap(kind) { return capOf(this.env, kind) }
+
+  // Tarefas e entradas seguem em 100 por tipo (pendência do plano); Agenda, Projetos e Peso passam o teto próprio.
+  add(kind, data, cap = null) {
+    if (this.sql.exec('SELECT count(*) AS total FROM records WHERE kind = ?', kind).one().total >= (cap ?? 100)) {
+      throw new HttpError(422, cap ? capMessage(cap) : 'A demonstração aceita até 100 registros deste tipo.')
     }
     const record = { ...data, id: crypto.randomUUID(), created_at: new Date().toISOString() }
     this.write(kind, record.id, record)
@@ -246,7 +383,10 @@ export class DemoSession {
     const proofs = this.list('proof').map(({ photo, ...rest }) => ({ ...rest, has_photo: Boolean(photo) }))
     const today = dateFormatter.format(new Date())
     const entries = this.list('entry')
-    return { entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), predios: [...this.buildingActivityIds()], sources }
+    return {
+      entries, checkins: this.list('checkin'), proofs, today, resumo: this.summary(today, entries), predios: [...this.buildingActivityIds()],
+      tasks: this.list('task'), projects: this.list('project'), ...this.agendaView(), ...this.weightView(), sources,
+    }
   }
 
   personal() { return json(this.overview()) }
@@ -319,7 +459,8 @@ export class DemoSession {
     return new Response(bytes, { headers: { 'Content-Type': match[1], 'Cache-Control': 'private, no-store' } })
   }
 
-  tasks() { return json({ connected: false, tasks: this.list('task') }) }
+  // Tarefas reais da pessoa, guardadas neste objeto (etapa 2). Sem `connected`: não há mais fonte externa.
+  tasks() { return json({ tasks: this.list('task') }) }
 
   addTask({ title, due_date = null, domain, place: where }) {
     if (due_date !== null && !isDate(due_date)) throw new HttpError(422, 'Confira a data da tarefa.')
@@ -543,3 +684,5 @@ export class DemoSession {
     return json(worldSnapshot(next, this.travelOpen))
   }
 }
+
+Object.assign(DemoSession.prototype, agendaMethods, projectMethods, weightMethods, nutritionMethods, bodyMethods)

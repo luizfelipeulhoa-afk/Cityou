@@ -9,7 +9,12 @@ O Worker atende hoje, sem login, as rotas antigas do painel e da cidade. Cada vi
 | Rota | O que faz hoje |
 |---|---|
 | `GET /api/personal`, `POST /api/personal/entries`, `PUT /api/personal/entries/{id}/checkin`, `POST /api/personal/tasks` | Registros pessoais (hábitos, metas, notas, lançamentos, refeições, tarefas) |
-| `GET /api/workspace/tasks`, `POST /api/workspace/tasks/{id}/complete` | Tarefas e conclusão, com recompensa |
+| `GET /api/personal/tasks`, `POST /api/personal/tasks/{id}/complete` | Tarefas reais (`{ tasks }`, sem `connected`) e conclusão, com recompensa (etapa 2). `GET /api/workspace/tasks` e `POST /api/workspace/tasks/{id}/complete` respondem igual, como apelido por um deploy, e saem na etapa 6 |
+| `POST /api/personal/events`, `PUT` e `DELETE /api/personal/events/{id}` | Agenda real (etapa 5, parte 1): compromissos e dias de respiro no Durable Object. Toda escrita devolve o `GET /api/personal` novo e, na criação (201), `created_id`. `?month=AAAA-MM` escolhe o mês devolvido (padrão: o de hoje). Corpo de `POST`: `kind` (`compromisso` padrão ou `respiro`), `title` 1 a 180 (respiro: fixo "Dia de respiro"), `day` AAAA-MM-DD entre 2000 e 2100, `start_time`/`end_time` `HH:MM` ou `null` (sem horário = dia inteiro; fim exige início e não é menor), `firmness` `firme` ou `leve` ("se der"), `place` até 80, `notes` até 1000. Um respiro por dia, sem horário nem notas; compromisso `firme` em dia de respiro é 422, `leve` é aceito. `PUT` aceita ao menos um campo (sem `kind`). Campo fora da lista, inclusive `credits`, `xp`, `level` e `unlock`, é 422 "Campo não aceito: x". Sem status e sem atraso. Teto de 1.000 por conta (422 "Você chegou ao limite de N registros deste tipo. Apague algum para continuar."). Id de outra sessão é 404 |
+| `GET`, `POST /api/personal/projects`; `PUT`, `DELETE /api/personal/projects/{id}`; `POST /api/personal/projects/{id}/step-done` | Projetos reais (etapa 5, parte 2), mesmo molde da Agenda (devolvem o `GET /api/personal` novo, `created_id` na criação, 422 para campo fora da lista, teto de 100 por conta). Campos: `name` 1 a 120, `description` até 1000, `status` `active` ou `archived` ("Guardar por enquanto", reversível), `next_step` 1 a 180 ou `null` (campo único, sem prazo). `steps_done` e `last_step_at` são só do servidor. `step-done` (corpo `{}`) zera `next_step`, soma 1 em `steps_done` e grava `last_step_at`; 422 sem passo definido ou com o projeto guardado; não paga moedas nem XP |
+| `GET`, `POST /api/personal/weights`; `PUT`, `DELETE /api/personal/weights/{id}` | Peso real (etapa 5, parte 3), mesmo molde (devolvem o `GET /api/personal` novo, `created_id` na criação, 422 para campo fora da lista, teto de 1.500 por conta, cerca de 4 anos). `POST`: `day` (hoje ou passado), `grams` inteiro de 20.000 a 400.000, `note` até 200. Uma pesagem por dia: repetir o dia é 422 "Já existe uma pesagem neste dia; edite-a.". `PUT` aceita só `grams` e `note` (o dia não muda). Sem campo de meta. `GET /api/personal` traz `weights` (últimos 120 dias, mais novas primeiro), `weight_trend` (`[{ day, grams, avg_grams }]`, `avg_grams` é a média das pesagens dos 7 dias que terminam no dia) e `weight_direction` (`estavel`, `subindo`, `descendo` ou `null`; banda morta de ±0,5% da média de agora contra a de 14 dias antes, `null` sem pesagem recente nem referência). `GET /api/personal/weights` devolve o histórico inteiro com a mesma tendência. Nenhuma moeda ou XP |
+| `GET`, `DELETE /api/personal/nutrition`; `PUT /api/personal/nutrition/profile`; `GET`, `POST /api/personal/nutrition/screening`; `DELETE /api/personal/nutrition/screening/answers`; `POST /api/personal/nutrition/target`; `PUT`, `DELETE /api/personal/nutrition/plan` | Base calórica da aba Alimentação (`worker/nutrition.js`, contas em `shared/game/nutrition.js`). Toda rota devolve a visão da aba: `state` (`profile`, `screening`, `not_available` com `reason` `minor` (abaixo de 18), `age` (acima de 80) ou `pregnancy`, `incomplete` com `missing`, `ready`), `profile`, `screening` (`done`, `positive`, `skipped`, `day`, `has_answers`; **nunca as respostas**), `base` (só em `ready`: `bmr`, `tee`, `estimate { low, high }`, `adjustment`, `below_bmr`, `bmi`, `protein`, `notes` (`precision` com IMC ≥ 30), `weight_kg`, `weight_day`, `goal` (meta efetiva), `care`, `goal_changed`, `sources [{ key, text }]`), `target` (meta aceita), `estimate_changed`, `progress` (`waiting`, `on_track`, `off_track`, só depois de 21 dias com a meta), `plan` e `plan_warnings` (`below_bmr`, `low_protein`: avisam, não impedem). Perfil: `height_cm` 120–230, `sex` `f`/`m`, `birth_year`, `activity` (`inactive`, `low`, `active`, `very`), `goal` (`fat_loss`, `lean_preserve`, `maintain`, `muscle_gain`), `resistance_training` e `pregnant` booleanos; erro 422 traz `fields` por campo. Triagem opcional: `diagnosis` (true, false ou null) e `answers` (5 booleanos do SCOFF ou null); os dois nulos = pulou. Sinal de risco (diagnóstico sim ou 2 ou mais "sim" no SCOFF) liga `base.care`: meta de perda vira manutenção (`goal` `maintain`, `goal_changed`), ganho e manutenção seguem iguais. `GET .../screening` devolve `diagnosis` e `answers` só para a própria conta; `DELETE .../screening/answers` apaga os dois e mantém o resultado. `POST .../target` (corpo `{}`) guarda a estimativa atual como meta: a meta só muda por essa ação. Dieta própria: `kcal` 500–8000, `protein_g` 0–500 ou `null`, `note` até 300. O peso vem das pesagens (média de 7 dias da mais recente, até 30 dias). `DELETE /api/personal/nutrition` apaga perfil, triagem, meta e dieta (as pesagens ficam). Nenhuma moeda ou XP |
+| `GET`, `POST /api/personal/body-composition`; `PUT`, `DELETE /api/personal/body-composition/{id}` | Composição corporal da aba Fitness (`worker/body.js`), mesmo molde das pesagens: uma medida por dia, `day` (hoje ou passado), `fat_pct` de 2 a 70 (uma casa decimal), `lean_grams` inteiro de 15.000 a 200.000 ou `null`, `method` (`bia`, `skinfold`, `dexa`, `other`), `note` até 200. Toda rota devolve `{ body_composition, body_trend }`; `body_trend` é a média das até 3 medidas mais recentes dos últimos 60 dias (`fat_pct`, `lean_grams` só se todas tiverem, `count`, `from`, `to`) ou `null`. 422 traz `fields`. Na base calórica, essa média vira `base.composition` e a massa magra (medida ou estimada por peso × (1 − gordura)) entra só na proteína (`protein.leanGrams`), nunca na TMB. Teto de 1.500 por conta. Nenhuma moeda ou XP |
 | `GET /api/city?local=<id>`, `POST /api/city/actions?local=<id>`, `POST /api/rewards/sync?local=<id>` | Cidade do local (a Ilha por padrão); local bloqueado responde 403 |
 | `GET /api/world/progress` | Locais liberados, concluídos e `viagens_disponiveis` |
 | `POST /api/world/travel` | Corpo `{ local, request_id }`; libera o destino se houver viagem disponível, senão 409 |
@@ -24,7 +29,9 @@ O Worker atende hoje, sem login, as rotas antigas do painel e da cidade. Cada vi
 
 **Viagens fechadas.** Com `TRAVEL_OPEN=false`, `POST /api/world/travel` para um destino novo responde 409 e `GET /api/world/progress` traz `viagens_abertas: false` e `viagens_disponiveis: 0`. O Durable Object lê a configuração diretamente do ambiente. Na prévia isolada com `CITYOU_TEST_OPEN_REGIONS=1`, os oito destinos ficam acessíveis para teste.
 
-As rotas de projetos e atividade respondem "desconectado". O contrato de `POST /api/world/travel` de hoje difere do alvo desta página (sem nível nem passagem em créditos): ver `GAME-DESIGN.md`, seção "O que já está implementado". Para o alvo, esta demonstração vira a fonte de importação: os registros de um visitante podem ser trazidos para a conta dele quando o login existir.
+`GET /api/workspace/projects` é apelido de `GET /api/personal/projects` (`{ projects }`, reais desde a etapa 5) e sai na etapa 6. `GET /api/workspace/activity` responde `{ activity: null }` só para abas abertas com o bundle antigo (a cidade não pede mais desde a etapa 2) e sai na etapa 6. O retrato da cidade não traz mais `source`. O contrato de `POST /api/world/travel` de hoje difere do alvo desta página (sem nível nem passagem em créditos): ver `GAME-DESIGN.md`, seção "O que já está implementado". Para o alvo, esta demonstração vira a fonte de importação: os registros de um visitante podem ser trazidos para a conta dele quando o login existir.
+
+No servidor local (`python -m backend`), `GET /api/personal/tasks` e `POST /api/personal/tasks/{id}/complete` são as mesmas funções de `/api/workspace/tasks*`: as tarefas continuam vindo da fonte Fifones opcional, como descreve o `README.md`.
 
 ## Arquitetura
 
@@ -47,6 +54,7 @@ No desenvolvimento, o Vite encaminha `/api` para o `wrangler dev`, no lugar do F
 - **Identificadores:** o navegador gera o `id` (UUID) e envia no corpo do `POST`. Repetir o mesmo `POST` devolve o registro já criado, com 200, sem duplicar.
 - **Dono:** toda rota usa o `user_id` da sessão. Registro de outra conta responde 404.
 - **Erros:** `{ "message": "texto para a pessoa", "detail": "o mesmo texto", "fields": { "campo": "motivo" } }`. `ApiError` em `src/fifones/api.js` já lê `message` e `detail`.
+- **Cliente único (etapa 2):** painel e cidade chamam a API pelo mesmo `api()` de `src/fifones/api.js`. Um 401 leva a pessoa a `/?entrar=1&next=<página atual>` uma vez só (dentro do painel, quem navega é a janela do painel) e, depois disso, nenhum outro pedido sai. `goToPanel(aba)` abre `/app#/<aba>` a partir da cidade, avulsa ou embutida, só para abas da lista fechada `PANEL_TABS`.
 
 | Código | Quando |
 |---|---|
@@ -56,6 +64,8 @@ No desenvolvimento, o Vite encaminha `/api` para o `wrangler dev`, no lugar do F
 | 403 | Falta o cabeçalho de escrita ou a origem não confere |
 | 404 | Não existe ou é de outra conta |
 | 409 | Conflito: e-mail já cadastrado, `expected_revision` antiga, `request_id` reusado com outro corpo |
+| 410 | A demonstração venceu antes de ser vinculada. O cadastro emite um novo cookie para a próxima tentativa |
+| 413 | Corpo acima do limite da rota |
 | 422 | Campo inválido (com `fields`) |
 | 429 | Muitas tentativas |
 
@@ -73,7 +83,7 @@ No desenvolvimento, o Vite encaminha `/api` para o `wrangler dev`, no lugar do F
 | `GET /api/me/export` (B8) | | 200 arquivo JSON com todos os dados da conta | leitura |
 | `DELETE /api/me` (B8) | `password` | 200 `{}`; apaga a conta e todos os dados | todas |
 
-**Já implementado** (`worker/auth.js`, guia em `docs/CONTAS.md`): `signup`, `login`, `logout`, `GET /api/me` e `GET /api/auth/status` (`{ accounts, user }`, sem 401). No cadastro de hoje as tabelas `player`, `cities`, `placements` e `ledger` ainda não existem: a conta adota os dados da demonstração (`users.data_key`). `forgot`, `reset`, `PATCH /api/me`, exportar e apagar ficam para depois.
+**Já implementado** (`worker/auth.js`, guia em `docs/CONTAS.md`): `signup`, `login`, `logout`, `GET /api/me` e `GET /api/auth/status` (`{ accounts, user }`, sem 401). A conta adota os dados da demonstração (`users.data_key`) antes de confirmar o cadastro e troca o cookie da demonstração. Cadastro e login aceitam até 4.000 bytes de JSON. `forgot`, `reset`, `PATCH /api/me`, exportar e apagar ficam para depois.
 
 Senha: PBKDF2 pela Web Crypto, sal por usuário, comparação em tempo constante (`crypto.subtle.timingSafeEqual`). O número de iterações fica gravado em `users.password_iterations`.
 
@@ -185,11 +195,11 @@ A mesma função de validação roda na tela, a cada movimento, para pintar as c
 | `GET /api/health` | `backend/app.py` | Mantida |
 | `GET /api/city` | `backend/app.py` | `GET /api/cities/{local}` |
 | `POST /api/city/actions` | `backend/app.py` | `POST /api/cities/{local}/actions`, sem o tipo `upgrade` |
-| `GET /api/workspace/tasks` | `backend/app.py` | `GET /api/tasks` (ou `GET /api/overview`) |
+| `GET /api/workspace/tasks` | `backend/app.py` | `GET /api/tasks` (ou `GET /api/overview`); desde a etapa 2 o cliente usa `GET /api/personal/tasks` |
 | `GET /api/workspace/projects` | `backend/app.py` | `GET /api/projects` |
-| `GET /api/workspace/activity` | `backend/app.py`, `backend/activity.py` | Removida: eram sinais do Fifones |
+| `GET /api/workspace/activity` | `backend/app.py`, `backend/activity.py` | Removida: eram sinais do Fifones (a cidade não pede mais desde a etapa 2) |
 | `POST /api/rewards/sync` | `backend/app.py` | Removida: o crédito é gravado na hora da ação |
-| `POST /api/workspace/tasks/{id}/complete` | `backend/app.py` | `POST /api/tasks/{id}/complete` |
+| `POST /api/workspace/tasks/{id}/complete` | `backend/app.py` | `POST /api/tasks/{id}/complete`; desde a etapa 2 o cliente usa `POST /api/personal/tasks/{id}/complete` |
 | `GET /api/personal` | `backend/personal.py` | `GET /api/overview` |
 | `GET /api/personal/documents/{id}/cover` | `backend/personal.py` | `GET /api/documents/{id}/cover` (B8) |
 | `POST /api/personal/entries` | `backend/personal.py` | `POST /api/habits`, `/goals`, `/notes`, `/transactions`, `/meals` |

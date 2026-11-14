@@ -11,7 +11,10 @@ from zoneinfo import ZoneInfo
 from fastapi.testclient import TestClient
 import httpx
 
-from backend.app import create_app, iso
+from backend.app import KINDS, create_app, iso
+
+# Prédio 3 x 2 só de teste: o catálogo não tem mais peça retangular (a de StuntSync saiu na etapa 3).
+KINDS.setdefault('wide-test', {'id': 'wide-test', 'label': 'Teste largo', 'cost': 80, 'model': None, 'width': 3, 'depth': 2, 'height': 2, 'color': '#888888', 'destination': None})
 
 BASE = 'http://127.0.0.1:8766'
 WRITE = {'X-Fifones-City': '1'}
@@ -190,8 +193,8 @@ class CityTests(unittest.TestCase):
 
     def test_rotation_swaps_footprint_and_checks_collision_and_unlocks(self):
         self.grant_tasks(4)
-        first = self.action(kind='stunt').json()
-        building = next(item for item in first['placements'] if item['kind'] == 'stunt')
+        first = self.action(kind='wide-test').json()
+        building = next(item for item in first['placements'] if item['kind'] == 'wide-test')
         self.action(x=5, y=7)
         collision = self.placement_action(building['id'], 'rotate', rotation=1)
         self.assertEqual(collision.status_code, 409)
@@ -203,13 +206,13 @@ class CityTests(unittest.TestCase):
         self.assertEqual(moved.status_code, 200)
         rotated = self.placement_action(building['id'], 'rotate', rotation=1)
         self.assertEqual(rotated.status_code, 200)
-        final = next(item for item in rotated.json()['placements'] if item['kind'] == 'stunt')
-        self.assertEqual((final['rotation'], final['target']), (1, '/#/projetos/stunt-project'))
+        final = next(item for item in rotated.json()['placements'] if item['kind'] == 'wide-test')
+        self.assertEqual(final['rotation'], 1)
 
     def test_move_with_rotation_is_atomic_and_rejects_collision_without_mutation(self):
         self.grant_tasks(4)
-        built = self.action(kind='stunt').json()
-        ident = next(item['id'] for item in built['placements'] if item['kind'] == 'stunt')
+        built = self.action(kind='wide-test').json()
+        ident = next(item['id'] for item in built['placements'] if item['kind'] == 'wide-test')
         # This tree blocks rotation at the old site, but must not block a combined
         # move+rotation whose final footprint is free.
         self.action(x=5, y=7)
@@ -269,7 +272,7 @@ class CityTests(unittest.TestCase):
         self.assertEqual((city['credits'], city['earned'], city['level'], city['unlock_radius']), (150, 100, 2, 4))
         city = self.grant_tasks(50)
         self.assertEqual((city['credits'], city['earned'], city['level'], city['unlock_radius']), (650, 600, 7, 8))
-        self.assertEqual(self.action(kind='stunt', x=15, y=15).status_code, 422)
+        self.assertEqual(self.action(kind='wide-test', x=15, y=15).status_code, 422)
         with ThreadPoolExecutor(max_workers=8) as pool:
             responses = list(pool.map(lambda _: self.sync(), range(8)))
         self.assertTrue(all(response.status_code == 200 for response in responses))

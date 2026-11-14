@@ -30,6 +30,22 @@ export function withoutHeadquarters(town, location) {
   return { ...town, placements: town.placements.filter(item => item.kind !== 'headquarters') }
 }
 
+// Prédios retirados do catálogo na etapa 3 (IA e StuntSync). O custo fica só aqui, no servidor: o catálogo não os
+// conhece mais. Quem já os construiu recebe 100% do que gastou (custo + melhorias), uma única vez.
+export const RETIRED_KINDS = { stunt: 80, chatgpt: 70, claude: 60, gemini: 50, grok: 50 }
+
+function retiredRefund({ kind, level }) {
+  const steps = Math.min(Math.max(Math.floor(level) || 1, 1), 3) - 1
+  return RETIRED_KINDS[kind] * (1 + steps * (steps + 1) / 2)
+}
+
+/** Tira as peças retiradas de uma lista e soma o reembolso. Não mexe na lista original. */
+export function withoutRetired(placements) {
+  const kept = placements.filter(item => !Object.hasOwn(RETIRED_KINDS, item.kind))
+  const refund = placements.reduce((sum, item) => sum + (Object.hasOwn(RETIRED_KINDS, item.kind) ? retiredRefund(item) : 0), 0)
+  return { placements: kept, removed: placements.length - kept.length, refund }
+}
+
 export function newCity(location, testMode = false) {
   const town = newTown(location)
   const credits = testMode ? 5000 : RULES.rewards.welcome.credits
@@ -47,6 +63,7 @@ function buildRadius(city, location) {
   return getCityLayout(location).max - 8
 }
 
+// Sem `source`: a cidade não depende mais de uma fonte externa (o Fifones), etapa 2 de docs/PLANO-PROXIMOS-PASSOS.md.
 export function snapshot(city, location, testMode = false) {
   const { min, max, protectedTiles } = getCityLayout(location)
   const scenic = isScenicCity(location)
@@ -55,7 +72,6 @@ export function snapshot(city, location, testMode = false) {
     unlock_radius: buildRadius(city, location, testMode),
     grid_min: min, grid_max: max, protected_tiles: protectedTiles,
     location_id: location, test_mode: testMode,
-    source: { connected: false },
   }
 }
 

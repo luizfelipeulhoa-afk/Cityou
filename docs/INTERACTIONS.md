@@ -12,7 +12,7 @@ Coluna "Hoje": o que o botão faz no código atual (`src/App.vue`). "Fifones" qu
 4. **Uma ação principal por tela.** "Novo registro", no topo, cria o item da tela atual. É o comportamento que `showForm` já tem.
 5. **Só o título é obrigatório.** A data vem com hoje. Campos opcionais ficam recolhidos em "Mais detalhes".
 6. **Estado vazio ensina.** Lista vazia mostra uma frase e o botão da primeira ação.
-7. **Erro diz o que fazer.** Campo inválido: mensagem junto do campo. Sem conexão: "Sem conexão. Tentaremos de novo." e o item fica marcado como pendente. Sessão expirada: volta ao login e preserva o que estava sendo digitado.
+7. **Erro diz o que fazer.** Campo inválido: mensagem junto do campo. Sem conexão: "Sem conexão. Tentaremos de novo." e o item fica marcado como pendente. Sessão expirada: volta ao login e preserva o que estava sendo digitado. Desde a etapa 2, o cliente único (`api()` em `src/fifones/api.js`) leva a pessoa a `/?entrar=1&next=…` no primeiro 401 e não manda mais nenhum pedido.
 8. **Progresso visível.** Nível, barra de XP e créditos ficam no topo de todas as telas e animam quando mudam. Clicar abre o extrato. Subida de nível, etapa de prédio e melhoria disponível aparecem num aviso curto, sem interromper o que a pessoa está fazendo.
 9. **Sem culpa.** Nada some, zera ou fica vermelho por falta de uso. Revisão da fase B6 com as skills `gamificacao-saude-etica` e `behavior-design-etico`.
 
@@ -50,7 +50,7 @@ Os atalhos de uma tecla ficam desligados enquanto o foco está em campo de texto
 
 | Botão | Rota | Tabela | Retorno |
 |---|---|---|---|
-| Criar conta | `POST /api/auth/signup` | `users`, `sessions`, `player`, `cities`, `ledger` | Entra no app na Ilha Inicial; saudação com o nome; 50 créditos de boas-vindas |
+| Criar conta | `POST /api/auth/signup` | `users`, `sessions` e objeto de dados da conta | Preserva o progresso da demonstração, confirma o dono do objeto e troca o cookie de demonstração |
 | Entrar | `POST /api/auth/login` | `sessions`, `login_attempts` | Entra no app. Senha errada: "E-mail ou senha incorretos." |
 | Esqueci minha senha (link na tela de entrar) | navegação | | Abre a tela com o campo de e-mail |
 | Enviar instruções | `POST /api/auth/forgot` | `password_resets` | Sempre a mesma mensagem: "Se o e-mail existir, enviamos as instruções." |
@@ -91,8 +91,8 @@ Ação principal: "Anotar" (tirar algo da cabeça).
 |---|---|---|---|---|
 | Anotar | Cria nota | `POST /api/notes` | `notes` | Aviso "Guardado."; nota em Memórias |
 | Microfone (conversa por voz) | Fifones | | | **Sai** |
-| Círculo da tarefa | Conclui no Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | Tarefa sai da lista; XP e créditos sobem no topo; "Desfazer" |
-| Criar uma tarefa | Cria no Fifones | `POST /api/tasks` | `tasks` | Tarefa na lista |
+| Círculo da tarefa | Conclui a tarefa real (`POST /api/personal/tasks/{id}/complete`, etapa 2) | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | Tarefa sai da lista; XP e créditos sobem no topo; "Desfazer" |
+| Criar uma tarefa | Cria a tarefa real (`POST /api/personal/tasks`) | `POST /api/tasks` | `tasks` | Tarefa na lista |
 | Adicionar compromisso | Fifones | `POST /api/events` | `events` | Compromisso em "Na sua agenda" |
 | Ver tarefas, seta da agenda, cartões de área, "Registrar meu momento" | Navegação | | | Igual |
 
@@ -104,8 +104,8 @@ Ação principal: "Nova tarefa".
 
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
-| Nova tarefa | Cria no Fifones | `POST /api/tasks` | `tasks` | Linha no topo de "A fazer" |
-| Círculo | Conclui no Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | Vai para "Concluídas"; XP e créditos sobem; "Desfazer" |
+| Nova tarefa | Cria a tarefa real (`POST /api/personal/tasks`) | `POST /api/tasks` | `tasks` | Linha no topo de "A fazer" |
+| Círculo | Conclui a tarefa real (`POST /api/personal/tasks/{id}/complete`, etapa 2) | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | Vai para "Concluídas"; XP e créditos sobem; "Desfazer" |
 | Círculo de tarefa concluída | Desligado | `POST /api/tasks/{id}/reopen` | `tasks` | Volta para "A fazer"; os créditos ficam |
 | Linha da tarefa | Nada | `PATCH /api/tasks/{id}` | `tasks` | Formulário de edição (título, descrição, prazo, prioridade, projeto) |
 | Apagar (no formulário) | Não existe | `DELETE /api/tasks/{id}` | `tasks` | Some da lista; "Desfazer" chama `POST /api/tasks/{id}/restore` |
@@ -119,11 +119,15 @@ Ação principal: "Novo compromisso".
 
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
-| Novo compromisso | Fifones | `POST /api/events` | `events` | Cartão na ordem da data |
-| Ver compromisso | Fifones | `PATCH /api/events/{id}` | `events` | Formulário de edição, com "Apagar" |
-| Abrir agenda completa | Fifones | | | **Sai**: a própria tela passa a ser a agenda completa |
+| Novo compromisso | `POST /api/personal/events` (etapa 5) | `POST /api/events` | `records` (kind `event`) | Compromisso no dia escolhido da grade do mês; nenhuma moeda ou XP |
+| Marcar respiro / Tirar o respiro | `POST` com `kind: 'respiro'` ou `DELETE /api/personal/events/{id}` | | `records` | Dia com selo "Dia de respiro" e "Nada a cumprir"; recusado se o dia tem compromisso firme |
+| Editar | `PUT /api/personal/events/{id}` | `PATCH /api/events/{id}` | `records` | Mesmo formulário, preenchido |
+| Apagar (pede "Apagar mesmo?") | `DELETE /api/personal/events/{id}` | `DELETE /api/events/{id}` | `records` | O compromisso sai; sem desfazer por enquanto |
+| Setas do mês | `GET /api/personal?month=AAAA-MM` | | | Outro mês da grade |
 
-Vazio: "Sua agenda tem espaço." com "Novo compromisso".
+A grade mostra dia livre, com compromisso (ponto cheio), com "se der" (ponto vazado) e de respiro (sol). Nada é vermelho e não há aviso de atraso: o que passou fica em cinza com o selo "passou". Seu dia lista os compromissos de hoje.
+
+Vazio: "Um pouco de espaço livre também faz parte."
 
 ### Hábitos
 
@@ -155,11 +159,14 @@ Ação principal: "Registrar peso".
 
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
-| Registrar peso | Fifones | `PUT /api/weights/{dia}` | `weights` | "Última pesagem" e a lista atualizam |
-| Linha de pesagem | Nada | `PUT` ou `DELETE /api/weights/{dia}` | `weights` | Edição e "Apagar" |
-| Continuar avaliação (voz Gemini) | Fifones | | | **Sai** |
+| Registrar peso do dia | `POST /api/personal/weights` (etapa 5) | `PUT /api/weights/{dia}` | `records` (kind `weight`) | "Última pesagem", média de 7 dias, gráfico e lista atualizam; peso em kg com vírgula, convertido para gramas |
+| Editar (linha de pesagem) | `PUT /api/personal/weights/{id}` | `PUT /api/weights/{dia}` | `records` | Só o peso e a nota; o dia não muda |
+| Apagar (pede "Apagar mesmo?") | `DELETE /api/personal/weights/{id}` | `DELETE /api/weights/{dia}` | `records` | A pesagem sai e o dia fica livre de novo |
+| Composição corporal → "Registrar medida" | `POST /api/personal/body-composition` | | `records` (kind `bodycomp`) | Dia, gordura (%), massa magra (kg, opcional), método e nota; campos inválidos em vermelho. Mostra a média das últimas 3 medidas (60 dias) e o aviso de que um valor isolado varia alguns pontos |
+| Apagar (linha da medida, pede "Apagar mesmo?") | `DELETE /api/personal/body-composition/{id}` | | `records` | A medida sai e a média é refeita |
+| Continuar avaliação (voz Gemini) | saiu | | | **Saiu** |
 
-"Retornos registrados" sai junto com a avaliação. Vazio: "Seu gráfico começa com a primeira pesagem."
+O gráfico mostra as pesagens como pontos e a média de 7 dias como linha, com o texto neutro "Sua média está estável nas últimas 2 semanas." (ou "um pouco mais alta/baixa que há 2 semanas"). Sem meta, sem cor de bom ou ruim, sem moedas. "Retornos registrados" saiu junto com a avaliação. Vazio: "Seu gráfico começa com a primeira pesagem."
 
 ### Alimentação
 
@@ -172,6 +179,21 @@ Ação principal: "Registrar refeição".
 | Continuar entrevista sobre alimentação | Fifones | | | **Sai** |
 
 Erro próprio: data futura ("Registre uma refeição já realizada.").
+
+**Base calórica** (cartão no topo da aba, `src/personal/NutritionBase.vue`; rotas em `docs/API.md`, `worker/nutrition.js`). Uma etapa por vez:
+
+| Etapa | O que a pessoa faz | Rota | Retorno |
+|---|---|---|---|
+| Avaliação | Altura, ano de nascimento, sexo, atividade, meta, treino de força, gestação (só sexo feminino) → "Salvar avaliação" | `PUT /api/personal/nutrition/profile` | Campo inválido ou vazio fica em vermelho com a mensagem (cliente e `fields` do servidor) |
+| Triagem (opcional) | Primeiro um aviso ("Algumas perguntas sobre a sua relação com a comida": é sobre transtornos alimentares, é importante responder mas não é obrigatório, deixa o cálculo mais adequado, só a pessoa vê) com "Pular por agora" e "Responder as perguntas"; depois a pergunta sobre diagnóstico ou tratamento (sim, não, prefiro não responder) e as cinco do SCOFF → "Continuar" | `POST /api/personal/nutrition/screening` | Sinal de risco: mostra o gasto para manter o peso, sem sugestão de déficit, com indicação de profissional de saúde. "Refazer a triagem" fica no rodapé |
+| Dados incompletos | Sem pesagem nos últimos 30 dias: "Dados incompletos", com o Peso em vermelho e link para Fitness | | |
+| Base | Mostra a estimativa, a frase aprovada ("Sugestão de déficit: 500 kcal por dia, com base em estudos. Vale conversar com um profissional de nutrição para ajustar ao seu caso."), gasto, TMB, proteína, peso usado e "Fontes" | `GET /api/personal/nutrition` | Com IMC ≥ 30, aviso neutro de precisão |
+| Usar como minha meta / Usar a estimativa nova | Aceita a estimativa | `POST /api/personal/nutrition/target` | A meta não muda sozinha; depois de 3 semanas, compara a direção do peso com a meta e, se não bate, sugere um profissional |
+| Minha dieta | Calorias, proteína (opcional), observação → "Salvar dieta"; "Editar", "Apagar" | `PUT`/`DELETE /api/personal/nutrition/plan` | Abaixo da TMB: aviso aprovado ("...a decisão é sua."), grava mesmo assim |
+| Ver/Apagar minhas respostas da triagem | Só a própria pessoa (diagnóstico e as cinco, se respondidas) | `GET /api/personal/nutrition/screening`, `DELETE .../screening/answers` | O resultado da triagem fica |
+| Editar avaliação / Apagar meus dados de alimentação (pede confirmação) | | `PUT .../profile`, `DELETE /api/personal/nutrition` | Pesagens ficam |
+
+Fora do alcance: menores de 18 (texto sobre crescimento, conversar com a família e um profissional), maiores de 80 e gestação/amamentação (a necessidade aumenta e o app não recomenda déficit) não recebem números, cada um com texto próprio. Conferência no navegador: `node tools/nutrition-playtest.mjs <url>`.
 
 ### Autoconhecimento
 
@@ -213,8 +235,14 @@ Ação principal: "Novo projeto".
 
 | Botão | Hoje | Rota | Tabela | Retorno |
 |---|---|---|---|---|
-| Gerenciar projetos, "Abrir meus projetos" | Fifones | `POST /api/projects` (vira "Novo projeto") | `projects` | Cartão novo |
-| Cartão do projeto | Fifones | `GET /api/tasks?project_id=…` | `tasks` | Abre o projeto com as tarefas dele; edição e "Arquivar" |
+| Novo projeto | `POST /api/personal/projects` (etapa 5) | `POST /api/projects` | `records` (kind `project`) | Cartão com a caixa "Qual é o próximo passo?" |
+| Guardar passo | `PUT /api/personal/projects/{id}` com `next_step` | | `records` | O botão vira "Concluí" |
+| Concluí | `POST /api/personal/projects/{id}/step-done` | | `records` | "N passos dados" e "E agora, qual é o próximo?" com a caixa vazia; sem moedas nem XP |
+| Editar | `PUT /api/personal/projects/{id}` | `PATCH /api/projects/{id}` | `records` | Nome e detalhes |
+| Guardar por enquanto / Retomar | `PUT` com `status` | | `records` | Passa para a aba "Guardados" e volta; reversível |
+| Apagar (pede "Apagar mesmo?") | `DELETE /api/personal/projects/{id}` | | `records` | O projeto sai |
+
+Sem prazo, sem contagem regressiva e sem cartões de "parado há N dias". Vazio: "Seu próximo projeto tem espaço aqui."
 
 ### Memórias
 
@@ -238,14 +266,16 @@ Uma cidade por local liberado. Sem `local`, abre a cidade do local atual. As reg
 |---|---|---|---|---|
 | Construir, mover, girar, remover | `POST /api/city/actions` | `POST /api/cities/{local}/actions` | `placements`, `player`, `ledger`, `requests` | A construção aparece; os créditos mudam |
 | Melhorar (níveis 1 a 3 por créditos) | `POST /api/city/actions` | | | **Sai**: o prédio de domínio avança de etapa pelo uso real |
-| Tocar num prédio de domínio | Abre o Fifones | `GET /api/buildings/{id}` | leitura | Painel do interior: etapa, salas, espaços vazios e o que falta para a próxima melhoria |
+| Menu lateral (Tarefas, Agenda, Projetos, Biblioteca, Fitness) | Abre a aba do painel com `goToPanel(aba)` (`/app#/<aba>`), na cidade avulsa ou embutida; "Conexões" saiu (etapa 2) | navegação | | Igual |
+| Entrar neste espaço (prédio com destino) | Abre a aba do painel ligada ao destino (etapa 2); prédio sem aba (os de IA) só avisa | navegação | | O destino vira nome de aba na etapa 3 |
+| Tocar num prédio de domínio | Painel da construção (etapa, dias com prática) | `GET /api/buildings/{id}` | leitura | Painel do interior: etapa, salas, espaços vazios e o que falta para a próxima melhoria |
 | Escolher melhoria (no interior) | Não existe | `POST /api/buildings/{id}/upgrades` | `building_upgrades`, `upgrade_points` | A sala ou o equipamento aparece, com a data e a conquista que o liberou |
 | Saldo → extrato | `history` | `GET /api/ledger` | leitura | Créditos e XP, com o bônus aplicado em cada linha |
-| Missões: concluir tarefa | Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | +10 XP e +10 créditos, mais o bônus |
+| Missões: concluir tarefa | Conclui a tarefa real (`POST /api/personal/tasks/{id}/complete`, etapa 2); a lista aparece sempre, com "Ver tarefas" | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | +10 XP e +10 créditos, mais o bônus |
 | Atualizar tarefas e recompensas | `POST /api/rewards/sync` | `GET /api/cities/{local}` | leitura | Só recarrega: a recompensa já foi gravada na ação |
-| Voltar ao globo | Não existe | navegação | | Abre `world.html` |
+| Voltar ao globo | Navegação | navegação | | Abre `world.html` |
 | Catálogo, filtros, luz do dia, entardecer, girar câmera, vista inicial, ajuda | Local | | | Igual |
-| Indicador de escritórios ativos; prédios de IA | Atividade do Fifones | | | **Saem** |
+| Indicador de escritórios ativos; prédios de IA | O indicador saiu na etapa 2; os prédios de IA saem na etapa 3 | | | **Saem** |
 
 Ao posicionar uma construção:
 
@@ -281,4 +311,4 @@ Sem sessão ou sem rede, o globo abre com o último estado conhecido e os botõe
 
 ## Botões que saem
 
-Todos dependiam do Fifones: "Falar sobre isso", microfone de voz, "Conversar", "Abrir professor", "Continuar avaliação", "Continuar entrevista sobre alimentação", "Minhas planilhas", "Memórias e Obsidian", "Abrir agenda completa", o diálogo do Fifones e o indicador de escritórios ativos. Voltam se e quando o Cityou tiver essas funções.
+Todos dependiam do Fifones: "Falar sobre isso", microfone de voz, "Conversar", "Abrir professor", "Continuar avaliação", "Continuar entrevista sobre alimentação", "Minhas planilhas", "Memórias e Obsidian", "Abrir agenda completa", o diálogo do Fifones e o indicador de escritórios ativos (na cidade, o diálogo e o indicador saíram na etapa 2). Voltam se e quando o Cityou tiver essas funções.

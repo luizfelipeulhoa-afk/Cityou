@@ -1,0 +1,145 @@
+Assunto do commit original: Botão Voltar em camadas, troca de mapa entre ilha e Rio, Minha cidade leva ao Rio e tela de partida não fica presa ao voltar
+
+
+diff --git a/docs/INTERACTIONS.md b/docs/INTERACTIONS.md
+index e61b550..86d4c11 100644
+--- a/docs/INTERACTIONS.md
++++ b/docs/INTERACTIONS.md
+@@ -242,6 +242,8 @@ Uma cidade por local liberado. Sem `local`, abre a cidade do local atual. As reg
+ | Missões: concluir tarefa | Fifones | `POST /api/tasks/{id}/complete` | `tasks`, `ledger`, `player` | +10 XP e +10 créditos, mais o bônus |
+ | Atualizar tarefas e recompensas | `POST /api/rewards/sync` | `GET /api/cities/{local}` | leitura | Só recarrega: a recompensa já foi gravada na ação |
+ | Voltar ao globo | Não existe | navegação | | Abre `world.html` |
++| ← Voltar (cidade) | Não existe | navegação | | Desfaz uma camada por vez (confirmação, espaço, interior, ferramenta, seleção, ajuda); sem nada aberto, vai ao globo. `npm run test:nav` |
++| Trocar de mapa (Ilha Inicial / Rio de Janeiro) | Não existe | navegação | | Abre `city.html?local=<id>`. "Minha cidade" fora do Rio leva ao Rio |
+ | Catálogo, filtros, luz do dia, entardecer, girar câmera, vista inicial, ajuda | Local | | | Igual |
+ | Indicador de escritórios ativos; prédios de IA | Atividade do Fifones | | | **Saem** |
+ 
+diff --git a/package.json b/package.json
+index 4e97417..a766e0c 100644
+--- a/package.json
++++ b/package.json
+@@ -13,6 +13,7 @@
+     "test:map": "node tools/verify-map-plan.mjs",
+     "test:ui": "node tools/personal-playtest.mjs && node tools/browser-playtest.mjs",
+     "test:world": "node tools/world-playtest.mjs",
++    "test:nav": "node tools/city-nav-playtest.mjs",
+     "perf:world": "node tools/world-perf.mjs",
+     "test:worker": "node --test tests/worker.test.mjs",
+     "dev:worker": "wrangler dev --port 8787",
+diff --git a/src/CityApp.vue b/src/CityApp.vue
+index c4c4707..8a7f8c6 100644
+--- a/src/CityApp.vue
++++ b/src/CityApp.vue
+@@ -428,10 +428,27 @@ function openWorkspace(label, destination) {
+ function closeWorkspace() { const wasOpen = Boolean(workspace.value); workspace.value = null; engine?.setInUse?.(null); clearTimeout(iframeTimer); returnFocus?.focus?.(); if (wasOpen) refreshAll() }
+ function reloadPage() { window.location.reload() }
+ function iframeLoaded() { iframeLoading.value = false; clearTimeout(iframeTimer) }
++const RIO_ID = 'cristo-redentor'
++const places = [{ id: 'ilha-inicial', nome: 'Ilha Inicial' }, { id: RIO_ID, nome: 'Rio de Janeiro' }]
++const placeHref = id => `./city.html?local=${encodeURIComponent(id)}`
++const globeHref = computed(() => region.value ? `./world.html?de=${encodeURIComponent(region.value.id)}` : './world.html')
++// Voltar desfaz uma camada por vez: confirmação, espaço aberto, interior, ferramenta e seleção; sem nada aberto, volta ao globo.
++function goBack() {
++  if (confirmation.value) { confirmation.value = null; return }
++  if (workspace.value) { closeWorkspace(); return }
++  if (activeInterior.value || interiorPending.value) { closeInterior(); return }
++  if (mode.value !== 'select' || selectedId.value || helpOpen.value || historyOpen.value) {
++    cancelTool(); selectedId.value = null; helpOpen.value = false; historyOpen.value = false
++    return
++  }
++  window.location.assign(globeHref.value)
++}
++const canStepBack = computed(() => Boolean(confirmation.value || workspace.value || activeInterior.value || interiorPending.value || mode.value !== 'select' || selectedId.value || helpOpen.value || historyOpen.value))
+ function useNav(item) {
+   historyOpen.value = false
+   if (activeInterior.value) closeInterior()
+-  if (item.id === 'city') { closeWorkspace(); cancelTool(); selectedId.value = null; engine?.home() }
++  if (item.id === 'city' && region.value && region.value.id !== RIO_ID) window.location.assign(placeHref(RIO_ID))
++  else if (item.id === 'city') { closeWorkspace(); cancelTool(); selectedId.value = null; engine?.home() }
+   else openWorkspace(item.label, item.path)
+ }
+ function setLighting(value) { lighting.value = value; engine?.setLighting(value) }
+@@ -540,8 +557,8 @@ onUnmounted(() => {
+         <span class="brand-mark" aria-hidden="true">c<span>.</span></span>
+         <span class="brand-copy"><strong>Cityou</strong><small>{{ region?.nome ?? 'Sua vida, em construção.' }}</small></span>
+       </button>
+-      <div class="city-location"><span class="location-dot" /><span>{{ region?.nome ?? 'Rio de Janeiro' }}</span><span class="location-line" /><span class="city-day">Dia {{ day }}</span></div>
+-      <div class="topbar-right"><small v-if="state?.test_mode" class="pilot-test-mode" title="Oito regiões abertas e créditos de teste">Prévia de teste</small><a class="city-world-link" :href="region ? `./world.html?de=${encodeURIComponent(region.id)}` : './world.html'">Voltar ao globo</a><span v-if="activeOfficeCount > 0" class="office-activity-count" title="Execuções detectadas/observadas em seus escritórios" :aria-label="`${activeOfficeCount} escritórios com execuções detectadas ou observadas`"><span />{{ activeOfficeCount }}<span class="office-activity-caption">em atividade</span></span>
++      <div class="city-location place-switch" role="navigation" aria-label="Trocar de mapa"><span class="location-dot" /><a v-for="place in places" :key="place.id" :href="placeHref(place.id)" :aria-current="(region?.id ?? RIO_ID) === place.id ? 'page' : undefined">{{ place.nome }}</a><span class="location-line" /><span class="city-day">Dia {{ day }}</span></div>
++      <div class="topbar-right"><small v-if="state?.test_mode" class="pilot-test-mode" title="Oito regiões abertas e créditos de teste">Prévia de teste</small><button class="city-back-button" type="button" :title="canStepBack ? 'Desfazer o último passo' : 'Voltar ao globo'" @click="goBack">← Voltar</button><a class="city-world-link" :href="globeHref">Voltar ao globo</a><span v-if="activeOfficeCount > 0" class="office-activity-count" title="Execuções detectadas/observadas em seus escritórios" :aria-label="`${activeOfficeCount} escritórios com execuções detectadas ou observadas`"><span />{{ activeOfficeCount }}<span class="office-activity-caption">em atividade</span></span>
+         <div class="save-status" role="status"><span :class="{ busy: saving || refreshing }" />{{ saving ? 'Salvando…' : refreshing ? 'Sincronizando…' : state ? 'Salvo no servidor' : 'Conectando…' }}</div>
+         <button class="balance" :aria-label="`Saldo: ${coins(state?.credits)} moedas. Ver histórico`" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen"><span class="coin-glyph"><Icon name="coin" :size="18" /></span><strong>{{ coins(state?.credits) }}</strong><span class="balance-label">moedas</span></button>
+         <div class="level-badge" :title="`${progress.remaining} ações recompensadas para o próximo nível`"><span>NÍVEL</span><strong>{{ state?.level || 1 }}</strong><span class="level-track" role="progressbar" aria-label="Progresso para o próximo nível" :aria-valuenow="progress.withinLevel" :aria-valuemin="0" :aria-valuemax="10"><i :style="{ transform: `scaleX(${progress.withinLevel / 10})` }" /></span></div>
+diff --git a/src/WorldApp.vue b/src/WorldApp.vue
+index c5945f7..01c3f8b 100644
+--- a/src/WorldApp.vue
++++ b/src/WorldApp.vue
+@@ -65,8 +65,15 @@ watch(progress, p => {
+   sync?.push()
+ }, { deep: true })
+ const onPageHide = () => sync?.flushOnExit()
+-onMounted(() => { void loadMap(); window.addEventListener('pagehide', onPageHide) })
+-onBeforeUnmount(() => { window.removeEventListener('pagehide', onPageHide); sync?.stop(); clearTimeout(departureTimer) })
++// Ao voltar do navegador, a página pode voltar do cache com a tela de partida (azul) ainda ligada.
++function onPageShow(event) {
++  if (!event.persisted) return
++  clearTimeout(departureTimer)
++  arrival.value = null
++  visiting.value = false
++}
++onMounted(() => { void loadMap(); window.addEventListener('pagehide', onPageHide); window.addEventListener('pageshow', onPageShow) })
++onBeforeUnmount(() => { window.removeEventListener('pagehide', onPageHide); window.removeEventListener('pageshow', onPageShow); sync?.stop(); clearTimeout(departureTimer) })
+ 
+ const spaces = computed(() => applyProgress(WORLD_SPACES, progress.value))
+ const done = computed(() => spaces.value.filter(s => s.concluido).length)
+diff --git a/src/fifones/style.css b/src/fifones/style.css
+index e249034..f8e8806 100644
+--- a/src/fifones/style.css
++++ b/src/fifones/style.css
+@@ -96,3 +96,4 @@
+ .building-stage{display:grid;gap:4px;margin-top:8px;padding:9px 11px;background:#e8efdf;border-radius:8px;color:#4b6b57}.building-stage strong{font-size:11px}.building-stage span{font-size:9px;color:#6f8a74}.building-stage small{font-size:9px;line-height:1.45;color:#87967f}.stage-track{display:block;height:4px;border-radius:3px;background:#cfdcc4;overflow:hidden}.stage-track b{display:block;height:100%;background:#45988a;transform-origin:left;transition:transform .3s}
+ 
+ .scenic-note p{margin:6px 0 12px;font-size:13px;line-height:1.4;color:#4f5d56}.scenic-note .goal-action{display:flex;text-decoration:none;justify-content:center}
++.place-switch a{color:inherit;text-decoration:none;padding:3px 10px;border-radius:14px}.place-switch a:hover{background:rgba(31,111,100,.1)}.place-switch a[aria-current=page]{background:rgba(31,111,100,.16);font-weight:700}.city-back-button{font:inherit;font-size:13px;font-weight:600;color:#1f4f47;background:rgba(255,255,255,.7);border:1px solid rgba(31,79,71,.2);border-radius:999px;padding:6px 14px;cursor:pointer}.city-back-button:hover{background:#fff}
+diff --git a/tools/city-nav-playtest.mjs b/tools/city-nav-playtest.mjs
+new file mode 100644
+index 0000000..5717e27
+--- /dev/null
++++ b/tools/city-nav-playtest.mjs
+@@ -0,0 +1,36 @@
++import { chromium, browserOptions } from './runtime.mjs'
++import assert from 'node:assert/strict'
++const b = await chromium.launch({ ...browserOptions, args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'] })
++const p = await (await b.newContext({ viewport: { width: 1280, height: 860 } })).newPage()
++const errs = []; p.on('pageerror', e => errs.push(e.message))
++const B = process.argv[2] || 'http://127.0.0.1:8787'
++await p.goto(B + '/world.html?debug=1')
++await p.waitForFunction(() => window.__buildUWorld?.isReady, null, { timeout: 90000 })
++await p.keyboard.press('d')
++await p.evaluate(() => window.__buildUWorld.focusSpace('ilha-inicial'))
++await p.waitForFunction(() => !window.__buildUWorld.cinematic && !window.__buildUWorld.flying, null, { timeout: 60000 })
++const pt = await p.evaluate(() => window.__buildUWorld.projectMarker('ilha-inicial'))
++await p.mouse.click(pt.x, pt.y + 24)
++await p.waitForURL(/local=ilha-inicial/); await p.waitForSelector('.scenic-note', { timeout: 60000 })
++console.log('ilha ok')
++// voltar do navegador: não pode sobrar tela de partida
++await p.goBack(); await p.waitForTimeout(2500)
++console.log('overlay após voltar:', await p.locator('.world-app__departure').count())
++await p.goForward(); await p.waitForSelector('.scenic-note', { timeout: 60000 })
++// Minha cidade -> Rio
++await p.getByRole('button', { name: 'Minha cidade', exact: true }).click()
++await p.waitForURL(/local=cristo-redentor/); await p.waitForSelector('.catalog', { timeout: 60000 })
++console.log('minha cidade -> rio ok')
++// seletor de mapas -> ilha
++await p.getByRole('navigation', { name: 'Trocar de mapa' }).getByText('Ilha Inicial').click()
++await p.waitForURL(/local=ilha-inicial/); await p.waitForSelector('.scenic-note', { timeout: 60000 })
++await p.getByRole('navigation', { name: 'Trocar de mapa' }).getByText('Rio de Janeiro').click()
++await p.waitForURL(/local=cristo-redentor/); await p.waitForSelector('.catalog', { timeout: 60000 })
++console.log('seletor ok')
++// Voltar em camadas: abre ajuda -> voltar fecha; depois volta ao globo
++await p.getByRole('button', { name: 'Como jogar' }).click()
++await p.getByRole('button', { name: '← Voltar' }).click()
++assert.equal(await p.locator('.help-popover').count(), 0)
++await p.getByRole('button', { name: '← Voltar' }).click()
++await p.waitForURL(/world/); console.log('voltar -> globo ok')
++console.log('erros', JSON.stringify(errs)); await b.close()

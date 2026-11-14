@@ -19,6 +19,32 @@ export function errorResponse(status, message, fields) {
   return json({ message, detail: message, ...(fields ? { fields } : {}) }, status)
 }
 
+export async function readJsonObject(request, maxBytes) {
+  const reader = request.body?.getReader()
+  if (!reader) throw new HttpError(422, 'Envie os dados do registro.')
+  const decoder = new TextDecoder()
+  let text = ''
+  let size = 0
+  try {
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > maxBytes) {
+        await reader.cancel().catch(() => {})
+        throw new HttpError(413, 'O registro é muito grande.')
+      }
+      text += decoder.decode(value, { stream: true })
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  let body
+  try { body = JSON.parse(text + decoder.decode()) } catch { throw new HttpError(422, 'Dados inválidos.') }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(422, 'Dados inválidos.')
+  return body
+}
+
 /** Mede o tempo de cada trecho de I/O e monta o cabeçalho Server-Timing. */
 export function createTiming() {
   const start = performance.now()

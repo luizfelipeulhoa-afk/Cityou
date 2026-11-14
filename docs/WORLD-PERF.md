@@ -146,3 +146,14 @@ Mesma máquina, mesmos comandos, 3 rodadas (a base acima é a de antes). Nenhum 
 
 +1 draw (a sombra de contato), +1 programa (o Lambert com o degradê de base) e nenhum triângulo relevante a mais. A CPU de `render` não piorou: o p95 caiu uns 22 a 30%, acima da margem de ruído; o p50 caiu 7 a 20%, perto da margem (7 a 11%), então vale como "sem piora", não como ganho certo. Cena (`tools/city-look.mjs`): shadow map desligado, sem tone mapping no Rio, 134 materiais Lambert e 1 Standard (era 132 Standard), sem `PointLight`. Fotos antes e depois em `.verification/city-antes-*.png` e `city-depois3-*.png` (fora do git).
 
+### Montanha de volta (corte com `crop.keep`, névoa 55–125, malha de 16 mil), 13/11/2026
+
+`main` (depois do #33) contra o conserto, mesma máquina e mesmos comandos, 2 rodadas (mediana), Worker local em modo de teste. Local, por software, CPU 4× mais lenta e rede 4G: serve para comparar, não para prever celular.
+
+| Cenário | Draws | Triângulos | CPU de `render` p50 / p95 | Pronto (frio) |
+|---|---|---|---|---|
+| Cidade vazia: `main` → conserto | 25 → 25 | 44.992 → 54.312 (+9,3 mil, +21%) | 4,5 / 9,0 → 4,6 / 11,0 ms | 5,9 → 5,0 s |
+| + 25 prédios: `main` → conserto | 40 → 36 | 155.694 → 157.192 | 6,6 / 15,2 → 6,5 / 15,4 ms | 9,8 → 9,9 s |
+
+Sem piora mensurável: os draws não mudam e a CPU de `render` fica igual dentro do ruído (a dispersão entre rodadas foi de 1,02× a 1,24×). Os triângulos a mais são o terreno da montanha (de 6 mil para 16 mil na malha). A linha com prédios varia por quantos e quais prédios o servidor aceitou em cada execução; a cidade vazia é a comparação limpa. Fotos em quatro ângulos com `node tools/city-look.mjs` (`.verification/`, fora do git).
+

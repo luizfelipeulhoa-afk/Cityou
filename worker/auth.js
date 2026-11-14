@@ -3,45 +3,18 @@
 // Os dados da pessoa continuam no Durable Object DemoSession: `users.data_key` é o nome do objeto dela.
 // No cadastro, a conta adota o objeto da sessão de demonstração do navegador, então nada do que ela já fez se perde.
 import { sha256Hex } from '../shared/game/proof.js'
-import { HttpError, json } from './http.js'
+import { accountKey, adoptAccountData, demoKeyOf, holdAccountData, sessionCookie as freshDemoCookie } from './demo.js'
+import { HttpError, json, readJsonObject } from './http.js'
 
 const SESSION_COOKIE = 'cityou_session'
 const SESSION_SECONDS = 30 * 24 * 60 * 60
 const ITERATIONS = 100_000 // limite do PBKDF2 na Web Crypto dos Workers
 const ATTEMPT_WINDOW_MINUTES = 15
 const MAX_ATTEMPTS = 8
+const MAX_AUTH_BODY = 4_000
 const encoder = new TextEncoder()
 
-// O mesmo esquema de migrations/0001 e 0002, idempotente: o Worker o aplica sozinho no primeiro uso,
-// para o banco de produção não depender de rodar `wrangler d1 migrations apply`.
-export const SCHEMA = [
-  `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL,
-    password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, password_iterations INTEGER NOT NULL,
-    timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT, data_key TEXT)`,
-  `CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
-    created_at TEXT NOT NULL, last_seen_at TEXT NOT NULL, expires_at TEXT NOT NULL)`,
-  'CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id)',
-  `CREATE TABLE IF NOT EXISTS login_attempts (email TEXT NOT NULL, window_start TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (email, window_start))`,
-  `CREATE TABLE IF NOT EXISTS password_resets (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
-    created_at TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT)`,
-  'CREATE INDEX IF NOT EXISTS password_resets_user ON password_resets(user_id)',
-]
-
 export const accountsEnabled = env => Boolean(env?.DB)
-
-const ready = new WeakMap()
-function ensureSchema(env) {
-  if (!ready.has(env.DB)) {
-    ready.set(env.DB, (async () => {
-      await env.DB.batch(SCHEMA.map(statement => env.DB.prepare(statement)))
-      const columns = await env.DB.prepare('PRAGMA table_info(users)').all()
-      if (!columns.results.some(column => column.name === 'data_key')) await env.DB.prepare('ALTER TABLE users ADD COLUMN data_key TEXT').run()
-      await env.DB.prepare('CREATE UNIQUE INDEX IF NOT EXISTS users_data_key ON users(data_key)').run()
-    })().catch((error) => { ready.delete(env.DB); throw error }))
-  }
-  return ready.get(env.DB)
-}
 
 const hex = bytes => Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
 const randomHex = size => hex(crypto.getRandomValues(new Uint8Array(size)))
@@ -75,7 +48,6 @@ export async function sessionUser(request, env) {
   if (!accountsEnabled(env)) return null
   const token = sessionTokenOf(request)
   if (!token) return null
-  await ensureSchema(env)
   const row = await env.DB.prepare(
     `SELECT users.id, users.email, users.display_name, users.timezone, users.data_key FROM sessions
      JOIN users ON users.id = sessions.user_id
@@ -92,13 +64,6 @@ function readEmail(value, fields) {
   return email
 }
 
-async function readJson(request) {
-  let body
-  try { body = JSON.parse((await request.text()).slice(0, 4000)) } catch { throw new HttpError(422, 'Dados inválidos.') }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(422, 'Dados inválidos.')
-  return body
-}
-
 async function openSession(env, url, userId) {
   const token = randomHex(32)
   const now = new Date()
@@ -107,8 +72,8 @@ async function openSession(env, url, userId) {
   return sessionCookie(url, token)
 }
 
-async function signup({ request, env, url, demoKey }) {
-  const body = await readJson(request)
+async function signup({ request, env, url }) {
+  const body = await readJsonObject(request, MAX_AUTH_BODY)
   const fields = {}
   const email = readEmail(body.email, fields)
   const name = typeof body.display_name === 'string' ? body.display_name.trim() : ''
@@ -119,55 +84,75 @@ async function signup({ request, env, url, demoKey }) {
     throw new HttpError(409, 'Já existe uma conta com este e-mail. Entre com a sua senha.', { email: 'E-mail já cadastrado.' })
   }
   // A conta fica com os dados da demonstração deste navegador, se ninguém os adotou antes.
-  let dataKey = demoKey
-  if (!dataKey || await env.DB.prepare('SELECT 1 FROM users WHERE data_key = ?').bind(dataKey).first()) dataKey = await hashToken(`account:${randomHex(32)}`)
   const id = crypto.randomUUID(), salt = randomHex(16), now = new Date().toISOString()
   const hash = await hashPassword(body.password, salt, ITERATIONS)
+  let dataKey = await demoKeyOf(request, env)
+  if (!dataKey || await env.DB.prepare('SELECT 1 FROM users WHERE data_key = ?').bind(dataKey).first()) dataKey = await accountKey(id)
+  else {
+    try { await holdAccountData(env, dataKey, id) } catch (error) {
+      if (!(error instanceof HttpError) || error.status !== 410) throw error
+      return json({ message: error.message, detail: error.message }, 410, { 'Set-Cookie': freshDemoCookie(url) })
+    }
+  }
   try {
     await env.DB.prepare(
       `INSERT INTO users (id, email, display_name, password_hash, password_salt, password_iterations, created_at, updated_at, data_key)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(id, email, name, hash, salt, ITERATIONS, now, now, dataKey).run()
   } catch (error) {
-    if (/UNIQUE/i.test(String(error))) throw new HttpError(409, 'Já existe uma conta com este e-mail. Entre com a sua senha.', { email: 'E-mail já cadastrado.' })
+    if (/UNIQUE.*users\.email/i.test(String(error))) throw new HttpError(409, 'Já existe uma conta com este e-mail. Entre com a sua senha.', { email: 'E-mail já cadastrado.' })
+    if (/UNIQUE.*users\.data_key/i.test(String(error))) throw new HttpError(409, 'Os dados desta demonstração já estão vinculados. Reabra o Cityou e tente novamente.')
     throw error
   }
+  // D1 reserva o vínculo antes de alterar o objeto. Se a adoção falhar, entrar com a senha retoma o mesmo vínculo.
+  await adoptAccountData(env, dataKey, id)
   const cookie = await openSession(env, url, id)
-  return json({ user: { id, email, display_name: name, timezone: 'America/Sao_Paulo' } }, 201, { 'Set-Cookie': cookie })
+  const response = json({ user: { id, email, display_name: name, timezone: 'America/Sao_Paulo' } }, 201, { 'Set-Cookie': cookie })
+  response.headers.append('Set-Cookie', freshDemoCookie(url))
+  return response
 }
 
 const WRONG = 'E-mail ou senha incorretos.'
 
 async function login({ request, env, url }) {
-  const body = await readJson(request)
+  const body = await readJsonObject(request, MAX_AUTH_BODY)
   const fields = {}
   const email = readEmail(body.email, fields)
-  if (typeof body.password !== 'string' || !body.password) fields.password = 'Digite a sua senha.'
+  if (typeof body.password !== 'string' || !body.password || body.password.length > 200) fields.password = 'Digite uma senha de até 200 caracteres.'
   if (Object.keys(fields).length) throw fieldsError(fields)
   const windowMs = ATTEMPT_WINDOW_MINUTES * 60_000
   const windowStart = new Date(Math.floor(Date.now() / windowMs) * windowMs).toISOString()
-  const attempts = await env.DB.prepare('SELECT count FROM login_attempts WHERE email = ? AND window_start = ?').bind(email, windowStart).first()
-  if ((attempts?.count ?? 0) >= MAX_ATTEMPTS) throw new HttpError(429, `Muitas tentativas. Espere ${ATTEMPT_WINDOW_MINUTES} minutos e tente de novo.`)
-  const user = await env.DB.prepare('SELECT * FROM users WHERE email = ? AND deleted_at IS NULL').bind(email).first()
-  // Sem conta, calcula um hash mesmo assim: o tempo de resposta não revela se o e-mail existe.
-  const hash = await hashPassword(body.password, user?.password_salt ?? 'sem-conta', user?.password_iterations ?? ITERATIONS)
-  if (!user || !sameText(hash, user.password_hash)) {
-    await env.DB.prepare(
-      'INSERT INTO login_attempts (email, window_start, count) VALUES (?, ?, 1) ON CONFLICT (email, window_start) DO UPDATE SET count = count + 1',
-    ).bind(email, windowStart).run()
-    throw new HttpError(401, WRONG)
+  const reserved = await env.DB.prepare(
+    `INSERT INTO login_attempts (email, window_start, count) VALUES (?, ?, 1)
+     ON CONFLICT (email, window_start) DO UPDATE SET count = count + 1
+     WHERE count < ? RETURNING count`,
+  ).bind(email, windowStart, MAX_ATTEMPTS).first()
+  if (!reserved) throw new HttpError(429, `Muitas tentativas. Espere ${ATTEMPT_WINDOW_MINUTES} minutos e tente de novo.`)
+  let user
+  let valid
+  try {
+    user = await env.DB.prepare('SELECT * FROM users WHERE email = ? AND deleted_at IS NULL').bind(email).first()
+    // Sem conta, calcula um hash mesmo assim para reduzir a diferença de tempo.
+    const hash = await hashPassword(body.password, user?.password_salt ?? 'sem-conta', user?.password_iterations ?? ITERATIONS)
+    valid = Boolean(user && sameText(hash, user.password_hash))
+  } finally {
+    // Só senhas efetivamente recusadas consomem a reserva até o fim da janela.
+    if (valid !== false) await env.DB.prepare('UPDATE login_attempts SET count = count - 1 WHERE email = ? AND window_start = ? AND count > 0')
+      .bind(email, windowStart).run()
   }
+  if (!valid) throw new HttpError(401, WRONG)
+  await adoptAccountData(env, user.data_key ?? await accountKey(user.id), user.id)
   const cookie = await openSession(env, url, user.id)
   return json({ user: publicUser(user) }, 200, { 'Set-Cookie': cookie })
 }
 
-async function logout({ request, env, url, freshDemoCookie }) {
+async function logout({ request, env, url }) {
   const token = sessionTokenOf(request)
   if (token) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await hashToken(token)).run()
   const response = json({})
   response.headers.append('Set-Cookie', sessionCookie(url, 'x', 0))
   // O cookie da demonstração deste navegador apontava para os dados da conta: troca por um novo.
-  response.headers.append('Set-Cookie', freshDemoCookie)
+  response.headers.append('Set-Cookie', freshDemoCookie(url))
   return response
 }
 
@@ -193,6 +178,5 @@ export async function authApi(context) {
   const handler = handlers[`${request.method} ${url.pathname}`]
   if (!handler) throw new HttpError(Object.keys(handlers).some(key => key.endsWith(` ${url.pathname}`)) ? 405 : 404, 'Rota não encontrada.')
   if (!accountsEnabled(env)) throw new HttpError(503, 'As contas ainda não estão ativas. Use a demonstração por enquanto.')
-  await ensureSchema(env)
   return handler(context)
 }

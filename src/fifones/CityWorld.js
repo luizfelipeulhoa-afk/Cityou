@@ -29,7 +29,7 @@ const SELECTION_EMISSION = new THREE.Color(0xf2944f)
 const ACTIVE_EMISSION = new THREE.Color(0x84cfab)
 const WAITING_EMISSION = new THREE.Color(0xe7aa56)
 const IN_USE_EMISSION = new THREE.Color(0xffb86b)
-const heightCaps = { stuntsync: 4.5, stunt: 4.5, chatgpt: 3.8, gpt: 3.8, claude: 3.3 }
+const heightCaps = {}
 const coreKinds = new Set(['plaza', 'headquarters', 'hq', 'road', 'tree', 'park', 'home', 'house'])
 
 function dimensions(definition = {}, rotation = 0) {
@@ -151,13 +151,10 @@ export default class CityWorld {
     this.sun.position.set(...sun.direction).setLength(26)
     this.scene.add(this.ambient, this.sun)
     this.environment = createEnvironment(this.scene, callbacks.region)
-    if (this.environment.landmark && !this.pilot) void this.loadLandmark(this.region)
+    if (this.environment.landmark) void this.loadLandmark(this.region)
     // No Rio o terreno real e o Cristo começam a carregar já na construção da cidade (13/11/2026), sem esperar o
     // estado do servidor nem o `requestIdleCallback` da chegada: a rede do terreno e a do estado correm juntas.
-    if (this.pilot && this.environment.backdrop?.length) {
-      void this.loadLandmark(this.region)
-      void this.loadTerrain()
-    }
+    if (this.pilot && this.environment.backdrop?.length) void this.loadTerrain()
     this.walkers = []
     this.foams = [...(this.environment.foams ?? [])]
     void this.loadCharacters()

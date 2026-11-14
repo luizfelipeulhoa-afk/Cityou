@@ -251,8 +251,10 @@ import { getCityLayout, tileKey } from '../shared/game/city-layout.js'
 
 test('cidade: plano sob os lotes construíveis, relevo na encosta protegida, calçadão plano na orla e o morro do Cristo', () => {
   const layout = getCityLayout('cristo-redentor')
+  const originalHeights = heights.data.slice()
   const scenery = createTerrainData(cidade, heights.data)
-  assert.ok(scenery.triangles <= 60000, `${scenery.triangles} triângulos`)
+  assert.deepEqual(heights.data, originalHeights, 'o recorte não altera o mapa de alturas de origem')
+  assert.ok(scenery.triangles <= cidade.detail.maxTriangles, `${scenery.triangles} triângulos`)
   const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
   const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))
   let land = 0, beach = 0
@@ -279,4 +281,31 @@ test('cidade: plano sob os lotes construíveis, relevo na encosta protegida, cal
   assert.equal(scenery.lots.playable.length, land + beach)
   // O morro do Cristo fica bem acima do platô.
   assert.ok(scenery.getHeightAt(CRISTO_PEAK.x, CRISTO_PEAK.z - CITY_SHIFT) > 6)
+})
+
+test('cidade: o corte do relevo distante não decapita o maciço atrás do Cristo (13/11/2026)', () => {
+  const scenery = createTerrainData(cidade, heights.data)
+  const uncut = createTerrainData({ ...cidade, crop: undefined }, heights.data)
+  // Sem `crop.keep`, o círculo do corte (raio ~33 + 14 de mistura em volta da grade e do morro) zerava tudo a partir de ~47
+  // unidades do centro, e a montanha aparecia cortada no meio. Onde o terreno completo tem montanha (altura >= 8), o da
+  // cidade tem de ter a mesma montanha.
+  let mountain = 0
+  for (let x = -60; x <= 0; x += 10) {
+    for (let z = -50; z >= -110; z -= 10) {
+      const full = uncut.getHeightAt(x, z)
+      if (full < 8) continue
+      mountain++
+      const h = scenery.getHeightAt(x, z)
+      assert.ok(h >= full - 1.5, `maciço em (${x}, ${z}): completo ${full.toFixed(1)}, da cidade ${h.toFixed(1)}`)
+    }
+  }
+  assert.ok(mountain >= 8, `o teste precisa de pontos de montanha (achou ${mountain})`)
+  // O que o corte tira de propósito (praia e morros reais distantes a leste e ao sul) continua removido.
+  for (const [x, z] of [[66, 6], [66, -72], [-20, 120]]) {
+    const h = scenery.getHeightAt(x, z)
+    assert.ok(h <= 0.5, `fora do corte em (${x}, ${z}) tem altura ${h.toFixed(1)}, esperado mar`)
+  }
+  // A malha segue leve: com a montanha de volta, o terreno da cidade fica longe dos 60 mil de rio.js.
+  assert.ok(scenery.triangles <= cidade.detail.maxTriangles)
+  assert.ok(cidade.detail.maxTriangles <= 20000, 'o terreno da cidade não deve voltar a ser pesado')
 })

@@ -1,6 +1,12 @@
 // Página de apresentação: animações de entrada, demonstração do ciclo do jogo e a janela de entrar / criar conta.
 // Sem framework e sem biblioteca de animação: CSS, IntersectionObserver e um pouco de estado.
 import './landing.css'
+import { clearCache, safeNext, topWindow } from '../fifones/api.js'
+
+// Sessão vencida com a cidade ou o mapa abertos no painel: o `pageGate` manda o quadro para cá. A entrada abre na
+// janela principal e volta depois para a aba do painel em que a pessoa estava (`next` validado por `safeNext`).
+const host = topWindow()
+if (host !== window) host.location.replace(`/?entrar=1&next=${encodeURIComponent(safeNext(host.location.pathname + host.location.search + host.location.hash))}`)
 
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
 const $ = (selector, root = document) => root.querySelector(selector)
@@ -109,8 +115,8 @@ if (demo) {
 // --- Conta: entrar e criar conta ---
 const dialog = $('[data-auth-dialog]'), form = $('[data-auth-form]')
 const params = new URLSearchParams(location.search)
-// Só caminhos do próprio site: nada de endereço completo vindo da URL.
-const nextPath = (() => { const next = params.get('next') || ''; return /^\/(?!\/)[\w\-./?=&%#]*$/.test(next) ? next : '/app' })()
+// Só páginas do app, com o `#/aba` de antes: nada de endereço completo vindo da URL (`safeNext`).
+const nextPath = safeNext(params.get('next') || '', location.hash)
 const copy = {
   signup: { title: 'Criar conta', lede: 'Leva um minuto. O que você já fez neste navegador vai junto.', submit: 'Criar conta', busy: 'Criando…', switch: 'Já tem conta?', other: 'Entrar' },
   login: { title: 'Entrar', lede: 'Bom ter você de volta. A sua cidade está esperando.', submit: 'Entrar', busy: 'Entrando…', switch: 'Ainda não tem conta?', other: 'Criar conta' },
@@ -192,7 +198,7 @@ form.addEventListener('submit', async (event) => {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1' }, body: JSON.stringify(data),
     })
     const result = await response.json().catch(() => ({}))
-    if (response.ok) { location.assign(nextPath); return }
+    if (response.ok) { clearCache(); location.assign(nextPath); return }
     let placed = false
     for (const [name, message] of Object.entries(result.fields || {})) placed = fieldError(name, message) || placed
     if (!placed || response.status === 409) {

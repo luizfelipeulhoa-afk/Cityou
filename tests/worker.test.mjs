@@ -19,12 +19,14 @@ const loginHarness = createTestHarness({ workers: [{ configPath: 'wrangler.test-
 const call = (path, init) => harness.fetch(ORIGIN + path, init)
 let env
 
+async function applyMigration(db, file) {
+  const sql = readFileSync(join('migrations', file), 'utf8').replace(/^\s*--.*$/gm, '')
+  const statements = sql.split(';').map(part => part.trim()).filter(Boolean)
+  await db.batch(statements.map(statement => db.prepare(statement)))
+}
+
 async function applyMigrations(db) {
-  for (const file of readdirSync('migrations').filter(name => name.endsWith('.sql')).sort()) {
-    const sql = readFileSync(join('migrations', file), 'utf8').replace(/^\s*--.*$/gm, '')
-    const statements = sql.split(';').map(part => part.trim()).filter(Boolean)
-    await db.batch(statements.map(statement => db.prepare(statement)))
-  }
+  for (const file of readdirSync('migrations').filter(name => name.endsWith('.sql')).sort()) await applyMigration(db, file)
 }
 
 before(async () => {
@@ -43,7 +45,9 @@ test('health: sem banco ligado responde not_configured', async () => {
 
 test('health: banco sem migrações responde no_schema; com migrações, ok', async () => {
   assert.equal((await (await call('/api/health')).json()).db, 'no_schema')
-  await applyMigrations(env.DB)
+  await applyMigration(env.DB, '0001_init.sql')
+  assert.equal((await (await call('/api/health')).json()).db, 'no_schema')
+  await applyMigration(env.DB, '0002_account_data.sql')
   const response = await call('/api/health')
   assert.equal((await response.json()).db, 'ok')
 })
@@ -59,7 +63,7 @@ test('rota de dados separa o tempo do Durable Object no Server-Timing', async ()
   const cookie = sessionCookie(new URL(ORIGIN)).split(';')[0]
   const response = await call('/api/city', { headers: { Cookie: cookie } })
   assert.equal(response.status, 200)
-  assert.match(response.headers.get('Server-Timing'), /^total;dur=\d+(\.\d)?, do;dur=\d+(\.\d)?$/)
+  assert.match(response.headers.get('Server-Timing'), /^total;dur=\d+(\.\d)?(, cache;dur=\d+(\.\d)?)?, do;dur=\d+(\.\d)?$/)
 })
 
 test('rota desconhecida responde 404 em JSON, no formato lido por ApiError', async () => {
@@ -319,7 +323,7 @@ test('plantas-piloto comportam o total previsto com ruas, reservas e cinco tipos
 
 test('prévia abre os oito locais e mantém o saldo de teste ao alternar cidades', async () => {
   const preview = createTestHarness({
-    workers: [{ configPath: 'wrangler.test.jsonc', vars: { CITYOU_TEST_OPEN_REGIONS: '1', TRAVEL_OPEN: 'false' } }],
+    workers: [{ configPath: 'wrangler.test-closed.jsonc', vars: { CITYOU_TEST_OPEN_REGIONS: '1', TRAVEL_OPEN: 'false' } }],
   })
   await preview.listen()
   try {
@@ -371,7 +375,7 @@ test('prévia abre os oito locais e mantém o saldo de teste ao alternar cidades
 
 test('moedas de teste dos sócios: só com o segredo, uma vez por sessão', async () => {
   const token = 'segredo-de-teste-com-mais-de-16'
-  const withToken = createTestHarness({ workers: [{ configPath: 'wrangler.test.jsonc', vars: { CITYOU_ADMIN_TOKEN: token } }] })
+  const withToken = createTestHarness({ workers: [{ configPath: 'wrangler.test-closed.jsonc', vars: { CITYOU_ADMIN_TOKEN: token } }] })
   await withToken.listen()
   try {
     const session = newDemoSession((path, init) => withToken.fetch(ORIGIN + path, init))
@@ -687,12 +691,16 @@ test('conta: cadastro abre sessão, valida os campos e não aceita e-mail repeti
 })
 
 test('conta: adota os dados da demonstração e os entrega em qualquer navegador; sair devolve a demonstração vazia', async () => {
-  const first = browser({ cityou_demo: demoCookieValue() })
+  const demoBeforeSignup = demoCookieValue()
+  const first = browser({ cityou_demo: demoBeforeSignup })
   const before = await (await first('/api/city')).json()
   const built = await (await first('/api/city/actions', { method: 'POST', body: { type: 'build', kind: 'tree', x: 7, y: 8, expected_revision: before.revision, request_id: 'arvore-antes-da-conta' } })).json()
   assert.equal(built.credits, before.credits - 3)
   const data = account()
   assert.equal((await first('/api/auth/signup', { method: 'POST', body: data })).status, 201)
+  assert.notEqual(first.jar.cityou_demo, demoBeforeSignup)
+  const originalDemo = browser({ cityou_demo: demoBeforeSignup })
+  assert.equal((await originalDemo('/api/city')).status, 403)
   assert.equal((await (await first('/api/city')).json()).credits, built.credits)
 
   // Outro aparelho, com outra sessão de demonstração: ao entrar, vê a cidade da conta.
@@ -736,6 +744,89 @@ test('conta: senha errada repetida bloqueia por um tempo; páginas do app pedem 
   assert.notEqual((await user('/?inicio')).status, 302)
 })
 
+test('conta: lê JSON de autenticação com um limite em bytes', async () => {
+  const visitor = browser()
+  for (const route of ['signup', 'login']) {
+    const response = await visitor(`/api/auth/${route}`, {
+      method: 'POST', body: { ...account(), display_name: 'á'.repeat(2_000) },
+    })
+    assert.equal(response.status, 413)
+  }
+})
+
+test('conta: confirma a adoção reservada no D1 antes de descartar dados vencidos', async () => {
+  const session = Object.create(DemoSession.prototype)
+  const key = 'demo-a-adotar'
+  const owner = crypto.randomUUID()
+  await env.DB.prepare(
+    'INSERT INTO users (id, email, display_name, password_hash, password_salt, password_iterations, created_at, updated_at, data_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).bind(owner, account().email, 'Sócio', 'test', 'test', 100000, '2026-11-13', '2026-11-13', key).run()
+  let storedOwner = null
+  let alarmCancelled = false
+  session.name = key
+  session.db = env.DB
+  session.read = () => storedOwner
+  session.write = (_, __, value) => { storedOwner = value }
+  session.storage = { deleteAlarm: async () => { alarmCancelled = true } }
+  session.sql = { exec: () => assert.fail('os dados reservados não devem expirar') }
+  await session.alarm()
+  await session.alarm()
+  assert.equal(storedOwner, owner)
+  assert.equal(alarmCancelled, true)
+})
+
+test('conta: alarme respeita a proteção local enquanto o D1 ainda não vê o vínculo', async () => {
+  const session = Object.create(DemoSession.prototype)
+  const records = new Map()
+  let nextAlarm = null
+  session.read = (_, id) => records.get(id)
+  session.write = (_, id, value) => records.set(id, value)
+  session.storage = {
+    setAlarm: async (when) => { nextAlarm = when },
+    transactionSync: work => work(),
+  }
+  session.sql = { exec: () => records.clear() }
+  session.holdForAdoption('conta-sintetica')
+  await session.alarm()
+  assert.equal(nextAlarm, records.get('hold_until'))
+  assert.equal(records.has('expired'), false)
+  records.set('hold_until', Date.now() - 1)
+  await session.alarm()
+  assert.equal(records.get('expired'), true)
+  assert.throws(() => session.holdForAdoption('conta-sintetica'), { status: 410 })
+})
+
+test('conta: login retoma a adoção quando o cadastro não conseguiu confirmar o objeto', async () => {
+  const visitor = browser({ cityou_demo: demoCookieValue() })
+  const original = await (await visitor('/api/city')).json()
+  const built = await (await visitor('/api/city/actions', {
+    method: 'POST',
+    body: { type: 'build', kind: 'tree', x: 7, y: 8, expected_revision: original.revision, request_id: 'arvore-reservada' },
+  })).json()
+  assert.equal(built.credits, original.credits - 3)
+  const data = account()
+  const signup = await worker.fetch(new Request(`${ORIGIN}/api/auth/signup`, {
+    method: 'POST',
+    headers: {
+      Cookie: `cityou_demo=${visitor.jar.cityou_demo}`,
+      Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  }), {
+    DB: env.DB,
+    DEMO_SESSIONS: {
+      getByName: () => ({ fetch: async url => new Response(null, {
+        status: new URL(url).pathname === '/internal/hold-for-adoption' ? 204 : 503,
+      }) }),
+    },
+  })
+  assert.equal(signup.status, 503)
+  assert.equal(signup.headers.has('Set-Cookie'), false)
+  assert.equal((await visitor('/api/city')).status, 403)
+  assert.equal((await visitor('/api/auth/login', { method: 'POST', body: data })).status, 200)
+  assert.equal((await (await visitor('/api/city')).json()).credits, built.credits)
+})
+
 test('conta: sem banco, as rotas de conta avisam e o app segue como demonstração', async () => {
   const response = await closedHarness.fetch(`${ORIGIN}/api/auth/status`)
   assert.deepEqual(await response.json(), { accounts: false, user: null })
@@ -748,6 +839,7 @@ test('conta: sem banco, as rotas de conta avisam e o app segue como demonstraç�
 
 test('login obrigatório: sem sessão a API de dados responde 401; saúde e contas seguem abertas; com conta tudo funciona', async () => {
   const send = (path, init) => loginHarness.fetch(ORIGIN + path, init)
+  await applyMigrations((await loginHarness.getWorker().getEnv()).DB)
   const headers = { Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' }
   for (const path of ['/api/city', '/api/personal/summary', '/api/world/progress']) {
     const response = await send(path)
