@@ -22,7 +22,7 @@ const SLOT_NAMES = {
 }
 const MAX_GRAMS = 5000
 const MAX_QUANTITY = 1000
-const SEARCH_LIMIT = 15
+const SEARCH_LIMIT = 20
 const NUTRIENTS = ['kcal', 'protein', 'fat', 'carb', 'fiber']
 
 const normalize = value => String(value).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
@@ -65,9 +65,14 @@ export function searchFoods(query) {
   const tokens = clean.split(/\s+/).filter(Boolean).slice(0, 6)
   if (clean.length < 2 || !tokens.length) throw new HttpError(422, 'Digite pelo menos 2 letras do alimento.')
   const matches = INDEX.filter(entry => tokens.every(token => entry.norm.includes(token)))
+  // Ordem (o app sai primeiro no Brasil): nome que começa com a primeira palavra buscada, depois alimento da TACO, depois o que tem medida
+  // caseira (colher, unidade...), depois o nome mais curto.
+  const score = entry => [
+    Number(!entry.norm.startsWith(tokens[0])), Number(entry.row[3] !== 'taco'), Number(!FOOD_PORTIONS[entry.row[0]]),
+  ]
   matches.sort((a, b) => {
-    const rank = (x, y) => Number(!x.norm.startsWith(clean)) - Number(!y.norm.startsWith(clean))
-    return rank(a, b) || a.norm.length - b.norm.length || a.norm.localeCompare(b.norm)
+    const [x, y] = [score(a), score(b)]
+    return x[0] - y[0] || x[1] - y[1] || x[2] - y[2] || a.norm.length - b.norm.length || a.norm.localeCompare(b.norm)
   })
   return matches.slice(0, SEARCH_LIMIT).map(({ row }) => ({
     id: row[0], name: row[1], group: row[2], source: row[3], ref: row[4],

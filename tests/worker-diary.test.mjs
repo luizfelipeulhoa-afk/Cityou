@@ -19,7 +19,8 @@ const withDailyThree = send => send('/api/personal/diary/schedule', { method: 'P
 test('busca por nome, sem acento, com variantes e unidades', async () => {
   const eggs = searchFoods('ovo')
   assert.ok(eggs.some(food => food.id === EGG))
-  assert.ok(eggs.length <= 15)
+  assert.ok(eggs.length <= 20)
+  assert.equal(eggs[0].source, 'taco') // o app sai primeiro no Brasil: TACO na frente
   assert.ok(eggs.every(food => food.name.toLowerCase().includes('ovo')))
   assert.deepEqual(eggs.find(food => food.id === EGG).portions[0], { label: 'unidade grande', grams: 50 })
   const beans = searchFoods('feijao')

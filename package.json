@@ -14,6 +14,7 @@
     "test:ui": "node tools/personal-playtest.mjs && node tools/browser-playtest.mjs",
     "test:session": "node tools/session-playtest.mjs",
     "test:nutrition": "node tools/nutrition-playtest.mjs",
+    "test:diary": "node tools/diary-playtest.mjs",
     "test:world": "node tools/world-playtest.mjs",
     "test:tres": "node tools/tres-lab-check.mjs",
     "test:terrain": "node tools/terrain-check.mjs",

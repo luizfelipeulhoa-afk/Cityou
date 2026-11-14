@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { FOOD_BASE } from '../shared/game/foods-base.js'
 import { FOOD_PORTIONS } from '../shared/game/foods-portions.js'
+import { readFileSync } from 'node:fs'
 
 const FIELDS = ['id', 'name', 'group', 'source', 'ref', 'kcal', 'protein', 'fat', 'carb', 'fiber', 'originalName']
 const SOURCES = ['taco', 'usda-fnd', 'usda-sr']
@@ -69,4 +70,38 @@ test('a TACO e a USDA estão representadas', () => {
   assert.ok(count('taco') > 500)
   assert.ok(count('usda-sr') > 7000)
   assert.ok(count('usda-fnd') > 0)
+})
+
+// Medidas caseiras brasileiras (IBGE, Tabela de Medidas Referidas, POF 2008-2009), ligadas em tools/medidas-taco-ibge.json.
+const IBGE_LINKS = JSON.parse(readFileSync(new URL('../tools/medidas-taco-ibge.json', import.meta.url), 'utf8'))
+const portionOf = (id, label) => FOOD_PORTIONS[id]?.find(([name]) => name === label)?.[1]
+
+test('arroz e feijão cozidos têm as medidas do IBGE (colher e concha)', () => {
+  assert.equal(portionOf('taco-3', 'colher de sopa cheia'), 25)
+  assert.equal(portionOf('taco-3', 'escumadeira média cheia'), 85)
+  assert.equal(portionOf('taco-561', 'concha média cheia'), 140)
+  assert.equal(portionOf('taco-53', 'unidade'), 50)
+  assert.equal(portionOf('taco-488', 'unidade média'), 45)
+  assert.equal(portionOf('usda-sr-172217', 'copo americano'), 150)
+})
+
+test('medida de alimento cozido não vai para o alimento cru', () => {
+  assert.equal(FOOD_PORTIONS['taco-4'], undefined) // arroz cru: as medidas do IBGE são do arroz cozido
+  assert.equal(FOOD_PORTIONS['taco-562'], undefined) // feijão carioca cru
+})
+
+test('fruta crua com medida do IBGE não tem copo nem prato (no inquérito eram suco ou fruta picada)', () => {
+  const mapped = new Set(Object.keys(IBGE_LINKS.map))
+  for (const food of foods.filter(f => mapped.has(f.id) && f.group === 'Frutas e derivados' && /, crua?$/.test(f.name))) {
+    for (const [label] of FOOD_PORTIONS[food.id] ?? []) assert.ok(!/^(copo|taça|xícara|prato|pires)/.test(label), `${food.name}: ${label}`)
+  }
+})
+
+test('nomes da TACO corrigidos e linhas que o xlsx marca como NA presentes', () => {
+  const name = id => foods.find(food => food.id === id)?.name
+  assert.equal(name('taco-540'), 'Feijoada')
+  assert.equal(name('taco-474'), 'Cerveja, pilsen')
+  assert.equal(name('taco-357'), 'Carne, bovina, filé mignon, sem gordura, cru')
+  assert.equal(name('taco-272'), 'Óleo, de soja')
+  assert.ok(!foods.some(food => food.source === 'taco' && /ü|Pêra|Geléia|,\S|\s\s| \d$/.test(food.name)))
 })

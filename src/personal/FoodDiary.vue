@@ -336,52 +336,54 @@ onMounted(() => goTo())
 </template>
 
 <style scoped>
+/* Mesmo visual do cartão da base calórica (NutritionBase.vue): tema escuro, campos com o estilo global do app. */
 .food-diary{margin-bottom:26px;display:flex;flex-direction:column;gap:16px}
 .fd-head h2{font-size:22px;letter-spacing:-.5px;font-weight:500;margin:10px 0 8px}
-.fd-muted{font-size:12px;line-height:1.6;color:#9399ae}
-.fd-error{color:#c0392b;font-size:13px;margin:0}
-.fd-field-error{color:#c0392b;font-size:12px}
+.fd-muted{font-size:12px;line-height:1.7;color:#9399ae}
+.fd-error{font-size:12px;color:#ffb0b0;background:#ff8a8a14;border:1px solid #ff8a8a33;border-radius:10px;padding:10px 12px;margin:0}
+.fd-field-error{color:#ffb0b0;font-size:11px}
+h3{font-size:16px;font-weight:550;letter-spacing:-.2px;margin:0}
 .fd-day{display:flex;align-items:center;gap:12px;justify-content:center}
-.fd-date{display:flex;flex-direction:column;align-items:center;font-size:14px}
-.fd-date input{border:0;background:transparent;color:inherit;font:inherit}
-.fd-schedule{display:grid;gap:12px;padding:16px;border-radius:14px;background:#f5f7fc}
-.fd-schedule h3{font-size:16px;font-weight:500;margin:0}
-.fd-schedule label,.fd-week label{display:flex;flex-direction:column;gap:6px;font-size:13px}
-.fd-schedule label.fd-check{flex-direction:row;align-items:center;gap:8px}
-.fd-schedule select,.fd-week select{font:inherit;padding:9px 10px;border-radius:10px;border:1px solid #d8dbe5;background:#fff;min-width:0}
-.fd-schedule footer{display:flex;gap:10px;align-items:center;justify-content:flex-start;flex-wrap:wrap}
-.fd-week{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.fd-date{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:13px;color:#d6d8e6}
+.fd-date input{border:0;background:transparent;color:inherit;font:inherit;color-scheme:dark}
+.fd-schedule{display:flex;flex-direction:column;gap:14px;max-width:640px;border:1px solid #a1ddc522;background:linear-gradient(120deg,#a1ddc50d,#bcafff0a);border-radius:14px;padding:20px}
+.fd-schedule label,.fd-week label,.fd-form label,.fd-qty label{display:flex;flex-direction:column;gap:8px;font-size:11px;color:#9da1b5}
+.fd-schedule label.fd-check{flex-direction:row;align-items:center;gap:10px;font-size:12px;color:#d6d8e6}
+.fd-check input{accent-color:var(--accent)}
+.fd-schedule footer{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.fd-week{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
 .fd-schedule-line{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-.fd-form{display:grid;gap:12px;grid-template-columns:1fr 2fr;align-items:start}
-.fd-form label{display:flex;flex-direction:column;gap:6px;font-size:13px}
-.fd-form input,.fd-form select{font:inherit;padding:9px 10px;border-radius:10px;border:1px solid #d8dbe5;background:#fff;color:inherit;min-width:0}
-.fd-editing{grid-column:1/-1;margin:0;font-size:13px;padding:10px 12px;border-radius:10px;background:#fff7e6}
+.fd-form{display:grid;gap:14px;grid-template-columns:minmax(0,1fr) minmax(0,2fr);align-items:start}
+.fd-form select,.fd-form input,.fd-schedule select,.fd-week select{min-width:0;width:100%}
+.fd-editing{grid-column:1/-1;margin:0;font-size:12px;line-height:1.7;color:#f1d3b8;background:#e8b5a012;border:1px solid #e8b5a033;border-radius:10px;padding:10px 12px}
 .fd-search{position:relative}
-.fd-options{position:absolute;top:100%;left:0;right:0;z-index:5;margin:4px 0 0;padding:4px;list-style:none;background:#fff;border:1px solid #d8dbe5;border-radius:12px;max-height:280px;overflow:auto;box-shadow:0 10px 30px rgba(20,24,40,.15)}
-.fd-options li{display:flex;flex-direction:column;gap:2px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px}
-.fd-options li:hover,.fd-options li:focus{background:#eef2fb;outline:none}
-.fd-options li span{font-size:12px;color:#6b7290}
-.fd-chosen{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:12px;background:#f5f7fc}
-.fd-qty{display:grid;grid-template-columns:1fr 2fr;gap:12px}
-.fd-qty label{display:flex;flex-direction:column;gap:6px;font-size:13px}
-.fd-qty input,.fd-qty select{font:inherit;padding:9px 10px;border-radius:10px;border:1px solid #d8dbe5;background:#fff;min-width:0}
-.fd-actions{grid-column:1/-1;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.fd-totals > div{display:flex;flex-direction:column;gap:4px;padding:14px;border-radius:14px;background:#f5f7fc}
-.fd-totals strong{font-size:24px;font-weight:500}
-.fd-totals span{font-size:13px}
-.fd-meals{display:grid;gap:12px}
-.fd-meal header{display:flex;justify-content:space-between;align-items:baseline}
-.fd-meal h3{font-size:15px;font-weight:500;margin:0}
-.fd-meal ul{list-style:none;padding:0;margin:6px 0 0;display:grid;gap:6px}
-.fd-meal li{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;font-size:14px;padding:8px 0;border-bottom:1px solid #eceef5}
-.fd-item{display:flex;flex-direction:column;gap:2px;min-width:0}
-.fd-nums{font-size:12px;color:#6b7290;text-align:right}
-.fd-entry-actions{display:flex;gap:4px}
+.fd-options{position:absolute;top:100%;left:0;right:0;z-index:5;margin:6px 0 0;padding:6px;list-style:none;background:#1c1f2b;border:1px solid #ffffff1a;border-radius:12px;max-height:300px;overflow:auto;box-shadow:0 14px 40px #0008}
+.fd-options li{display:flex;flex-direction:column;gap:3px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:#e2e3ef}
+.fd-options li:hover,.fd-options li:focus{background:#ffffff0f;outline:none}
+.fd-options li:focus-visible{box-shadow:inset 0 0 0 1px var(--accent)}
+.fd-options li span{font-size:11px;color:#9399ae}
+.fd-chosen{grid-column:1/-1;display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:12px;border:1px solid #ffffff10;font-size:13px;color:#e2e3ef}
+.fd-qty{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:14px}
+.fd-qty input,.fd-qty select{min-width:0;width:100%}
+.fd-actions{grid-column:1/-1;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.fd-totals>div{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:12px;border:1px solid #ffffff10}
+.fd-totals strong{font-size:30px;font-weight:500;letter-spacing:-1px;color:var(--mint)}
+.fd-totals span{font-size:12px;color:#d6d8e6}
+.fd-totals span.fd-muted{color:#9399ae}
+.fd-meals{display:grid;gap:14px}
+.fd-meal{border-top:1px solid #ffffff0d;padding-top:12px}
+.fd-meal header{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:#d6d8e6}
+.fd-meal ul{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:6px}
+.fd-meal li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;font-size:13px;padding:8px 0;border-bottom:1px solid #ffffff08}
+.fd-meal li:last-child{border-bottom:0}
+.fd-item{display:flex;flex-direction:column;gap:2px;min-width:0;color:#e2e3ef}
+.fd-item strong{font-weight:550}
+.fd-nums{font-size:11px;color:#9399ae;text-align:right}
+.fd-entry-actions{display:flex;gap:6px}
 .fd-source{margin:0}
 @media (max-width:640px){
   .fd-form,.fd-qty{grid-template-columns:1fr}
-  .fd-meal li{grid-template-columns:1fr auto}
-  .fd-nums{grid-column:1/-1;text-align:left}
-  .fd-entry-actions{grid-column:1/-1}
+  .fd-meal li{grid-template-columns:minmax(0,1fr)}
+  .fd-nums{text-align:left}
 }
 </style>
