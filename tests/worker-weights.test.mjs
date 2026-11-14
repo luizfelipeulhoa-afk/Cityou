@@ -165,3 +165,9 @@ test('com login obrigatório, as rotas de peso sem sessão respondem 401', async
     assert.equal(response.status, 401, `${method} ${path}`)
   }
 })
+
+test('?month= inválido só derruba a leitura: a escrita ignora o parâmetro', async () => {
+  const send = session()
+  await send('/api/personal/weights?month=2026-13', { method: 'POST', body: make(), status: 201 })
+  await send('/api/personal?month=2026-13', { status: 422 })
+})

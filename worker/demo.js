@@ -283,7 +283,9 @@ export class DemoSession {
       }
       return this.storage.transactionSync(() => {
         this.ownerFor(account)
-        this.month = url.searchParams.get('month')
+        // `?month=` só vale na leitura do mês pedido; numa escrita um mês inválido é ignorado (não derruba a escrita).
+        const month = url.searchParams.get('month')
+        this.month = writes && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month ?? '') ? null : month
         if (handler === 'city' || handler === 'cityAction' || handler === 'syncRewards') {
           this.requireLocation(location)
           return this[handler](body, location)
