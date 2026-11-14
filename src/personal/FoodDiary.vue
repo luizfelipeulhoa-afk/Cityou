@@ -105,15 +105,37 @@ function saveSchedule() {
   run(() => saveDiarySchedule(body), () => { scheduleOpen.value = false })
 }
 
-// Unidade preferida (pedido do dono, 14/11/2026): quem registrou em gramas começa em gramas no próximo alimento; quem
-// usou medida caseira começa na primeira medida. Fica no navegador (comodidade por aparelho); sem acesso ao
-// armazenamento, vale o padrão de sempre (a primeira medida).
+// Unidade que já vem marcada (pedido do dono, 14/11/2026), nesta ordem:
+//   1. a última unidade usada para o mesmo alimento (quem pesa o ovo uma vez continua pesando o ovo);
+//   2. "unidade" quando o alimento se conta (ovo, fruta, pão francês): quem pesa tudo ainda come 4 ovos, não 200 g;
+//   3. gramas, se o último registro foi em gramas; senão a primeira medida caseira.
+// Fica no navegador (comodidade por aparelho); sem acesso ao armazenamento, vale a ordem sem os itens 1 e 3.
 const UNIT_KEY = 'cityou.diario.unidade'
-function preferredUnit() {
-  try { return localStorage.getItem(UNIT_KEY) } catch { return null }
+const FOOD_UNITS_KEY = 'cityou.diario.unidades'
+const FOOD_UNITS_MAX = 300
+function readStore(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback } catch { return fallback }
 }
-function rememberUnit(chosen) {
-  try { localStorage.setItem(UNIT_KEY, chosen === 'g' ? 'g' : 'medida') } catch { /* sem armazenamento: só não lembra */ }
+function writeStore(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* sem armazenamento: só não lembra */ }
+}
+function defaultUnit(item) {
+  const labels = item.portions.map(portion => portion.label)
+  const last = readStore(FOOD_UNITS_KEY, {})[item.id]
+  if (last === 'g' || labels.includes(last)) return last
+  const countable = labels.find(label => label.startsWith('unidade'))
+  if (countable) return countable
+  if (readStore(UNIT_KEY, null) === 'g' || !labels.length) return 'g'
+  return labels[0]
+}
+function rememberUnit(foodId, chosen) {
+  writeStore(UNIT_KEY, chosen === 'g' ? 'g' : 'medida')
+  const perFood = readStore(FOOD_UNITS_KEY, {})
+  delete perFood[foodId] // reinsere no fim: a ordem das chaves guarda o uso mais recente
+  perFood[foodId] = chosen
+  const ids = Object.keys(perFood)
+  for (const old of ids.slice(0, Math.max(0, ids.length - FOOD_UNITS_MAX))) delete perFood[old]
+  writeStore(FOOD_UNITS_KEY, perFood)
 }
 
 function chooseFood(item) {
@@ -121,7 +143,7 @@ function chooseFood(item) {
   food.value = item
   query.value = item.name
   results.value = []
-  unit.value = preferredUnit() === 'g' ? 'g' : item.portions[0]?.label ?? 'g'
+  unit.value = defaultUnit(item)
   errors.value = {}
 }
 
@@ -215,18 +237,18 @@ function optionKey(event, index) {
 function saveEntry() {
   const number = Number(String(quantity.value).replace(',', '.'))
   if (editingId.value) {
-    const chosen = unit.value
-    run(() => editDiaryEntry(editingId.value, { meal: slot.value, quantity: number, unit: chosen }), () => { rememberUnit(chosen); cancelEdit() })
+    const [chosen, foodId] = [unit.value, food.value?.id]
+    run(() => editDiaryEntry(editingId.value, { meal: slot.value, quantity: number, unit: chosen }), () => { if (foodId) rememberUnit(foodId, chosen); cancelEdit() })
     return
   }
   if (!food.value) {
     errors.value = { food_id: 'Escolha um alimento da lista.' }
     return
   }
-  const chosen = unit.value
+  const [chosen, foodId] = [unit.value, food.value.id]
   run(
-    () => addDiaryEntry({ day: view.value.day, meal: slot.value, food_id: food.value.id, quantity: number, unit: chosen }),
-    () => { rememberUnit(chosen); cancelEdit() },
+    () => addDiaryEntry({ day: view.value.day, meal: slot.value, food_id: foodId, quantity: number, unit: chosen }),
+    () => { rememberUnit(foodId, chosen); cancelEdit() },
   )
 }
 

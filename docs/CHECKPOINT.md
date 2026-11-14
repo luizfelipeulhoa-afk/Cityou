@@ -40,6 +40,7 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 | #38 | Etapa 4: painel sem iframe do Fifones, aba Conta, Salvo/Salvando, "Em breve", Sair em todas as páginas, `next` validado | 4 |
 | #48 | Alimentação: base de alimentos TACO + USDA, medidas caseiras do IBGE para os alimentos brasileiros, diário alimentar (programação de refeições, busca, editar, apagar); `npm test` 111, `test:worker` 111, `test:diary` 16/16 | fora do plano (pedido do dono) |
 | #49 | Diário: a unidade escolhida (gramas ou medida caseira) vira o padrão do próximo alimento; `test:diary` 19/19 | fora do plano (pedido do dono) |
+| #50 | Diário: alimento que se conta (ovo, fruta, pão) começa em unidade mesmo para quem pesa o resto; cada alimento volta na última unidade usada; `test:diary` 22/22 | fora do plano (pedido do dono) |
 
 Testes (13/11/2026, branch `claude/etapa-2-sessao-vencida` sobre a `main` `c93d88b`): `npm test` 81, `npm run test:worker` 86 (com `tests/catalog-migration.test.mjs`, que antes não rodava em nenhum script nem na CI), build ok, `npm run test:session` 32/32 num Worker local com contas e login obrigatório (`wrangler.test-session.jsonc`). Não rodados nesta rodada: `pytest`, `test:terrain` e `test:world`.
 
