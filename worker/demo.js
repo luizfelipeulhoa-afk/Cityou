@@ -12,6 +12,7 @@ import { projectMethods } from './projects.js'
 import { weightMethods } from './weights.js'
 import { nutritionMethods } from './nutrition.js'
 import { bodyMethods } from './body.js'
+import { diaryMethods } from './diary.js'
 
 const START = SPACE_ORDER[0]
 // A ilha é só cenário; a cidade onde se constrói começa aberta no Rio de Janeiro.
@@ -53,6 +54,11 @@ const routes = [
   // Composição corporal da aba Fitness (worker/body.js).
   [/^\/api\/personal\/body-composition$/, { GET: 'bodyComposition', POST: 'addBodyComposition' }],
   [/^\/api\/personal\/body-composition\/([a-f0-9-]{36})$/, { PUT: 'editBodyComposition', DELETE: 'removeBodyComposition' }],
+  // Alimentação: diário de refeições (worker/diary.js). A busca usa a base de alimentos do próprio servidor.
+  [/^\/api\/personal\/diary$/, { GET: 'diary', POST: 'addDiary' }],
+  [/^\/api\/personal\/diary\/foods$/, { GET: 'diaryFoods' }],
+  [/^\/api\/personal\/diary\/schedule$/, { PUT: 'setDiarySchedule' }],
+  [/^\/api\/personal\/diary\/([a-f0-9-]{36})$/, { PUT: 'editDiary', DELETE: 'removeDiary' }],
   // Alimentação: base calórica (worker/nutrition.js).
   [/^\/api\/personal\/nutrition$/, { GET: 'nutrition', DELETE: 'removeNutrition' }],
   [/^\/api\/personal\/nutrition\/profile$/, { PUT: 'saveNutritionProfile' }],
@@ -298,6 +304,9 @@ export class DemoSession {
         // `?month=` só vale na leitura do mês pedido; numa escrita um mês inválido é ignorado (não derruba a escrita).
         const month = url.searchParams.get('month')
         this.month = writes && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month ?? '') ? null : month
+        // `?day=` (diário) e `?q=` (busca de alimentos) valem só na leitura, como o mês.
+        this.day = writes ? null : url.searchParams.get('day')
+        this.query = writes ? null : url.searchParams.get('q')
         if (handler === 'city' || handler === 'cityAction' || handler === 'syncRewards') {
           this.requireLocation(location)
           return this[handler](body, location)
@@ -685,4 +694,4 @@ export class DemoSession {
   }
 }
 
-Object.assign(DemoSession.prototype, agendaMethods, projectMethods, weightMethods, nutritionMethods, bodyMethods)
+Object.assign(DemoSession.prototype, agendaMethods, projectMethods, weightMethods, nutritionMethods, bodyMethods, diaryMethods)
