@@ -1,7 +1,8 @@
 // Porções em unidades (colher, xícara, unidade, fatia etc.) com o peso em gramas de cada unidade.
 // Fontes: USDA SR Legacy food_portion.csv e Foundation Foods foodPortions. Pesos e volumes já são cobertos
 // pela quantidade em gramas, por isso medidas só de peso ou volume (onça, libra, ml) não entram aqui.
-// Gerado por build/build_foods.py. Não editar à mão.
+// Ovo inteiro, clara e gema (e banana nanica) da TACO usam a unidade da USDA equivalente: a TACO não traz medidas caseiras.
+// Gerado por tools/build-foods.py. Não editar à mão.
 export const FOOD_PORTIONS = {
 "taco-179": [["xícara amassada", 225.0], ["xícara fatiada", 150.0], ["unidade pequena", 101.0], ["unidade média", 118.0], ["unidade grande", 136.0], ["unidade extra grande", 152.0], ["porção", 126.0]],
 "taco-485": [["ovo", 9.0]],

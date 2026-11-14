@@ -1,11 +1,33 @@
-# Gera foods-base.js (nomes em português, original em inglês) e foods-portions.js (porções em unidades).
-import json, csv, re, collections
+# Gera shared/game/foods-base.js e shared/game/foods-portions.js a partir das fontes oficiais.
+# Uso: python3 tools/build-foods.py <pasta-de-trabalho>
+#   <pasta-de-trabalho> contém: foods-final.json, pt/pt-map.json (ids -> nome em português),
+#   usda/sr/FoodData_Central_sr_legacy_food_csv_2018-04/ e corrigido/fjson/<arquivo Foundation>.json
+import json, csv, re, collections, os, sys
 
-SCRATCH = './data-scratch'
+SCRATCH = sys.argv[1] if len(sys.argv) > 1 else '.'
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SR_DIR = f'{SCRATCH}/usda/sr/FoodData_Central_sr_legacy_food_csv_2018-04'
 FND_JSON = f'{SCRATCH}/corrigido/fjson/FoodData_Central_foundation_food_json_2026-10-29.json'
-OUT_BASE = '/home/claude/wt/cityou/shared/game/foods-base.js'
-OUT_PORT = '/home/claude/wt/cityou/shared/game/foods-portions.js'
+OUT_BASE = f'{REPO}/shared/game/foods-base.js'
+OUT_PORT = f'{REPO}/shared/game/foods-portions.js'
+
+HEADER_BASE = """// Base de alimentos da aba Alimentação. Valores por 100 g, gerados a partir de três fontes oficiais:
+//   taco      TACO, Tabela Brasileira de Composição de Alimentos, 4ª edição (Unicamp). Nomes em português.
+//   usda-fnd  USDA FoodData Central, Foundation Foods (out/2026). Só itens com energia, proteína, gordura e carboidrato.
+//   usda-sr   USDA FoodData Central, SR Legacy (abr/2018). Só itens com energia, proteína, gordura e carboidrato.
+// Nomes das fontes USDA estão traduzidos para o português; o original em inglês fica no último campo.
+// Quando o mesmo nome aparece em mais de uma fonte, fica a de prioridade maior (TACO > Foundation > SR Legacy).
+// Campos de cada linha: [id, nome, grupo, fonte, referência na fonte, kcal, proteína g, gordura g, carboidrato g, fibra g, nome original em inglês ('' para TACO)].
+// Fibra é null quando a fonte não traz o valor. Não editar valores à mão: gerar de novo a partir dos arquivos oficiais.
+// Decisão do dono (14/11/2026); ver projeto CityouApp, nutricao/atualizacao-2026-11-14-g-diario.md.
+"""
+
+HEADER_PORTIONS = """// Porções em unidades (colher, xícara, unidade, fatia etc.) com o peso em gramas de cada unidade.
+// Fontes: USDA SR Legacy food_portion.csv e Foundation Foods foodPortions. Pesos e volumes já são cobertos
+// pela quantidade em gramas, por isso medidas só de peso ou volume (onça, libra, ml) não entram aqui.
+// Ovo inteiro, clara e gema (e banana nanica) da TACO usam a unidade da USDA equivalente: a TACO não traz medidas caseiras.
+// Gerado por tools/build-foods.py. Não editar à mão.
+"""
 
 GROUP_PT = {
     'Fruits and Fruit Juices': 'Frutas e derivados',
@@ -188,7 +210,7 @@ def main():
             portion_rows[taco_id] = portion_rows[usda_id]
 
     # Escreve foods-base.js
-    header = open('./data-scratch/build/header.txt', encoding='utf-8').read()
+    header = HEADER_BASE
     lines = []
     for r in kept:
         vals = [r['id'], r['name'], r['group'], r['src'], r['ref'], r['kcal'], r['protein'], r['fat'], r['carb'], r['fiber'], r['en']]
@@ -196,7 +218,7 @@ def main():
     body = 'export const FOOD_BASE = [\n' + ',\n'.join(lines) + '\n]\n'
     open(OUT_BASE, 'w', encoding='utf-8').write(header + body)
 
-    ph = open('./data-scratch/build/header_portions.txt', encoding='utf-8').read()
+    ph = HEADER_PORTIONS
     pl = [f'{json.dumps(k)}: {json.dumps(v, ensure_ascii=False)}' for k, v in sorted(portion_rows.items())]
     open(OUT_PORT, 'w', encoding='utf-8').write(ph + 'export const FOOD_PORTIONS = {\n' + ',\n'.join(pl) + '\n}\n')
 
