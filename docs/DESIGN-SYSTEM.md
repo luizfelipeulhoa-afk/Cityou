@@ -52,13 +52,17 @@ O Cityou tem dois mundos visuais. Cada um tem os seus tokens em `:root`.
 
 | Token | Hex | Uso |
 | --- | --- | --- |
-| bg | #12141c | Fundo |
-| surface | #1c1f2a | Cartões |
+| bg | #0c1020 | Fundo (azul-marinho; ganha um brilho fixo azul, lilás e verde-água, `dashboard.css`) |
+| side | #0f1427 | Menu lateral (translúcido sobre o brilho) |
+| surface | #141a2e | Cartões (vidro: degradê branco de 5 a 8% por cima, borda de 8%, sem `backdrop-filter`) |
 | text / muted | #eeeef4 / #8b90a5 | Texto e texto secundário |
 | accent | #bcafff | Lilás, ação principal |
 | mint | #a1ddc5 | Concluído, cidade |
 | peach | #e8b5a0 | Atenção suave |
 | blue | #a8c5f2 | Informação |
+| series 0 a 5 | #bcafff #a1ddc5 #e8b5a0 #a8c5f2 #e6d29a #d9a8c4 | Séries de gráfico (`--series-N`): as quatro cores acima mais areia e rosa. Só para distinguir fatias, nunca para dizer bom ou ruim |
+
+**Visual de dashboard do painel (15/11/2026, referência de UI pedida pelo dono):** menu com uma pílula que desliza e estica ao trocar de aba (`navPill.js` e `@property` em `dashboard.css`, sem GSAP), barra do topo com migalhas, "Ir para…" (Ctrl ou ⌘ + K), selo de estado e avatar, cartões de métrica com minigráfico (`MetricTile.vue`, `Sparkline.vue`), gráfico de área com tooltip (`AreaChart.vue`) e barra empilhada (`StackBar.vue`). Regras que valem para todo gráfico novo do painel: série **acumulada** (nunca cai, dia parado fica plano), só dados reais, escala que não exagera (`zero` e `minSpan` em `sparkGeometry`), sem vermelho e sem "bom ou ruim". A referência é azul; o lilás segue como cor de ação.
 
 **Controles do mapa-mundo** (`WorldMapHud.vue`): destaque #ffd166, texto #f4f7ff, placa rgba(11, 20, 48, 0.9) com borda branca de 16%. Toque de 44 px, raio de 13 px.
 

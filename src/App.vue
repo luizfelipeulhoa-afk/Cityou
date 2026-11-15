@@ -4,6 +4,12 @@ import Icon from './personal/Icon.vue'
 import NutritionBase from './personal/NutritionBase.vue'
 import FoodDiary from './personal/FoodDiary.vue'
 import BodyComposition from './personal/BodyComposition.vue'
+import MetricTile from './personal/MetricTile.vue'
+import AreaChart from './personal/AreaChart.vue'
+import StackBar from './personal/StackBar.vue'
+import JumpBar from './personal/JumpBar.vue'
+import { useNavPill } from './personal/navPill.js'
+import { areaBreakdown, cumulativeSeries, dayOf, dayRange, monthBalance } from './personal/dashboardData.js'
 // Cliente único da API (etapa 2): o mesmo `api()` da cidade, que trata o 401 levando a pessoa para entrar.
 import { readCache, signOut, writeCache, addEvent, addProject, addWeight, api, completeTask, editEvent, editProject, editWeight, removeEvent, removeProject, removeWeight, stepDone } from './fifones/api.js'
 import { photoToDataUrl } from './personal/proof.js'
@@ -30,6 +36,9 @@ fetch('/api/auth/status',{headers:{Accept:'application/json'}}).then(r=>r.json()
 const signingOut=ref(false)
 async function leave(){if(signingOut.value)return;signingOut.value=true;try{await signOut()}catch(e){notify(e.message,'error');signingOut.value=false}}
 const route=ref('inicio'), collapsed=ref(false), mobileMenu=ref(false), search=ref(''), taskFilter=ref('open')
+// Pílula do menu: um indicador só, que desliza e estica até o item da rota atual (src/personal/navPill.js).
+const navTrack=ref(null), navPill=ref(null)
+useNavPill(navTrack,navPill,()=>route.value)
 const data=ref({entries:[],checkins:[],events:[],sources:{}}), tasks=ref([]), projects=ref([]), online=ref(navigator.onLine), loading=ref(true), refreshing=ref(false), error=ref(''), notice=ref('')
 const proofDialog=ref(null), proofSaving=ref(false)
 const saveState=computed(()=>!online.value||error.value?'offline':saving.value||proofSaving.value?'saving':'saved')
@@ -95,11 +104,24 @@ const money=cents=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL
 const formatDate=day=>day?new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'}).format(new Date(day.slice(0,10)+'T12:00:00')):'Sem data'
 const match=q=>!search.value||String(q||'').toLowerCase().includes(search.value.toLowerCase())
 const weeks=computed(()=>{const d=new Date(today()+'T12:00:00');const offset=(d.getDay()+6)%7;return Array.from({length:7},(_,i)=>{const n=new Date(d);n.setDate(d.getDate()-offset+i);const key=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;return{day:key,num:n.getDate(),label:['S','T','Q','Q','S','S','D'][i],today:key===today()}})})
-const areaCards=computed(()=>[
-{id:'habitos',icon:'habits',tone:'mint',title:'Seja constante',value:habits.value.length?`${habitsDone.value} de ${habits.value.length}`:'Seu primeiro hábito',detail:habits.value.length?'passos dados hoje':'Comece com dois minutos'},
-{id:'fitness',icon:'fitness',tone:'peach',title:'Cuide de você',value:weights.value.length?`${kg(weights.value[0].grams)} kg`:'Sua evolução',detail:'Treino, trajetória e recuperação'},
-{id:'financas',icon:'finance',tone:'purple',title:'Respire mais leve',value:transactions.value.length?money(income.value-expenses.value):'Sua vida financeira',detail:transactions.value.length?'saldo dos registros deste mês':'Entradas e saídas, com clareza'},
-{id:'estudos',icon:'study',tone:'blue',title:'Continue aprendendo',value:'Seus materiais',detail:'Em breve, neste mesmo lugar'}])
+// "Seu dia" como painel de métricas (visual da referência de UI, 15/11/2026). Só dados reais e só ganho: as séries são
+// acumuladas (src/personal/dashboardData.js), então um dia parado fica plano e nunca vira queda nem buraco.
+const rhythmDays=ref(30)
+const stepDays=computed(()=>data.value.checkins.filter(i=>i.done===1).map(i=>i.day))
+const rhythm=computed(()=>cumulativeSeries(dayRange(today(),rhythmDays.value),stepDays.value))
+const rhythmTotal=computed(()=>rhythm.value.at(-1)?.value??0)
+const doneDays=computed(()=>tasks.value.map(i=>dayOf(i.completed_at)).filter(Boolean))
+const doneThisWeek=computed(()=>cumulativeSeries(dayRange(today(),7),doneDays.value).at(-1).value)
+const taskAreas=computed(()=>areaBreakdown(tasks.value,domains))
+const sparkOf=(days,events)=>cumulativeSeries(dayRange(today(),days),events).map(p=>p.value)
+const weightWord={estavel:'estável há 2 semanas',subindo:'um pouco acima de 2 semanas atrás',descendo:'um pouco abaixo de 2 semanas atrás'}
+const kpis=computed(()=>[
+{href:'#/habitos',icon:'habits',tone:'mint',label:'Hábitos de hoje',value:habits.value.length?`${habitsDone.value} de ${habits.value.length}`:'Seu primeiro hábito',detail:habits.value.length?'passos dados hoje':'Comece com dois minutos',spark:sparkOf(14,stepDays.value)},
+{href:'#/tarefas',icon:'tasks',tone:'purple',label:'Tarefas a fazer',value:pending.value.length?String(pending.value.length):'Nada pendente',detail:doneThisWeek.value?`${doneThisWeek.value} concluída${doneThisWeek.value===1?'':'s'} nesta semana`:'Uma de cada vez',spark:sparkOf(14,doneDays.value)},
+{href:'#/fitness',icon:'fitness',tone:'peach',label:'Peso, média de 7 dias',value:latestTrend.value?`${kg(latestTrend.value.avg_grams)} kg`:'Sua evolução',detail:weightWord[data.value.weight_direction]||'Treino, trajetória e recuperação',spark:trend.value.map(p=>p.avg_grams),sparkSpan:2000},
+{href:'#/financas',icon:'finance',tone:'blue',label:'Saldo do mês',value:transactions.value.length?money(income.value-expenses.value):'Sua vida financeira',detail:transactions.value.length?'dos registros deste mês':'Entradas e saídas, com clareza',spark:monthBalance(transactions.value,today()).map(p=>p.value),sparkZero:true}])
+// "Ir para…" da barra do topo: as abas do menu mais os dois espaços 3D e a conta.
+const jumpItems=computed(()=>[...sections.filter(i=>!i.hidden).map(i=>({id:i.id,label:i.label,icon:i.icon,group:i.group})),{id:'mundo',label:'Mapa-mundo',icon:'globe',group:'ESPAÇOS'},{id:'cidade',label:'Minha cidade',icon:'city',group:'ESPAÇOS'},{id:'conta',label:'Conta',icon:'settings',group:'CONTA'}])
 function notify(text,kind='success'){notice.value={text,kind};clearTimeout(timer);timer=setTimeout(()=>notice.value='',4500)}
 function parseRoute(){const id=location.hash.replace(/^#\/?/,'').split('/')[0];route.value=sections.some(i=>i.id===id)||id==='cidade'||id==='mundo'?id:'inicio';if(route.value==='agenda'&&!agendaMonth.value){agendaMonth.value=monthOfToday();selectedDay.value=today()}search.value='';mobileMenu.value=false;if(data.value.events_month&&data.value.events_month!==viewMonth())refresh();document.title=(route.value==='cidade'?'Minha cidade':route.value==='mundo'?'Mapa-mundo':active.value?.label||'Seu espaço')+' · Cityou'}
 function navigate(id){location.hash='/'+id}
@@ -167,11 +189,11 @@ onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);window.removeEventListe
   <aside class="sidebar">
     <a class="personal-brand" href="#/inicio" aria-label="Cityou, seu dia"><span class="personal-mark">c<span>.</span></span><strong>Cityou<span>seu espaço pessoal</span></strong></a>
     <button class="sidebar-toggle" :aria-label="collapsed?'Expandir menu':'Recolher menu'" @click="collapsed=!collapsed"><Icon name="menu" :size="16" /></button>
-    <nav aria-label="Funções do Cityou"><div v-for="group in groups" :key="group" class="nav-group"><span class="nav-group-label">{{ group }}</span><a v-for="item in sections.filter(i=>i.group===group)" :key="item.id" :href="`#/${item.id}`" :aria-label="item.label" class="personal-nav-item" :class="{active:route===item.id}" :aria-current="route===item.id?'page':undefined" :title="collapsed?item.label:undefined"><Icon :name="item.icon" :size="19" /><span>{{ item.label }}</span><small v-if="item.id==='tarefas'&&pending.length">{{ pending.length }}</small></a></div></nav>
+    <nav aria-label="Funções do Cityou"><div ref="navTrack" class="nav-track"><span ref="navPill" class="nav-pill" aria-hidden="true" /><div v-for="group in groups" :key="group" class="nav-group"><span class="nav-group-label">{{ group }}</span><a v-for="item in sections.filter(i=>i.group===group)" :key="item.id" :href="`#/${item.id}`" :aria-label="item.label" class="personal-nav-item" :class="{active:route===item.id}" :aria-current="route===item.id?'page':undefined" :title="collapsed?item.label:undefined"><Icon :name="item.icon" :size="19" /><span>{{ item.label }}</span><small v-if="item.id==='tarefas'&&pending.length">{{ pending.length }}</small></a></div></div></nav>
     <div class="sidebar-bottom"><a href="#/mundo" class="city-link" :class="{active:route==='mundo'}"><span class="city-link-icon"><Icon name="globe" :size="22" /></span><span><strong>Mapa-mundo</strong><small>Suas viagens, passo a passo</small></span><Icon name="arrow" :size="15" /></a><a href="#/cidade" class="city-link" :class="{active:route==='cidade'}"><span class="city-link-icon"><Icon name="city" :size="22" /></span><span><strong>Minha cidade</strong><small>O reflexo do seu progresso</small></span><Icon name="arrow" :size="15" /></a><a href="#/conta" class="profile-link" :class="{active:route==='conta'}"><span class="profile-avatar">{{ (account?.display_name||'C').slice(0,1).toUpperCase() }}</span><span><strong>{{ account?.display_name||'Demonstração' }}</strong><small>{{ account?.email||'Seu espaço, no seu ritmo' }}</small></span><Icon name="settings" :size="17" /></a><button v-if="account" class="sign-out" :disabled="signingOut" @click="leave">{{ signingOut?'Saindo…':'Sair da conta' }}</button><a v-else class="sign-out" href="/?inicio">Criar conta ou entrar</a></div>
   </aside>
   <section class="app-main">
-    <header class="personal-topbar"><div class="topbar-left"><button class="mobile-menu icon-btn" aria-label="Abrir menu" @click="mobileMenu=!mobileMenu"><Icon name="menu" /></button><span class="breadcrumb">Meu espaço <Icon name="chevron" :size="13" /><strong>{{ active?.label||(route==='mundo'?'Mapa-mundo':'Minha cidade') }}</strong></span></div><div class="topbar-actions"><span class="local-status" role="status"><i :class="{offline:saveState==='offline',busy:saveState==='saving'}" />{{ {saved:'Salvo',saving:'Salvando…',offline:'Sem conexão'}[saveState] }}</span><button class="icon-btn" aria-label="Atualizar meus dados" :disabled="refreshing" @click="refresh"><Icon name="refresh" :class="{spinning:refreshing}" :size="18" /></button><button class="new-entry" @click="showForm(route==='habitos'?'habit':route==='metas'?'goal':route==='financas'?'transaction':route==='nutricao'?'diary':route==='memorias'||route==='autoconhecimento'?'note':'task')"><Icon name="plus" :size="17" /><span>Novo registro</span></button></div></header>
+    <header class="personal-topbar"><div class="topbar-left"><button class="mobile-menu icon-btn" aria-label="Abrir menu" @click="mobileMenu=!mobileMenu"><Icon name="menu" /></button><span class="breadcrumb">Meu espaço <Icon name="chevron" :size="13" /><strong>{{ active?.label||(route==='mundo'?'Mapa-mundo':'Minha cidade') }}</strong></span></div><JumpBar class="topbar-jump" :items="jumpItems" @go="navigate" /><div class="topbar-actions"><span class="local-status" role="status"><i :class="{offline:saveState==='offline',busy:saveState==='saving'}" />{{ {saved:'Salvo',saving:'Salvando…',offline:'Sem conexão'}[saveState] }}</span><button class="icon-btn" aria-label="Atualizar meus dados" :disabled="refreshing" @click="refresh"><Icon name="refresh" :class="{spinning:refreshing}" :size="18" /></button><button class="new-entry" @click="showForm(route==='habitos'?'habit':route==='metas'?'goal':route==='financas'?'transaction':route==='nutricao'?'diary':route==='memorias'||route==='autoconhecimento'?'note':'task')"><Icon name="plus" :size="17" /><span>Novo registro</span></button><a class="topbar-avatar" href="#/conta" :aria-label="`Conta de ${account?.display_name||'demonstração'}`">{{ (account?.display_name||'C').slice(0,1).toUpperCase() }}</a></div></header>
     <div v-if="error && route !== 'mundo'" class="page-error" role="alert">{{ error }}<button @click="refresh">Tentar novamente</button></div>
     <div v-if="route==='mundo'" class="city-space"><div class="city-space-bar"><span><Icon name="globe" :size="17" />Seu mapa-mundo, em um espaço próprio.</span><a href="/world.html" target="_blank" rel="noopener">Abrir só o mapa <Icon name="arrow" :size="15" /></a></div><iframe src="/world.html" title="Mapa-mundo BuildU" /></div>
     <div v-else-if="route==='cidade'" class="city-space"><div class="city-space-bar"><span><Icon name="city" :size="17" />Sua cidade, em um espaço próprio.</span><a href="/city.html" target="_blank" rel="noopener">Abrir só a cidade <Icon name="arrow" :size="15" /></a></div><iframe src="/city.html" title="Minha cidade Cityou" /></div>
@@ -180,12 +202,25 @@ onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);window.removeEventListe
       <div v-if="loading" class="loading-state" role="status"><Icon name="refresh" class="spinning" />Abrindo seu espaço…</div>
       <template v-else-if="route==='inicio'">
         <section class="capture-panel"><span class="capture-symbol"><Icon name="spark" :size="25" /></span><div><h2>O que vamos tirar da sua cabeça?</h2><p>Uma tarefa, uma ideia ou algo que você quer lembrar.</p></div><button class="capture-button" @click="showForm('note')">Anotar <Icon name="plus" :size="17" /></button></section>
+        <div class="section-label"><h2>Um pouco melhor, todos os dias</h2><span>Seu ritmo conta.</span></div>
+        <div class="kpi-grid"><MetricTile v-for="k in kpis" :key="k.href" v-bind="k" /></div>
         <div class="overview-grid">
           <section class="surface today-panel"><div class="surface-heading"><h2>Seu próximo passo</h2><a href="#/tarefas">Ver tarefas <Icon name="arrow" :size="15" /></a></div><div class="week-strip"><span v-for="d in weeks" :key="d.day" :class="{today:d.today}"><small>{{ d.label }}</small><strong>{{ d.num }}</strong><i v-if="d.today" /></span></div><ul v-if="pending.length" class="personal-task-list"><li v-for="task in pending.slice(0,3)" :key="task.id"><button class="round-check" :aria-label="`Concluir ${task.title}`" :disabled="saving" @click="finish(task)" /><div><strong>{{ task.title }}</strong><small>{{ task.due_date?formatDate(task.due_date):'No seu tempo' }}</small></div><span class="priority-dot" :class="`priority-${task.priority}`" /></li></ul><div v-else class="gentle-empty"><span class="empty-orbit"><Icon name="check" :size="24" /></span><strong>Espaço para o que vem agora.</strong><p>Escolha uma tarefa pequena para começar.</p><button class="inline-button" @click="showForm('task')"><Icon name="plus" :size="15" />Criar uma tarefa</button></div></section>
           <section class="surface day-agenda"><div class="surface-heading"><h2>Na sua agenda</h2><a href="#/agenda" aria-label="Abrir a agenda"><Icon name="arrow" :size="17" /></a></div><div class="agenda-summary"><span class="agenda-day">{{ today().slice(-2) }}</span><div><strong>{{ todayRespiro?'Dia de respiro':`${todayEvents.length} compromisso${todayEvents.length===1?'':'s'}` }}</strong><small>{{ todayRespiro?'Nada a cumprir':'para hoje' }}</small></div><Icon name="calendar" :size="28" /></div><div v-for="event in todayEvents.filter(i=>i.kind!=='respiro').slice(0,2)" :key="event.id" class="small-event"><time>{{ eventTime(event) }}</time><strong>{{ event.title }}</strong><em v-if="event.firmness==='leve'" class="ag-soft">se der</em></div><div v-if="!todayEvents.length" class="agenda-empty"><span class="agenda-doodle" aria-hidden="true"><Icon name="sun" :size="42" /></span><p>Um pouco de espaço livre também faz parte.</p></div><button class="quiet-button full-width" @click="showEvent()"><Icon name="plus" :size="15" />Adicionar compromisso</button></section>
         </div>
-        <div class="section-label"><h2>Um pouco melhor, todos os dias</h2><span>Seu ritmo conta.</span></div>
-        <div class="area-grid"><a v-for="card in areaCards" :key="card.id" :href="`#/${card.id}`" class="area-card" :class="card.tone"><span class="area-icon"><Icon :name="card.icon" :size="23" /></span><span class="area-kicker">{{ card.title }}</span><strong>{{ card.value }}</strong><small>{{ card.detail }}</small><Icon name="arrow" :size="18" class="area-arrow" /></a></div>
+        <div class="section-label"><h2>Seu caminho</h2><span>Só o que você já conquistou.</span></div>
+        <div class="insight-grid">
+          <section class="surface chart-card" aria-labelledby="rhythm-title">
+            <div class="surface-heading"><div><h2 id="rhythm-title">Passos dados</h2><p class="chart-sub">Hábitos e metas, somados dia a dia.</p></div><div class="segmented" role="group" aria-label="Período do gráfico"><button v-for="n in [7,30,90]" :key="n" :class="{active:rhythmDays===n}" :aria-pressed="rhythmDays===n" @click="rhythmDays=n">{{ n }} dias</button></div></div>
+            <p class="chart-total"><strong>{{ rhythmTotal }}</strong><span>{{ rhythmTotal===1?'passo':'passos' }} nos últimos {{ rhythmDays }} dias</span></p>
+            <AreaChart class="tone-mint" :points="rhythm" label="Passos dados" empty-text="Seu caminho começa com o primeiro passo." />
+          </section>
+          <section class="surface breakdown-card" aria-labelledby="areas-title">
+            <div class="surface-heading"><div><h2 id="areas-title">Tarefas por área</h2><p class="chart-sub">O que está aberto, onde você vive.</p></div></div>
+            <p class="chart-total"><strong>{{ pending.length }}</strong><span>{{ pending.length===1?'tarefa aberta':'tarefas abertas' }}</span></p>
+            <StackBar :segments="taskAreas" empty="Quando houver tarefas, elas aparecem divididas por área." />
+          </section>
+        </div>
         <section class="reflection-strip"><span class="reflection-icon"><Icon name="heart" :size="22" /></span><div><strong>E você, como está hoje?</strong><span>Uma pausa para perceber. Só isso.</span></div><button class="quiet-button" @click="navigate('autoconhecimento')">Registrar meu momento <Icon name="arrow" :size="15" /></button></section>
       </template>
       <template v-else-if="route==='tarefas'">
