@@ -26,50 +26,136 @@ export const EXPERIENCE = ['beginner', 'intermediate', 'advanced']
 // gym: academia completa; dumbbells: em casa com halteres e banco; bodyweight: só o peso do corpo.
 export const EQUIPMENT = ['gym', 'dumbbells', 'bodyweight']
 
-// Catálogo. `pattern` é o movimento que o plano pede; `setups` diz onde o exercício cabe; `compound` muda a faixa
-// de repetições e o descanso; `bodyweight` diz que a carga anotada é a carga extra (colete, mochila), e pode ser 0.
-const E = (id, name, group, pattern, setups, { compound = false, bodyweight = false } = {}) =>
-  ({ id, name, group, pattern, setups, compound, bodyweight })
+// Catálogo (escolha de produto; a lista de movimentos usou como referência os nomes, músculos e equipamentos da
+// free-exercise-db, domínio público; nomes e dicas em português são nossos, sem copiar textos nem usar imagens de lá,
+// cuja origem é desconhecida). `pattern` é o movimento que o plano pede (os sem uso nos modelos de dia servem para trocar
+// e para o registro livre); `setups` diz onde o exercício cabe; `compound` (multiarticular) muda a faixa de repetições e
+// o descanso; `bodyweight` diz que a carga anotada é a extra (colete, mochila), e pode ser 0; `tip` é a dica da tela.
+const E = (id, name, group, pattern, setups, tip, { compound = false, bodyweight = false } = {}) =>
+  ({ id, name, group, pattern, setups, tip, compound, bodyweight })
 const ALL = ['gym', 'dumbbells', 'bodyweight']
 const GYM = ['gym']
 const DB = ['gym', 'dumbbells']
 const HOME = ['dumbbells', 'bodyweight']
+const BW = ['bodyweight']
+const C = { compound: true }
+const CB = { compound: true, bodyweight: true }
+const B = { bodyweight: true }
 
 export const EXERCISES = [
-  E('agachamento-livre', 'Agachamento livre com barra', 'Quadríceps e glúteos', 'squat', GYM, { compound: true }),
-  E('leg-press', 'Leg press 45°', 'Quadríceps e glúteos', 'squat', GYM, { compound: true }),
-  E('agachamento-goblet', 'Agachamento goblet com halter', 'Quadríceps e glúteos', 'squat', ['dumbbells'], { compound: true }),
-  E('agachamento-corpo', 'Agachamento livre (peso do corpo)', 'Quadríceps e glúteos', 'squat', ['bodyweight'], { compound: true, bodyweight: true }),
-  E('terra-romeno', 'Levantamento terra romeno com barra', 'Posterior de coxa e glúteos', 'hinge', GYM, { compound: true }),
-  E('stiff-halteres', 'Stiff com halteres', 'Posterior de coxa e glúteos', 'hinge', ['dumbbells'], { compound: true }),
-  E('ponte-gluteo', 'Ponte de glúteo', 'Glúteos', 'hinge', ['bodyweight'], { compound: true, bodyweight: true }),
-  E('afundo-halteres', 'Afundo com halteres', 'Quadríceps e glúteos', 'lunge', DB, { compound: true }),
-  E('afundo-corpo', 'Afundo (peso do corpo)', 'Quadríceps e glúteos', 'lunge', ['bodyweight'], { compound: true, bodyweight: true }),
-  E('bulgaro', 'Agachamento búlgaro', 'Quadríceps e glúteos', 'lunge', ALL, { compound: true, bodyweight: true }),
-  E('cadeira-extensora', 'Cadeira extensora', 'Quadríceps', 'knee_ext', GYM),
-  E('mesa-flexora', 'Mesa flexora', 'Posterior de coxa', 'knee_flex', GYM),
-  E('stiff-unilateral', 'Stiff unilateral com halter', 'Posterior de coxa', 'knee_flex', ['dumbbells']),
-  E('ponte-unilateral', 'Ponte de glúteo unilateral', 'Posterior de coxa e glúteos', 'knee_flex', ['bodyweight'], { bodyweight: true }),
-  E('panturrilha-pe', 'Panturrilha em pé', 'Panturrilha', 'calf', ALL, { bodyweight: true }),
-  E('supino-reto', 'Supino reto com barra', 'Peito', 'h_push', GYM, { compound: true }),
-  E('supino-halteres', 'Supino reto com halteres', 'Peito', 'h_push', ['dumbbells'], { compound: true }),
-  E('flexao', 'Flexão de braço', 'Peito', 'h_push', ['bodyweight'], { compound: true, bodyweight: true }),
-  E('supino-inclinado-halteres', 'Supino inclinado com halteres', 'Peito', 'incline_push', DB, { compound: true }),
-  E('flexao-pes-elevados', 'Flexão com pés elevados', 'Peito', 'incline_push', ['bodyweight'], { compound: true, bodyweight: true }),
-  E('desenvolvimento-halteres', 'Desenvolvimento com halteres', 'Ombros', 'v_push', DB, { compound: true }),
-  E('flexao-pike', 'Flexão pike', 'Ombros', 'v_push', ['bodyweight'], { compound: true, bodyweight: true }),
-  E('puxada-frontal', 'Puxada frontal', 'Costas', 'v_pull', GYM, { compound: true }),
-  E('barra-fixa', 'Barra fixa (ou só a descida, devagar)', 'Costas', 'v_pull', HOME, { compound: true, bodyweight: true }),
-  E('remada-curvada', 'Remada curvada com barra', 'Costas', 'h_pull', GYM, { compound: true }),
-  E('remada-unilateral', 'Remada unilateral com halter', 'Costas', 'h_pull', DB, { compound: true }),
-  E('remada-invertida', 'Remada invertida (na mesa ou barra baixa)', 'Costas', 'h_pull', ['bodyweight'], { compound: true, bodyweight: true }),
-  E('elevacao-lateral', 'Elevação lateral com halteres', 'Ombros', 'lateral', DB),
-  E('rosca-direta', 'Rosca direta', 'Bíceps', 'biceps', DB),
-  E('barra-supinada', 'Barra fixa com pegada supinada', 'Bíceps e costas', 'biceps', ['bodyweight'], { compound: true, bodyweight: true }),
-  E('triceps-polia', 'Tríceps na polia', 'Tríceps', 'triceps', GYM),
-  E('triceps-frances', 'Tríceps francês com halter', 'Tríceps', 'triceps', ['dumbbells']),
-  E('mergulho-banco', 'Mergulho no banco', 'Tríceps', 'triceps', ['bodyweight'], { bodyweight: true }),
-  E('prancha', 'Prancha (anote segundos como repetições)', 'Abdômen', 'core', ALL, { bodyweight: true }),
+  // Os 35 primeiros: a ordem decide o que o plano escolhe primeiro em cada movimento. Novos entram no fim.
+  E('agachamento-livre', 'Agachamento livre com barra', 'Quadríceps e glúteos', 'squat', GYM, 'Barra apoiada no alto das costas, pés na largura dos ombros; desça com o tronco firme até onde mantiver a coluna neutra.', C),
+  E('leg-press', 'Leg press 45°', 'Quadríceps e glúteos', 'squat', GYM, 'Lombar colada no encosto; desça até os joelhos formarem cerca de 90° e empurre com o pé inteiro.', C),
+  E('agachamento-goblet', 'Agachamento goblet com halter', 'Quadríceps e glúteos', 'squat', ['dumbbells'], 'Halter junto ao peito, cotovelos para dentro; desça entre os joelhos com o peito aberto.', C),
+  E('agachamento-corpo', 'Agachamento livre (peso do corpo)', 'Quadríceps e glúteos', 'squat', BW, 'Braços à frente para equilibrar; quadril para trás e para baixo, joelhos na direção dos pés.', CB),
+  E('terra-romeno', 'Levantamento terra romeno com barra', 'Posterior de coxa e glúteos', 'hinge', GYM, 'Joelhos levemente flexionados; leve o quadril para trás com a barra rente às pernas até sentir a parte de trás da coxa.', C),
+  E('stiff-halteres', 'Stiff com halteres', 'Posterior de coxa e glúteos', 'hinge', ['dumbbells'], 'Halteres à frente das coxas; quadril para trás, costas retas, volte apertando o glúteo.', C),
+  E('ponte-gluteo', 'Ponte de glúteo', 'Glúteos', 'hinge', BW, 'Deitado, pés no chão perto do quadril; suba o quadril até alinhar com os joelhos e segure um instante.', CB),
+  E('afundo-halteres', 'Afundo com halteres', 'Quadríceps e glúteos', 'lunge', DB, 'Um passo à frente, desça o joelho de trás em direção ao chão; o joelho da frente acompanha o pé.', C),
+  E('afundo-corpo', 'Afundo (peso do corpo)', 'Quadríceps e glúteos', 'lunge', BW, 'Passo à frente, tronco reto, desça até quase encostar o joelho de trás no chão.', CB),
+  E('bulgaro', 'Agachamento búlgaro', 'Quadríceps e glúteos', 'lunge', ALL, 'Pé de trás apoiado num banco; desça na perna da frente com o tronco levemente inclinado.', CB),
+  E('cadeira-extensora', 'Cadeira extensora', 'Quadríceps', 'knee_ext', GYM, 'Joelho alinhado ao eixo da máquina; estenda a perna sem tirar o quadril do banco e desça devagar.'),
+  E('mesa-flexora', 'Mesa flexora', 'Posterior de coxa', 'knee_flex', GYM, 'Quadril colado no banco; puxe o rolo em direção ao glúteo e volte controlando.'),
+  E('stiff-unilateral', 'Stiff unilateral com halter', 'Posterior de coxa', 'knee_flex', ['dumbbells'], 'Apoio numa perna, a outra vai para trás enquanto o tronco desce; costas retas, quadril nivelado.'),
+  E('ponte-unilateral', 'Ponte de glúteo unilateral', 'Posterior de coxa e glúteos', 'knee_flex', BW, 'Como a ponte, com uma perna estendida no ar; suba sem girar o quadril.', B),
+  E('panturrilha-pe', 'Panturrilha em pé', 'Panturrilha', 'calf', ALL, 'Ponta dos pés num degrau; desça o calcanhar abaixo do degrau e suba o mais alto que der.', B),
+  E('supino-reto', 'Supino reto com barra', 'Peito', 'h_push', GYM, 'Escápulas juntas e pés firmes; desça a barra até o meio do peito e empurre de volta.', C),
+  E('supino-halteres', 'Supino reto com halteres', 'Peito', 'h_push', ['dumbbells'], 'Halteres na linha do peito, cotovelos a cerca de 45° do corpo; empurre aproximando os halteres.', C),
+  E('flexao', 'Flexão de braço', 'Peito', 'h_push', BW, 'Corpo em linha reta da cabeça aos pés; desça o peito perto do chão. Fica pesado? Apoie os joelhos.', CB),
+  E('supino-inclinado-halteres', 'Supino inclinado com halteres', 'Peito', 'incline_push', DB, 'Banco a 30° a 45°; desça os halteres ao lado da parte de cima do peito.', C),
+  E('flexao-pes-elevados', 'Flexão com pés elevados', 'Peito', 'incline_push', BW, 'Pés num banco ou cadeira; mantenha o abdômen firme e desça o peito.', CB),
+  E('desenvolvimento-halteres', 'Desenvolvimento com halteres', 'Ombros', 'v_push', DB, 'Sentado ou em pé, halteres na altura das orelhas; empurre para cima sem arquear a lombar.', C),
+  E('flexao-pike', 'Flexão pike', 'Ombros', 'v_push', BW, 'Quadril alto, corpo em V invertido; desça a cabeça entre as mãos.', CB),
+  E('puxada-frontal', 'Puxada frontal', 'Costas', 'v_pull', GYM, 'Peito aberto, puxe a barra até a parte de cima do peito levando os cotovelos para baixo.', C),
+  E('barra-fixa', 'Barra fixa (ou só a descida, devagar)', 'Costas', 'v_pull', HOME, 'Pegada um pouco mais larga que os ombros; suba o queixo acima da barra. Se não subir, faça só a descida em 3 a 5 s.', CB),
+  E('remada-curvada', 'Remada curvada com barra', 'Costas', 'h_pull', GYM, 'Tronco inclinado e costas retas; puxe a barra até a barriga juntando as escápulas.', C),
+  E('remada-unilateral', 'Remada unilateral com halter', 'Costas', 'h_pull', DB, 'Mão e joelho apoiados no banco; puxe o halter em direção ao quadril.', C),
+  E('remada-invertida', 'Remada invertida (na mesa ou barra baixa)', 'Costas', 'h_pull', BW, 'Deitado sob uma mesa firme ou barra baixa; puxe o peito até ela com o corpo reto.', CB),
+  E('elevacao-lateral', 'Elevação lateral com halteres', 'Ombros', 'lateral', DB, 'Cotovelos levemente dobrados; suba os braços para o lado até a altura dos ombros.'),
+  E('rosca-direta', 'Rosca direta', 'Bíceps', 'biceps', DB, 'Cotovelos colados ao corpo; suba o peso sem balançar o tronco.'),
+  E('barra-supinada', 'Barra fixa com pegada supinada', 'Bíceps e costas', 'biceps', BW, 'Palmas viradas para você, mãos na largura dos ombros; suba o queixo acima da barra.', CB),
+  E('triceps-polia', 'Tríceps na polia', 'Tríceps', 'triceps', GYM, 'Cotovelos parados junto ao corpo; estenda os braços até o fim e volte devagar.'),
+  E('triceps-frances', 'Tríceps francês com halter', 'Tríceps', 'triceps', ['dumbbells'], 'Halter atrás da cabeça com as duas mãos; estenda os braços apontando os cotovelos para cima.'),
+  E('mergulho-banco', 'Mergulho no banco', 'Tríceps', 'triceps', BW, 'Mãos na borda de um banco ou cadeira firme; desça dobrando os cotovelos para trás.', B),
+  E('prancha', 'Prancha (anote segundos como repetições)', 'Abdômen', 'core', ALL, 'Antebraços no chão, corpo em linha reta; aperte o abdômen e o glúteo sem deixar o quadril cair.', B),
+
+  // Peito
+  E('supino-inclinado-barra', 'Supino inclinado com barra', 'Peito', 'incline_push', GYM, 'Banco a 30° a 45°; desça a barra até a parte de cima do peito.', C),
+  E('supino-declinado', 'Supino declinado com barra', 'Peito', 'h_push', GYM, 'Pernas presas no apoio; desça a barra até a parte de baixo do peito.', C),
+  E('supino-maquina', 'Supino na máquina', 'Peito', 'h_push', GYM, 'Pegadores na linha do meio do peito; empurre sem tirar as costas do encosto.', C),
+  E('crucifixo-halteres', 'Crucifixo com halteres', 'Peito', 'chest_fly', DB, 'Cotovelos levemente dobrados e fixos; abra os braços até sentir o peito alongar e feche como num abraço.'),
+  E('voador', 'Voador (crucifixo na máquina)', 'Peito', 'chest_fly', GYM, 'Cotovelos na altura dos ombros; feche os braços à frente do peito e volte devagar.'),
+  E('crossover', 'Crossover na polia', 'Peito', 'chest_fly', GYM, 'Um passo à frente entre as polias; traga as mãos para baixo e à frente do corpo, cruzando de leve.'),
+  E('paralelas', 'Mergulho nas paralelas', 'Peito', 'h_push', GYM, 'Tronco levemente inclinado à frente; desça até os ombros ficarem na altura dos cotovelos.', CB),
+  E('flexao-joelhos', 'Flexão de braço com joelhos apoiados', 'Peito', 'h_push', BW, 'Joelhos no chão, quadril alinhado ao tronco; desça o peito até perto do chão.', CB),
+  E('flexao-diamante', 'Flexão diamante', 'Tríceps', 'triceps', BW, 'Mãos juntas formando um losango sob o peito; desça com os cotovelos rentes ao corpo.', CB),
+  // Costas e lombar
+  E('levantamento-terra', 'Levantamento terra com barra', 'Posterior de coxa e glúteos', 'hinge', GYM, 'Barra sobre o meio do pé, costas retas; empurre o chão com as pernas e estenda o quadril no fim.', C),
+  E('puxada-triangulo', 'Puxada com triângulo', 'Costas', 'v_pull', GYM, 'Pegada fechada; puxe o triângulo até o peito levando os cotovelos para baixo.', C),
+  E('remada-baixa', 'Remada baixa na polia', 'Costas', 'h_pull', GYM, 'Sentado, coluna ereta; puxe até a barriga juntando as escápulas, sem balançar o tronco.', C),
+  E('remada-maquina', 'Remada na máquina', 'Costas', 'h_pull', GYM, 'Peito apoiado; puxe os pegadores levando os cotovelos para trás.', C),
+  E('remada-cavalinho', 'Remada cavalinho (barra T)', 'Costas', 'h_pull', GYM, 'Tronco inclinado, costas retas; puxe a barra até o peito.', C),
+  E('remada-curvada-halteres', 'Remada curvada com halteres', 'Costas', 'h_pull', DB, 'Tronco inclinado, um halter em cada mão; puxe os dois em direção ao quadril.', C),
+  E('pulldown-braco-reto', 'Pulldown com braços estendidos', 'Costas', 'lat_iso', GYM, 'Braços quase retos; leve a barra da polia da altura da cabeça até as coxas.'),
+  E('pullover-halter', 'Pullover com halter', 'Costas', 'lat_iso', DB, 'Deitado no banco, halter acima do peito; leve-o para trás da cabeça com os braços quase retos e volte.'),
+  E('hiperextensao', 'Hiperextensão lombar (banco romano)', 'Lombar', 'back_ext', GYM, 'Quadril no apoio; desça o tronco e suba até alinhar com as pernas, sem passar disso.'),
+  E('superman', 'Superman (extensão no chão)', 'Lombar', 'back_ext', BW, 'De bruços, levante braços e pernas juntos alguns centímetros e segure um instante.', B),
+  E('good-morning', 'Bom-dia com barra', 'Posterior de coxa e glúteos', 'hinge', GYM, 'Barra nas costas, joelhos levemente dobrados; incline o tronco à frente levando o quadril para trás.', C),
+  E('terra-sumo', 'Levantamento terra sumô', 'Posterior de coxa e glúteos', 'hinge', GYM, 'Pés bem afastados e virados para fora, mãos por dentro das pernas; suba com o peito aberto.', C),
+  E('kettlebell-swing', 'Swing com kettlebell', 'Posterior de coxa e glúteos', 'hinge', DB, 'Movimento do quadril, não dos braços: leve o kettlebell entre as pernas e projete o quadril à frente.', C),
+  // Ombros e trapézio
+  E('desenvolvimento-barra', 'Desenvolvimento militar com barra', 'Ombros', 'v_push', GYM, 'Em pé, abdômen e glúteo firmes; empurre a barra da clavícula até acima da cabeça.', C),
+  E('desenvolvimento-maquina', 'Desenvolvimento na máquina', 'Ombros', 'v_push', GYM, 'Costas no encosto; empurre os pegadores para cima sem travar os cotovelos.', C),
+  E('desenvolvimento-arnold', 'Desenvolvimento Arnold', 'Ombros', 'v_push', DB, 'Comece com as palmas viradas para você e gire os halteres enquanto empurra para cima.', C),
+  E('elevacao-frontal', 'Elevação frontal com halteres', 'Ombros', 'front_raise', DB, 'Braços quase retos; suba os halteres à frente até a altura dos ombros.'),
+  E('elevacao-lateral-polia', 'Elevação lateral na polia', 'Ombros', 'lateral', GYM, 'Polia baixa do lado oposto; suba o braço para o lado até a altura do ombro.'),
+  E('crucifixo-invertido', 'Crucifixo invertido com halteres', 'Ombros', 'rear_delt', DB, 'Tronco inclinado à frente; abra os braços para os lados apertando a parte de trás dos ombros.'),
+  E('face-pull', 'Face pull na polia', 'Ombros', 'rear_delt', GYM, 'Corda na altura do rosto; puxe abrindo as mãos para os lados das orelhas.'),
+  E('crucifixo-invertido-maquina', 'Crucifixo invertido na máquina', 'Ombros', 'rear_delt', GYM, 'Peito no encosto; abra os braços para trás com os cotovelos levemente dobrados.'),
+  E('remada-alta', 'Remada alta', 'Ombros', 'upright_row', DB, 'Peso junto ao corpo; puxe até a altura do peito com os cotovelos acima das mãos. Pare se incomodar o ombro.'),
+  E('encolhimento-halteres', 'Encolhimento com halteres', 'Trapézio', 'shrug', DB, 'Braços estendidos; suba os ombros em direção às orelhas sem dobrar os cotovelos.'),
+  E('encolhimento-barra', 'Encolhimento com barra', 'Trapézio', 'shrug', GYM, 'Barra à frente das coxas; suba os ombros e desça devagar.'),
+  // Bíceps e antebraço
+  E('rosca-martelo', 'Rosca martelo', 'Bíceps', 'biceps', DB, 'Palmas viradas uma para a outra; suba os halteres sem mexer os cotovelos.'),
+  E('rosca-alternada', 'Rosca alternada com halteres', 'Bíceps', 'biceps', DB, 'Um braço de cada vez, girando a palma para cima ao subir.'),
+  E('rosca-scott', 'Rosca Scott', 'Bíceps', 'biceps', GYM, 'Braços apoiados no banco Scott; suba o peso e desça até quase estender.'),
+  E('rosca-polia', 'Rosca na polia', 'Bíceps', 'biceps', GYM, 'De frente para a polia baixa; suba a barra com os cotovelos fixos.'),
+  E('rosca-concentrada', 'Rosca concentrada', 'Bíceps', 'biceps', ['dumbbells'], 'Sentado, cotovelo apoiado na parte de dentro da coxa; suba o halter devagar.'),
+  E('rosca-punho', 'Rosca de punho', 'Antebraço', 'forearm', DB, 'Antebraço apoiado na coxa, palma para cima; mexa só o punho.'),
+  // Tríceps
+  E('triceps-testa', 'Tríceps testa', 'Tríceps', 'triceps', GYM, 'Deitado, barra acima do peito; dobre só os cotovelos levando a barra até perto da testa.'),
+  E('triceps-corda', 'Tríceps na corda', 'Tríceps', 'triceps', GYM, 'Cotovelos junto ao corpo; estenda e abra a corda no fim do movimento.'),
+  E('triceps-coice', 'Tríceps coice com halter', 'Tríceps', 'triceps', ['dumbbells'], 'Tronco inclinado, braço paralelo ao chão; estenda o cotovelo para trás.'),
+  E('supino-fechado', 'Supino com pegada fechada', 'Tríceps', 'triceps', GYM, 'Mãos na largura dos ombros, cotovelos rentes ao corpo; desça a barra até a parte de baixo do peito.', C),
+  // Pernas
+  E('agachamento-frontal', 'Agachamento frontal', 'Quadríceps e glúteos', 'squat', GYM, 'Barra apoiada na frente dos ombros, cotovelos altos; desça com o tronco bem ereto.', C),
+  E('agachamento-smith', 'Agachamento no Smith', 'Quadríceps e glúteos', 'squat', GYM, 'Pés um pouco à frente da barra; desça controlando e empurre com o pé inteiro.', C),
+  E('hack', 'Agachamento hack', 'Quadríceps e glúteos', 'squat', GYM, 'Costas apoiadas na máquina; desça até cerca de 90° nos joelhos.', C),
+  E('agachamento-sumo', 'Agachamento sumô com halter', 'Quadríceps e glúteos', 'squat', DB, 'Pés afastados e virados para fora, halter entre as pernas; desça com o peito aberto.', C),
+  E('avanco', 'Avanço caminhando com halteres', 'Quadríceps e glúteos', 'lunge', DB, 'Passos à frente alternando as pernas, descendo o joelho de trás perto do chão a cada passo.', C),
+  E('afundo-reverso', 'Afundo reverso', 'Quadríceps e glúteos', 'lunge', ALL, 'Passo para trás em vez de para a frente; costuma ser mais fácil para os joelhos.', CB),
+  E('subida-banco', 'Subida no banco (step-up)', 'Quadríceps e glúteos', 'lunge', ALL, 'Suba num banco firme com uma perna, empurrando pelo calcanhar, e desça devagar.', CB),
+  E('elevacao-pelvica', 'Elevação pélvica com barra', 'Glúteos', 'glute', GYM, 'Costas apoiadas num banco, barra no quadril; suba até o tronco ficar paralelo ao chão.', C),
+  E('elevacao-pelvica-halter', 'Elevação pélvica com halter', 'Glúteos', 'glute', ['dumbbells'], 'Costas apoiadas num banco ou sofá firme, halter no quadril; suba apertando o glúteo.', C),
+  E('coice-polia', 'Coice de glúteo na polia', 'Glúteos', 'glute', GYM, 'Tornozeleira na polia baixa; leve a perna para trás sem arquear a lombar.'),
+  E('cadeira-adutora', 'Cadeira adutora', 'Adutores', 'adductor', GYM, 'Feche as pernas contra as almofadas e abra devagar.'),
+  E('cadeira-abdutora', 'Cadeira abdutora', 'Abdutores e glúteos', 'abductor', GYM, 'Abra as pernas contra as almofadas com o tronco firme e volte devagar.'),
+  E('abducao-deitado', 'Abdução de quadril deitado de lado', 'Abdutores e glúteos', 'abductor', BW, 'Deitado de lado, perna de cima reta; suba a perna sem girar o quadril.', B),
+  E('cadeira-flexora', 'Cadeira flexora', 'Posterior de coxa', 'knee_flex', GYM, 'Sentado, joelho alinhado ao eixo; puxe o rolo para baixo e volte devagar.'),
+  E('flexao-nordica', 'Flexão nórdica', 'Posterior de coxa', 'knee_flex', BW, 'Ajoelhado com os pés presos; desça o tronco à frente o mais devagar que conseguir. É exigente: comece com pouco.', B),
+  E('panturrilha-sentada', 'Panturrilha sentada', 'Panturrilha', 'calf', GYM, 'Joelhos sob o apoio; desça o calcanhar e suba nas pontas dos pés.'),
+  E('panturrilha-leg-press', 'Panturrilha no leg press', 'Panturrilha', 'calf', GYM, 'Só a ponta dos pés na plataforma; empurre estendendo o tornozelo.'),
+  // Abdômen
+  E('abdominal-crunch', 'Abdominal crunch', 'Abdômen', 'core', ALL, 'Deitado, joelhos dobrados; tire as escápulas do chão enrolando o tronco, sem puxar o pescoço.', B),
+  E('elevacao-pernas', 'Elevação de pernas deitado', 'Abdômen', 'core', ALL, 'Lombar colada no chão; suba as pernas juntas e desça sem encostar os pés.', B),
+  E('prancha-lateral', 'Prancha lateral (anote segundos como repetições)', 'Abdômen', 'core', ALL, 'Apoio num antebraço, corpo em linha reta de lado; não deixe o quadril cair.', B),
+  E('dead-bug', 'Dead bug', 'Abdômen', 'core', ALL, 'Deitado, braços e pernas para cima; estenda braço e perna opostos com a lombar colada no chão.', B),
+  E('abdominal-bicicleta', 'Abdominal bicicleta', 'Abdômen', 'core', ALL, 'Leve o cotovelo em direção ao joelho oposto, alternando, sem puxar o pescoço.', B),
+  E('abdominal-polia', 'Abdominal na polia', 'Abdômen', 'core', GYM, 'Ajoelhado, corda junto à cabeça; enrole o tronco para baixo contraindo o abdômen.'),
+  E('elevacao-joelhos-barra', 'Elevação de joelhos na barra', 'Abdômen', 'core', ['gym', 'dumbbells', 'bodyweight'], 'Pendurado na barra; suba os joelhos em direção ao peito sem balançar.', B),
+  E('roda-abdominal', 'Roda abdominal', 'Abdômen', 'core', GYM, 'Ajoelhado, role a roda à frente até onde mantiver a lombar firme e volte.', B),
+  E('russian-twist', 'Giro russo', 'Abdômen', 'core', ALL, 'Sentado, tronco inclinado para trás; gire o tronco de um lado para o outro.', B),
+  E('escalador', 'Escalador (mountain climber)', 'Abdômen', 'core', ALL, 'Em posição de flexão, traga os joelhos ao peito alternando, com o quadril baixo.', B),
 ]
 export const EXERCISE_BY_ID = Object.fromEntries(EXERCISES.map(exercise => [exercise.id, exercise]))
 

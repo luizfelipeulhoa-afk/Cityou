@@ -41,6 +41,23 @@ const plan = computed(() => view.value?.plan)
 const stats = computed(() => view.value?.stats)
 const sessions = computed(() => view.value?.sessions ?? [])
 const weekMax = computed(() => Math.max(1, ...(stats.value?.weeks ?? []).map(week => week.volume_kg)))
+// Lista para acrescentar, agrupada por músculo; trocar oferece o mesmo movimento, primeiro os do lugar onde a pessoa treina.
+const byGroup = computed(() => {
+  const groups = {}
+  for (const item of EXERCISES) (groups[item.group] ??= []).push(item)
+  return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b))
+})
+const swapOptions = id => {
+  const current = EXERCISE_BY_ID[id]
+  const where = view.value?.setup?.equipment
+  return EXERCISES.filter(item => item.pattern === current.pattern && item.id !== id)
+    .sort((a, b) => Number(b.setups.includes(where)) - Number(a.setups.includes(where)))
+}
+function swap(exercise, id) {
+  if (!id) return
+  exercise.exercise_id = id
+  exercise.sets = exercise.sets.map(() => blankSet(id))
+}
 const nextOf = id => stats.value?.exercises.find(item => item.exercise_id === id)
 const planDayLabel = index => plan.value?.days.find(day => day.index === index)?.label ?? 'Treino livre'
 const preview = computed(() => !log.value ? 0 : log.value.exercises.reduce((sum, exercise) =>
@@ -160,7 +177,7 @@ onMounted(() => run(loadTraining))
           <div class="tp-days">
             <article v-for="day in plan.days" :key="day.index" class="tp-day">
               <header><h3>Dia {{ day.index }} · {{ day.label }}</h3><button class="quiet-button" @click="startLog(day)">Registrar</button></header>
-              <ul><li v-for="item in day.exercises" :key="item.exercise_id"><span>{{ item.name }}</span><small>{{ item.sets }} × {{ item.reps[0] }}–{{ item.reps[1] }} · descanso {{ rest(item.rest_s) }}<template v-if="nextOf(item.exercise_id)"> · {{ nextText(nextOf(item.exercise_id)) }}</template></small></li></ul>
+              <ul><li v-for="item in day.exercises" :key="item.exercise_id" :title="EXERCISE_BY_ID[item.exercise_id].tip"><span>{{ item.name }}</span><small>{{ item.sets }} × {{ item.reps[0] }}–{{ item.reps[1] }} · descanso {{ rest(item.rest_s) }}<template v-if="nextOf(item.exercise_id)"> · {{ nextText(nextOf(item.exercise_id)) }}</template></small></li></ul>
             </article>
           </div>
         </template>
@@ -198,6 +215,7 @@ onMounted(() => run(loadTraining))
       <p class="tp-muted">Anote o que você fez de verdade, mesmo que tenha sido menos do que o sugerido. Série sem repetições não entra. Exercício com o corpo: anote só a carga extra (0 se não usou).</p>
       <fieldset v-for="(exercise, e) in log.exercises" :key="e" class="tp-exercise">
         <legend>{{ EXERCISE_BY_ID[exercise.exercise_id].name }}<small v-if="exercise.reps"> · sugerido {{ exercise.reps[0] }}–{{ exercise.reps[1] }} repetições</small></legend>
+        <p class="tp-tip">{{ EXERCISE_BY_ID[exercise.exercise_id].tip }}</p>
         <div v-for="(set, s) in exercise.sets" :key="s" class="tp-set">
           <span>Série {{ s + 1 }}</span>
           <label>kg<input v-model="set.kg" inputmode="decimal" placeholder="0" :aria-label="`Carga da série ${s + 1}, em kg`" /></label>
@@ -207,10 +225,11 @@ onMounted(() => run(loadTraining))
         <div class="tp-row-actions">
           <button type="button" class="tp-link" :disabled="exercise.sets.length >= 12" @click="exercise.sets.push({ ...exercise.sets.at(-1) ?? blankSet(exercise.exercise_id), reps: '' })">+ Série</button>
           <button type="button" class="tp-link" @click="log.exercises.splice(e, 1)">Tirar exercício</button>
+          <select v-if="swapOptions(exercise.exercise_id).length" class="tp-swap" :aria-label="`Trocar ${EXERCISE_BY_ID[exercise.exercise_id].name} por outro do mesmo movimento`" value="" @change="swap(exercise, $event.target.value); $event.target.value = ''"><option value="">Trocar por…</option><option v-for="item in swapOptions(exercise.exercise_id)" :key="item.id" :value="item.id">{{ item.name }}</option></select>
         </div>
       </fieldset>
       <div class="tp-add">
-        <select v-model="addPick" aria-label="Acrescentar exercício"><option value="">Acrescentar exercício…</option><option v-for="item in EXERCISES" :key="item.id" :value="item.id">{{ item.name }}</option></select>
+        <select v-model="addPick" aria-label="Acrescentar exercício"><option value="">Acrescentar exercício…</option><optgroup v-for="[group, items] in byGroup" :key="group" :label="group"><option v-for="item in items" :key="item.id" :value="item.id">{{ item.name }}</option></optgroup></select>
         <button type="button" class="quiet-button" :disabled="!addPick || log.exercises.length >= 20" @click="addExercise">Acrescentar</button>
       </div>
       <label class="tp-note-field">Nota, se quiser<input v-model="log.note" maxlength="300" placeholder="Ex.: dormi mal, cansado" /></label>
@@ -267,6 +286,8 @@ onMounted(() => run(loadTraining))
 .tp-total strong{color:var(--peach);font-weight:500}
 .tp-total small{color:#9399ae;font-size:11px}
 .tp-caution{font-size:12px;line-height:1.6;color:#f1d3b8;background:#e8b5a012;border:1px solid #e8b5a033;border-radius:10px;padding:10px 12px;max-width:720px}
+.tp-tip{margin:0;font-size:11px;line-height:1.6;color:#9399ae}
+.tp-swap{max-width:260px;font-size:12px}
 .tp-ready{border:1px solid #ffffff12;border-radius:12px;padding:10px 14px;margin:0;display:flex;flex-direction:column;gap:10px}
 .tp-ready legend{font-size:12px;padding:0 6px}
 .tp-question{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;font-size:12px}

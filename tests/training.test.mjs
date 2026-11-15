@@ -47,8 +47,10 @@ test('séries semanais: quem começa chega a 4 por grupo grande com 2 dias ou ma
   }
 })
 
-test('catálogo: ids únicos e todo padrão do plano tem opção na academia', () => {
+test('catálogo: mais de 100 exercícios, ids únicos, todos com dica, e todo padrão do plano tem opção na academia', () => {
+  assert.ok(EXERCISES.length >= 100)
   assert.equal(new Set(EXERCISES.map(item => item.id)).size, EXERCISES.length)
+  assert.ok(EXERCISES.every(item => item.tip.length > 20))
   const plan = suggestPlan({ days: 6, experience: 'intermediate', equipment: 'gym', goal: 'maintain' })
   assert.ok(plan.days.every(day => day.exercises.length === 5))
 })
