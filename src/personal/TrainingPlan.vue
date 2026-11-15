@@ -4,7 +4,7 @@
 // que o sugerido); o servidor calcula o volume total, a melhor série, o 1RM estimado e a próxima carga sugerida.
 import { computed, onMounted, reactive, ref } from 'vue'
 import { addWorkout, editWorkout, loadTraining, removeWorkout, saveTrainingSetup } from '../fifones/api.js'
-import { DISCLAIMER, EXERCISES, EXERCISE_BY_ID, EXTRAS, READINESS_QUESTIONS, SOURCES, available } from '../../shared/game/training.js'
+import { CARDIO_TYPES, DISCLAIMER, EXERCISES, EXERCISE_BY_ID, EXTRAS, READINESS_QUESTIONS, SOURCES, available } from '../../shared/game/training.js'
 
 const GOAL_NAMES = { maintain: 'manter o peso', fat_loss: 'perder gordura', lean_preserve: 'perder gordura mantendo músculo', muscle_gain: 'ganhar massa' }
 const EXPERIENCE = { beginner: 'Começando agora (menos de 6 meses)', intermediate: 'Treino há 6 meses a 2 anos', advanced: 'Treino há mais de 2 anos' }
@@ -60,7 +60,9 @@ function swap(exercise, id) {
   exercise.sets = exercise.sets.map(() => blankSet(id))
 }
 const nextOf = id => stats.value?.exercises.find(item => item.exercise_id === id)
+const thisWeekCardio = computed(() => stats.value?.weeks.at(-1)?.cardio_min ?? 0)
 const planDayLabel = index => plan.value?.days.find(day => day.index === index)?.label ?? 'Treino livre'
+const sessionLabel = session => (session.exercises.length || session.plan_day ? planDayLabel(session.plan_day) : 'Aeróbio')
 const preview = computed(() => !log.value ? 0 : log.value.exercises.reduce((sum, exercise) =>
   sum + exercise.sets.reduce((s, set) => s + (num(set.kg) || 0) * (Number(set.reps) || 0), 0), 0))
 
@@ -99,16 +101,17 @@ function nextText(item) {
 
 const blankSet = id => ({ kg: nextOf(id)?.next?.weight_grams ? kg(nextOf(id).next.weight_grams) : '', reps: '' })
 
-function startLog(day = null) {
+function startLog(day = null, withCardio = false) {
   log.value = {
-    id: null, day: today(), plan_day: day?.index ?? null, note: '',
-    exercises: (day?.exercises ?? []).map(item => ({ exercise_id: item.exercise_id, reps: item.reps, pain: false, sets: Array.from({ length: item.sets }, () => blankSet(item.exercise_id)) })),
+    id: null, day: today(), plan_day: day?.index ?? null, note: '', cardio: withCardio ? [{ type: 'walk', minutes: '' }] : [],
+    exercises: (day?.exercises ?? []).map(item => ({ exercise_id: item.exercise_id, reps: item.reps, warmup: item.warmup_sets, pain: false, sets: Array.from({ length: item.sets }, () => blankSet(item.exercise_id)) })),
   }
 }
 
 function editLog(session) {
   log.value = {
     id: session.id, day: session.day, plan_day: session.plan_day, note: session.note,
+    cardio: (session.cardio ?? []).map(item => ({ type: item.type, minutes: String(item.minutes) })),
     exercises: session.exercises.map(item => ({ exercise_id: item.exercise_id, reps: null, pain: Boolean(item.pain), sets: item.sets.map(set => ({ kg: kg(set.weight_grams), reps: String(set.reps) })) })),
   }
 }
@@ -125,8 +128,9 @@ async function saveLog() {
     sets: item.sets.filter(set => String(set.reps).trim() !== '')
       .map(set => ({ weight_grams: Math.round((num(set.kg) || 0) * 1000), reps: Number(set.reps) })),
   })).filter(item => item.sets.length)
-  if (!exercises.length) { message.value = 'Anote ao menos uma série com as repetições que você fez.'; return }
-  const body = { day: log.value.day, plan_day: log.value.plan_day, exercises, note: log.value.note }
+  const cardio = log.value.cardio.filter(item => String(item.minutes).trim() !== '').map(item => ({ type: item.type, minutes: Number(item.minutes) }))
+  if (!exercises.length && !cardio.length) { message.value = 'Anote ao menos uma série com as repetições ou os minutos de aeróbio.'; return }
+  const body = { day: log.value.day, plan_day: log.value.plan_day, exercises, cardio, note: log.value.note }
   const id = log.value.id
   if (await run(() => (id ? editWorkout(id, body) : addWorkout(body)))) log.value = null
 }
@@ -144,7 +148,7 @@ onMounted(() => run(loadTraining))
   <section class="surface tp" aria-labelledby="tp-title">
     <div class="surface-heading">
       <h2 id="tp-title">Seu treino</h2>
-      <button v-if="view && !log" class="quiet-button" @click="startLog()">Registrar treino livre</button>
+      <span v-if="view && !log" class="tp-head-actions"><button class="quiet-button" @click="startLog(null, true)">Registrar aeróbio</button><button class="quiet-button" @click="startLog()">Registrar treino livre</button></span>
     </div>
     <p v-if="message" class="tp-alert" role="alert">{{ message }}</p>
     <p v-if="!view" class="tp-muted">Carregando…</p>
@@ -185,9 +189,14 @@ onMounted(() => run(loadTraining))
           <div class="tp-days">
             <article v-for="day in plan.days" :key="day.index" class="tp-day">
               <header><h3>Dia {{ day.index }} · {{ day.label }}</h3><button class="quiet-button" @click="startLog(day)">Registrar</button></header>
-              <ul><li v-for="item in day.exercises" :key="item.exercise_id" :title="EXERCISE_BY_ID[item.exercise_id].tip"><span>{{ item.name }}</span><small>{{ item.sets }} × {{ item.reps[0] }}–{{ item.reps[1] }} · descanso {{ rest(item.rest_s) }}<template v-if="nextOf(item.exercise_id)"> · {{ nextText(nextOf(item.exercise_id)) }}</template></small></li></ul>
+              <ul><li v-for="item in day.exercises" :key="item.exercise_id" :title="EXERCISE_BY_ID[item.exercise_id].tip"><span>{{ item.name }}</span><small><template v-if="item.warmup_sets">antes, {{ item.warmup_sets }} séries leves de aquecimento · </template>{{ item.sets }} × {{ item.reps[0] }}–{{ item.reps[1] }} · descanso {{ rest(item.rest_s) }}<template v-if="nextOf(item.exercise_id)"> · {{ nextText(nextOf(item.exercise_id)) }}</template></small></li></ul>
             </article>
           </div>
+          <article class="tp-cardio">
+            <header><h3>Aeróbio na semana</h3><button class="quiet-button" @click="startLog(null, true)">Registrar</button></header>
+            <p><strong>{{ thisWeekCardio }} de {{ plan.cardio.minutes_week[0] }}<template v-if="plan.cardio.minutes_week[1] > plan.cardio.minutes_week[0]"> a {{ plan.cardio.minutes_week[1] }}</template> minutos</strong> nesta semana, em intensidade {{ plan.cardio.intensity }}. {{ plan.cardio.examples.join(', ') }}.</p>
+            <p class="tp-muted">{{ plan.cardio.note }}<template v-if="plan.cardio.start"> {{ plan.cardio.start }}</template> Aquecimento: antes dos exercícios principais, faça séries leves do próprio exercício; o aquecimento geral (bicicleta, esteira) é opcional.</p>
+          </article>
         </template>
       </template>
 
@@ -205,8 +214,8 @@ onMounted(() => run(loadTraining))
         <h3 class="tp-sub">Sessões</h3>
         <ul class="tp-list">
           <li v-for="session in sessions" :key="session.id">
-            <time>{{ dateBr(session.day) }}</time><span>{{ planDayLabel(session.plan_day) }}</span>
-            <strong>{{ n1(session.volume_kg) }} kg</strong><small>{{ session.sets }} séries · {{ session.reps }} repetições</small>
+            <time>{{ dateBr(session.day) }}</time><span>{{ sessionLabel(session) }}</span>
+            <strong v-if="session.exercises.length">{{ n1(session.volume_kg) }} kg</strong><small><template v-if="session.exercises.length">{{ session.sets }} séries · {{ session.reps }} repetições</template><template v-if="session.exercises.length && session.cardio_min"> · </template><template v-if="session.cardio_min">{{ session.cardio_min }} min de aeróbio</template></small>
             <button class="quiet-button" :disabled="busy" @click="editLog(session)">Editar</button>
             <button class="quiet-button" :disabled="busy" :aria-label="`Apagar o treino de ${dateBr(session.day)}`" @click="drop(session)">{{ confirmId === session.id ? 'Apagar mesmo?' : 'Apagar' }}</button>
           </li>
@@ -223,6 +232,7 @@ onMounted(() => run(loadTraining))
       <p class="tp-muted">Anote o que você fez de verdade, mesmo que tenha sido menos do que o sugerido. Série sem repetições não entra. Exercício com o corpo: anote só a carga extra (0 se não usou).</p>
       <fieldset v-for="(exercise, e) in log.exercises" :key="e" class="tp-exercise">
         <legend>{{ EXERCISE_BY_ID[exercise.exercise_id].name }}<small v-if="exercise.reps"> · sugerido {{ exercise.reps[0] }}–{{ exercise.reps[1] }} repetições</small></legend>
+        <p v-if="exercise.warmup" class="tp-tip">Aquecimento: {{ exercise.warmup }} séries leves antes (cerca de metade da carga, 8 a 10 repetições). Não precisa anotar.</p>
         <p class="tp-tip">{{ EXERCISE_BY_ID[exercise.exercise_id].tip }}</p>
         <div v-for="(set, s) in exercise.sets" :key="s" class="tp-set">
           <span>Série {{ s + 1 }}</span>
@@ -241,6 +251,15 @@ onMounted(() => run(loadTraining))
         <select v-model="addPick" aria-label="Acrescentar exercício"><option value="">Acrescentar exercício…</option><optgroup v-for="[group, items] in byGroup" :key="group" :label="group"><option v-for="item in items" :key="item.id" :value="item.id">{{ item.name }}</option></optgroup></select>
         <button type="button" class="quiet-button" :disabled="!addPick || log.exercises.length >= 20" @click="addExercise">Acrescentar</button>
       </div>
+      <fieldset class="tp-exercise"><legend>Aeróbio (caminhada, corrida, bicicleta)</legend>
+        <div v-for="(item, c) in log.cardio" :key="c" class="tp-set">
+          <span>Atividade</span>
+          <label>tipo<select v-model="item.type" :aria-label="`Tipo do aeróbio ${c + 1}`"><option v-for="(name, id) in CARDIO_TYPES" :key="id" :value="id">{{ name }}</option></select></label>
+          <label>minutos<input v-model="item.minutes" inputmode="numeric" placeholder="30" :aria-label="`Minutos do aeróbio ${c + 1}`" /></label>
+          <button type="button" class="tp-link" @click="log.cardio.splice(c, 1)">Tirar</button>
+        </div>
+        <button type="button" class="tp-link" :disabled="log.cardio.length >= 3" @click="log.cardio.push({ type: 'walk', minutes: '' })">+ Aeróbio</button>
+      </fieldset>
       <label class="tp-note-field">Nota, se quiser<input v-model="log.note" maxlength="300" placeholder="Ex.: dormi mal, cansado" /></label>
       <p class="tp-total">Volume desta sessão: <strong>{{ n1(preview) }} kg</strong> <small>(o número salvo é o calculado pelo servidor)</small></p>
       <footer class="tp-actions">
@@ -295,6 +314,12 @@ onMounted(() => run(loadTraining))
 .tp-total strong{color:var(--peach);font-weight:500}
 .tp-total small{color:#9399ae;font-size:11px}
 .tp-caution{font-size:12px;line-height:1.6;color:#f1d3b8;background:#e8b5a012;border:1px solid #e8b5a033;border-radius:10px;padding:10px 12px;max-width:720px}
+.tp-head-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.tp-cardio{border:1px solid #ffffff12;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:1.6}
+.tp-cardio header{display:flex;justify-content:space-between;align-items:center}
+.tp-cardio h3{font-size:13px;font-weight:500;margin:0}
+.tp-cardio p{margin:0}
+.tp-cardio strong{color:var(--peach);font-weight:500}
 .tp-check{flex-direction:row !important;align-items:center;gap:8px !important;font-size:12px !important;color:#d8dbe8 !important}
 .tp-tip{margin:0;font-size:11px;line-height:1.6;color:#9399ae}
 .tp-swap{max-width:260px;font-size:12px}

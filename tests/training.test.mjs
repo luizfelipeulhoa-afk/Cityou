@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  EQUIPMENT, EXERCISES, EXERCISE_BY_ID, EXTRAS, SOURCES, SPLITS, loadStep, estimatedOneRepMax, nextLoad, sessionVolumeKg, suggestPlan, topSet, weeklySetsByGroup,
+  EQUIPMENT, EXERCISES, EXERCISE_BY_ID, EXTRAS, cardioPlan, SOURCES, SPLITS, loadStep, estimatedOneRepMax, nextLoad, sessionVolumeKg, suggestPlan, topSet, weeklySetsByGroup,
 } from '../shared/game/training.js'
 
 test('o plano tem um treino por dia escolhido, sem exercício repetido e só com o que a pessoa tem', () => {
@@ -57,6 +57,14 @@ test('séries semanais: quem começa chega a 4 por grupo grande com 2 dias ou ma
   for (let days = 3; days <= 6; days += 1) {
     const sets = weeklySetsByGroup(suggestPlan({ days, experience: 'intermediate', equipment: 'gym', goal: 'maintain' }))
     assert.ok(big.every(group => sets[group] >= 8), `intermediário, ${days} dias`)
+  }
+})
+
+test('aquecimento específico antes dos dois primeiros multiarticulares de cada dia', () => {
+  for (const day of suggestPlan({ days: 4, experience: 'intermediate', equipment: 'gym', goal: 'maintain' }).days) {
+    const warmed = day.exercises.filter(item => item.warmup_sets)
+    assert.ok(warmed.length >= 1 && warmed.length <= 2, day.label)
+    assert.ok(warmed.every(item => EXERCISE_BY_ID[item.exercise_id].compound))
   }
 })
 
@@ -120,7 +128,16 @@ test('próxima carga: abaixo do piso mantém; duas sessões seguidas abaixo suge
 })
 
 test('toda regra cita uma fonte', () => {
-  for (const key of ['iversen2021', 'iusca2021', 'refalo2022', 'singer2024', 'plotkin2022', 'evangelista2021', 'who2020', 'deficit', 'acsm2009', 'epley']) {
+  for (const key of ['iversen2021', 'iusca2021', 'refalo2022', 'singer2024', 'plotkin2022', 'evangelista2021', 'who2020', 'deficit', 'acsm2009', 'jayedi2024', 'lundberg2022', 'warmup', 'epley']) {
     assert.ok(SOURCES[key]?.ref && SOURCES[key]?.note, key)
   }
+})
+
+test('aeróbio: 150 a 300 min para perder gordura, 150 para os outros e para quem está com sinal de risco', () => {
+  assert.deepEqual(cardioPlan({ goal: 'fat_loss' }).minutes_week, [150, 300])
+  assert.deepEqual(cardioPlan({ goal: 'muscle_gain' }).minutes_week, [150, 150])
+  assert.deepEqual(cardioPlan({ goal: 'fat_loss', care: true }).minutes_week, [150, 150])
+  assert.match(cardioPlan({ goal: 'fat_loss', care: true }).note, /não para gastar/)
+  assert.ok(cardioPlan({ goal: 'maintain', experience: 'beginner' }).start)
+  assert.equal(cardioPlan({ goal: 'maintain', experience: 'advanced' }).start, null)
 })

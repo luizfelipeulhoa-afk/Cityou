@@ -8,13 +8,16 @@
 export const EVIDENCE_PENDING = false
 export const SOURCES = {
   iversen2021: { ref: 'Iversen VM et al., 2021. No Time to Lift? Designing Time-Efficient Training Programs for Strength and Hypertrophy. Sports Med 51:2079-95 (PMC8449772).', note: 'mínimo de 4 séries semanais por grupo muscular, faixa de 6 a 15 RM; diretrizes: 2 a 4 séries por grupo, 2 a 3 vezes por semana (4 a 12 séries semanais) para quem não treina ou treina há pouco' },
+  jayedi2024: { ref: 'Jayedi A et al., 2024. Aerobic Exercise and Weight Loss in Adults: A Systematic Review and Dose-Response Meta-Analysis. JAMA Netw Open 7:e2452185 (PMC11672165).', note: 'cada 30 min por semana de aeróbio reduziram em média 0,52 kg de peso e 0,56 cm de cintura; pelo menos 150 min por semana de intensidade moderada ou mais trouxe reduções clinicamente importantes de cintura e gordura' },
+  lundberg2022: { ref: 'Lundberg TR et al., 2022. The Effects of Concurrent Aerobic and Strength Training on Muscle Fiber Hypertrophy. Sports Med 52:2391-403 (PMC9474354).', note: 'aeróbio junto com musculação pode atenuar um pouco a hipertrofia das fibras (não do músculo inteiro); evidência preliminar de que o efeito é maior com corrida do que com bicicleta' },
+  warmup: { ref: 'Iversen VM et al., 2021, seção 8.1 (PMC8449772).', note: 'aquecimento específico (séries leves do próprio exercício) tem algum benefício para força; o aquecimento geral (bicicleta, esteira) tem pouco apoio para a musculação' },
   iusca2021: { ref: 'Schoenfeld BJ et al., 2021. Resistance Training Recommendations to Maximize Muscle Hypertrophy in an Athletic Population: Position Stand of the IUSCA. Int J Strength Cond 1(1).', note: 'cerca de 10 séries por músculo por semana como mínimo geral para otimizar a hipertrofia em quem treina; até ~10 por sessão; hipertrofia parecida numa faixa ampla de cargas; uma vez por semana basta em volume baixo a moderado; descanso de pelo menos 2 min nos multiarticulares e de 60 a 90 s nos uniarticulares' },
   acsm2009: { ref: 'Ratamess NA et al., 2009. American College of Sports Medicine position stand. Progression models in resistance training for healthy adults. Med Sci Sports Exerc 41:687-708.', note: 'subir a carga de 2% a 10% quando a pessoa passa uma ou duas repetições do alvo' },
   refalo2022: { ref: 'Refalo MC et al., 2022. Influence of Resistance Training Proximity-to-Failure on Skeletal Muscle Hypertrophy. Sports Med 53:649-65 (PMC9935748).', note: 'treinar até a falha teve vantagem trivial sobre não ir à falha: parar com repetições sobrando é aceitável' },
   singer2024: { ref: 'Singer A et al., 2024. Give it a rest: inter-set rest interval duration and muscle hypertrophy. Front Sports Act Living 6:1429789 (PMC11349676).', note: 'pequeno benefício com descanso acima de 60 s; sem diferença perceptível acima de 90 s' },
   plotkin2022: { ref: 'Plotkin D et al., 2022. Progressive overload without progressing load? PeerJ 10:e14142 (PMC9528903).', note: 'progredir por repetições ou por carga são estratégias viáveis (dupla progressão)' },
   evangelista2021: { ref: 'Evangelista AL et al., 2021. Split or full-body workout routine: which is best to increase muscle strength and hypertrophy? Einstein (São Paulo) 19:eAO5781 (PMC8372753).', note: 'treinar 2 ou 4 vezes por semana com o mesmo volume semanal dá adaptações parecidas: a divisão pode seguir os dias disponíveis' },
-  who2020: { ref: 'Bull FC et al., 2020. WHO guidelines on physical activity and sedentary behaviour. Br J Sports Med 54:1451-62 (PMC7719906).', note: 'adultos: fortalecimento de todos os grandes grupos musculares em 2 ou mais dias por semana' },
+  who2020: { ref: 'Bull FC et al., 2020. WHO guidelines on physical activity and sedentary behaviour. Br J Sports Med 54:1451-62 (PMC7719906).', note: 'adultos: fortalecimento de todos os grandes grupos musculares em 2 ou mais dias por semana, e 150 a 300 min de aeróbio moderado (ou 75 a 150 min de vigoroso) por semana; fazer algum é melhor que nenhum' },
   equipment: { ref: 'Haugen ME et al., 2023. Free-weight vs. machine-based strength training. BMC Sports Sci Med Rehabil 15:103 (PMC10426227); Ogawa M et al., 2023. Free weight and body mass-based resistance training. Exp Physiol 108:975-85 (PMC10988481).', note: 'peso livre e máquina sem diferença de hipertrofia; treino com o peso do corpo comparável ao peso livre em jovens e adultos de meia-idade' },
   deficit: { ref: 'Deller M et al., 2026. Effects of Calorie Restriction With and Without Strength, Endurance or Mixed Training on Fat-Free and Skeletal Muscle Mass. Diabetes Obes Metab 28:6810-23 (PMC13341414).', note: 'na restrição calórica, o treino de força e o misto preservaram a massa livre de gordura melhor que só a dieta' },
   concurrent: { ref: 'Schumann M et al., 2021. Compatibility of Concurrent Aerobic and Strength Training. Sports Med 52:601-12 (PMC8891239).', note: 'aeróbio junto com musculação não compromete a hipertrofia nem a força máxima' },
@@ -253,7 +256,10 @@ export function suggestPlan({ days, experience, equipment, goal, extras = [] }) 
         const sets = Math.min(high, Math.max(1, Math.ceil(left[group] / remaining)))
         left[group] -= sets
         const kind = exercise.compound ? 'compound' : 'isolation'
-        items.push({ exercise_id: exercise.id, name: exercise.name, group, sets, reps: REPS[kind], rest_s: REST_SECONDS[kind] })
+        // Aquecimento específico (warmup): séries leves antes dos dois primeiros multiarticulares do dia; os seguintes
+        // aproveitam o corpo já aquecido. Não contam no volume.
+        const warmup = exercise.compound && items.filter(item => item.warmup_sets).length < 2 ? 2 : 0
+        items.push({ exercise_id: exercise.id, name: exercise.name, group, sets, reps: REPS[kind], rest_s: REST_SECONDS[kind], warmup_sets: warmup })
       })
       return { index: index + 1, label, exercises: items }
     }),
@@ -339,3 +345,25 @@ export const READINESS_QUESTIONS = {
 
 // Aviso fixo da tela (decisão do dono, 15/11/2026).
 export const DISCLAIMER = 'Tudo aqui é sugestão com base em estudos científicos, não orientação profissional. Antes de começar, o ideal é passar por um médico; se sentir dor, pare.'
+
+// Aeróbio (caminhada, corrida, bicicleta). Todos os adultos: 150 a 300 min por semana de moderado (who2020). Para perder
+// gordura, pelo menos 150 min fez diferença clinicamente importante na cintura e na gordura, e cada 30 min a mais soma um
+// pouco (jayedi2024). Para ganhar massa, o aeróbio não atrapalha o músculo inteiro (concurrent), com sinal preliminar de que
+// a bicicleta interfere menos que a corrida (lundberg2022). Quem começa ou está parado pode ir subindo aos poucos (who2020).
+export const CARDIO_TYPES = { walk: 'Caminhada', run: 'Corrida', bike: 'Bicicleta', other: 'Outro aeróbio' }
+export function cardioPlan({ goal, care = false, experience = 'beginner' }) {
+  const losing = !care && (goal === 'fat_loss' || goal === 'lean_preserve')
+  return {
+    minutes_week: losing ? [150, 300] : [150, 150],
+    intensity: 'moderada: dá para conversar, mas não para cantar',
+    examples: ['Caminhada rápida', 'Bicicleta', 'Corrida leve', 'Natação ou dança'],
+    note: care
+      ? 'O aeróbio aqui é pela saúde, não para gastar o que você comeu: 150 minutos por semana, no seu ritmo.'
+      : losing
+        ? 'Para perder gordura, os estudos viram diferença a partir de 150 minutos por semana, e cada 30 minutos a mais ajudam um pouco. Pode ir até 300.'
+        : goal === 'muscle_gain'
+          ? 'Para ganhar massa, 150 minutos por semana pela saúde não atrapalham o músculo. Se for fazer bastante, a bicicleta parece interferir menos que a corrida.'
+          : '150 minutos por semana é a recomendação de saúde da OMS para adultos.',
+    start: experience === 'beginner' ? 'Parado há tempo? Comece com 10 a 20 minutos algumas vezes por semana e vá aumentando: algum é melhor que nenhum.' : null,
+  }
+}

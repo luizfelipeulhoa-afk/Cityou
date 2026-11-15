@@ -99,6 +99,27 @@ test('dor anotada pausa a progressão; duas sessões no mesmo dia seguem a ordem
   await send('/api/personal/training/sessions', { method: 'POST', body: workout({ exercises: [{ ...bench(), pain: 'sim' }] }), status: 422 })
 })
 
+test('aeróbio: meta semanal pela meta da pessoa, registro sozinho ou junto da musculação, minutos na semana', async () => {
+  const send = session()
+  await ready(send)
+  const view = await send('/api/personal/training/setup', { method: 'PUT', body: SETUP })
+  assert.deepEqual(view.plan.cardio.minutes_week, [150, 300]) // perder gordura
+  assert.ok(view.plan.days[0].exercises[0].warmup_sets === 2)
+  const walk = await send('/api/personal/training/sessions', { method: 'POST', body: workout({ exercises: [], cardio: [{ type: 'walk', minutes: 40 }] }), status: 201 })
+  const item = walk.sessions.find(row => row.id === walk.created_id)
+  assert.deepEqual([item.cardio_min, item.volume_kg, item.exercises.length], [40, 0, 0])
+  await send('/api/personal/training/sessions', { method: 'POST', body: workout({ cardio: [{ type: 'bike', minutes: 20 }] }), status: 201 })
+  assert.equal((await send('/api/personal/training')).stats.weeks.reduce((sum, w) => sum + w.cardio_min, 0), 60)
+  for (const cardio of [[{ type: 'nado', minutes: 10 }], [{ type: 'walk', minutes: 0 }], [{ type: 'walk', minutes: 10, kcal: 1 }]]) {
+    await send('/api/personal/training/sessions', { method: 'POST', body: workout({ cardio }), status: 422 })
+  }
+  await send('/api/personal/training/sessions', { method: 'POST', body: workout({ exercises: [], cardio: [] }), status: 422 })
+
+  const gain = session()
+  await ready(gain, { goal: 'muscle_gain' })
+  assert.deepEqual((await gain('/api/personal/training/setup', { method: 'PUT', body: SETUP })).plan.cardio.minutes_week, [150, 150])
+})
+
 test('recusa o que não está na lista e números vindos do navegador', async () => {
   const send = session()
   const post = (body, status = 422) => send('/api/personal/training/sessions', { method: 'POST', body, status })
@@ -122,8 +143,8 @@ test('estatísticas: volume por semana e progressão por exercício', () => {
   ]
   const stats = trainingStats(sessions, today)
   assert.equal(stats.weeks.length, 8)
-  assert.deepEqual(stats.weeks.at(-1), { week: '2026-11-09', volume_kg: 1260, sessions: 2 })
-  assert.deepEqual(stats.weeks.at(-2), { week: '2026-11-02', volume_kg: 400, sessions: 1 })
+  assert.deepEqual(stats.weeks.at(-1), { week: '2026-11-09', volume_kg: 1260, sessions: 2, cardio_min: 0 })
+  assert.deepEqual(stats.weeks.at(-2), { week: '2026-11-02', volume_kg: 400, sessions: 1, cardio_min: 0 })
   const bench = stats.exercises[0]
   assert.deepEqual([bench.sessions, bench.last.day, bench.best_e1rm_kg, bench.history.map(item => item.top_weight_grams)], [3, '2026-11-13', 91, [50_000, 60_000, 65_000]])
   assert.equal(bench.next.action, 'increase')

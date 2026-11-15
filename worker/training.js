@@ -6,7 +6,7 @@ import { HttpError, json } from './http.js'
 import { atLeastOne, dayOf, exact, text, todayInSaoPaulo } from './records.js'
 import { GOALS } from '../shared/game/nutrition.js'
 import {
-  DAYS_RANGE, EQUIPMENT, EVIDENCE_PENDING, EXERCISE_BY_ID, EXPERIENCE, EXTRAS, READINESS_QUESTIONS, weeklySetsByGroup, estimatedOneRepMax, exerciseVolumeKg,
+  CARDIO_TYPES, DAYS_RANGE, EQUIPMENT, cardioPlan, EVIDENCE_PENDING, EXERCISE_BY_ID, EXPERIENCE, EXTRAS, READINESS_QUESTIONS, weeklySetsByGroup, estimatedOneRepMax, exerciseVolumeKg,
   nextLoad, repRangeOf, sessionVolumeKg, suggestPlan, topSet, totalReps,
 } from '../shared/game/training.js'
 
@@ -72,7 +72,20 @@ function setOf(set, where) {
   return { weight_grams: set.weight_grams, reps: set.reps }
 }
 
-function exercisesOf(value) {
+function cardioOf(value) {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value) || value.length > 3) throw new HttpError(422, 'Registre até 3 atividades aeróbias.', { cardio: 'Registre até 3 atividades aeróbias.' })
+  return value.map(item => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw new HttpError(422, 'Confira o aeróbio.')
+    exact(item, ['type', 'minutes'])
+    if (!Object.hasOwn(CARDIO_TYPES, item.type)) throw new HttpError(422, 'Escolha o tipo de aeróbio.', { cardio: 'Escolha o tipo de aeróbio.' })
+    if (!Number.isInteger(item.minutes) || item.minutes < 1 || item.minutes > 600) throw new HttpError(422, 'Os minutos de aeróbio vão de 1 a 600.', { cardio: 'Os minutos de aeróbio vão de 1 a 600.' })
+    return { type: item.type, minutes: item.minutes }
+  })
+}
+
+function exercisesOf(value, allowEmpty = false) {
+  if (allowEmpty && Array.isArray(value) && !value.length) return []
   if (!Array.isArray(value) || !value.length || value.length > MAX_EXERCISES) {
     throw new HttpError(422, `Registre de 1 a ${MAX_EXERCISES} exercícios.`, { exercises: `Registre de 1 a ${MAX_EXERCISES} exercícios.` })
   }
@@ -101,6 +114,8 @@ function withTotals(record) {
     volume_kg: sessionVolumeKg(record.exercises),
     reps: totalReps(record.exercises),
     sets: record.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0),
+    cardio: record.cardio ?? [],
+    cardio_min: (record.cardio ?? []).reduce((sum, item) => sum + item.minutes, 0),
     exercises: record.exercises.map(exercise => ({
       ...exercise, name: EXERCISE_BY_ID[exercise.exercise_id].name, volume_kg: exerciseVolumeKg(exercise),
     })),
@@ -114,13 +129,13 @@ function withTotals(record) {
 export function trainingStats(sessions, today, plan = null) {
   const monday = day => shiftDay(day, -((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7))
   const thisWeek = monday(today)
-  const weeks = Array.from({ length: 8 }, (_, i) => ({ week: shiftDay(thisWeek, -7 * (7 - i)), volume_kg: 0, sessions: 0 }))
+  const weeks = Array.from({ length: 8 }, (_, i) => ({ week: shiftDay(thisWeek, -7 * (7 - i)), volume_kg: 0, sessions: 0, cardio_min: 0 }))
   const byExercise = new Map()
   const planRange = new Map((plan?.days ?? []).flatMap(day => day.exercises.map(item => [item.exercise_id, item.reps])))
   // Do mais antigo para o mais novo; no mesmo dia, pela ordem em que foi registrado (created_at).
   for (const session of [...sessions].sort((a, b) => a.day.localeCompare(b.day) || (a.created_at ?? '').localeCompare(b.created_at ?? ''))) {
     const week = weeks.find(item => item.week === monday(session.day))
-    if (week) { week.volume_kg = Math.round((week.volume_kg + session.volume_kg) * 10) / 10; week.sessions += 1 }
+    if (week) { week.volume_kg = Math.round((week.volume_kg + session.volume_kg) * 10) / 10; week.sessions += 1; week.cardio_min += session.cardio_min ?? 0 }
     for (const exercise of session.exercises) {
       const top = topSet(exercise.sets)
       const best = Math.max(0, ...exercise.sets.map(set => estimatedOneRepMax(set.weight_grams, set.reps) ?? 0)) || null
@@ -162,6 +177,7 @@ export const trainingMethods = {
     const sessions = this.allWorkouts().filter(item => item.day >= since).map(withTotals)
       .sort((a, b) => b.day.localeCompare(a.day) || (b.created_at ?? '').localeCompare(a.created_at ?? ''))
     const weeklySets = plan ? weeklySetsByGroup(plan) : null
+    if (plan) plan.cardio = cardioPlan({ goal: gate.goal, care: gate.care, experience: setup.experience })
     return { gate, setup, plan, weekly_sets: weeklySets, provisional: EVIDENCE_PENDING, sessions, stats: trainingStats(sessions, today, plan) }
   },
 
@@ -173,19 +189,20 @@ export const trainingMethods = {
   },
 
   addWorkout(body) {
-    exact(body, ['day', 'plan_day', 'exercises', 'note'])
+    exact(body, ['day', 'plan_day', 'exercises', 'cardio', 'note'])
     const day = dayOf(body.day, 'o dia')
     if (day > todayInSaoPaulo()) throw new HttpError(422, 'Registre um treino de hoje ou de um dia que já passou.', { day: 'Escolha hoje ou um dia que já passou.' })
     const record = {
-      day, plan_day: planDayOf(body.plan_day), exercises: exercisesOf(body.exercises),
+      day, plan_day: planDayOf(body.plan_day), cardio: cardioOf(body.cardio),
       note: text(body.note ?? '', 'nota', { max: 300 }), updated_at: new Date().toISOString(),
     }
+    record.exercises = exercisesOf(body.exercises ?? [], record.cardio.length > 0)
     const { id } = this.add(KIND, record, this.cap(KIND))
     return json({ ...this.trainingView(), created_id: id }, 201)
   },
 
   editWorkout(body, id) {
-    exact(body, ['day', 'plan_day', 'exercises', 'note'])
+    exact(body, ['day', 'plan_day', 'exercises', 'cardio', 'note'])
     atLeastOne(body)
     const current = this.read(KIND, id)
     if (!current) throw new HttpError(404, 'Este treino não existe.')
@@ -195,7 +212,8 @@ export const trainingMethods = {
       if (next.day > todayInSaoPaulo()) throw new HttpError(422, 'Escolha hoje ou um dia que já passou.', { day: 'Escolha hoje ou um dia que já passou.' })
     }
     if (body.plan_day !== undefined) next.plan_day = planDayOf(body.plan_day)
-    if (body.exercises !== undefined) next.exercises = exercisesOf(body.exercises)
+    if (body.cardio !== undefined) next.cardio = cardioOf(body.cardio)
+    if (body.exercises !== undefined || body.cardio !== undefined) next.exercises = exercisesOf(body.exercises ?? next.exercises, (next.cardio ?? []).length > 0)
     if (body.note !== undefined) next.note = text(body.note, 'nota', { max: 300 })
     this.write(KIND, id, next)
     return json(this.trainingView())
