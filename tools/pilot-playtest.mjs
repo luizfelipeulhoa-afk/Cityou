@@ -15,7 +15,7 @@ async function api(page, path, input) {
   const response = await page.evaluate(async ({ path, input }) => {
     const response = await fetch(path, input ? {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1' },
+      headers: { 'Content-Type': 'application/json', 'X-Cityou-Request': '1' },
       body: JSON.stringify(input),
     } : undefined)
     return { ok: response.ok, status: response.status, data: await response.json() }

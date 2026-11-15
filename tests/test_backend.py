@@ -355,7 +355,9 @@ class CityTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/city', headers={'Origin': 'https://evil.example'}).status_code, 403)
         self.assertEqual(self.client.post('/api/rewards/sync').status_code, 403)
         self.assertEqual(self.client.post('/api/rewards/sync', headers={**WRITE, 'Origin': 'null'}).status_code, 403)
-        self.assertEqual(self.client.post('/api/rewards/sync', headers={**WRITE, 'Origin': BASE}).status_code, 200)
+        for header in ('X-Fifones-City', 'X-Cityou-Request'):
+            self.assertEqual(self.client.post('/api/rewards/sync', headers={header: '1', 'Origin': BASE}).status_code, 200)
+            self.assertEqual(self.client.post('/api/rewards/sync', headers={header: '1', 'Origin': 'null'}).status_code, 403)
         self.assertEqual(self.client.post('/api/rewards/sync', headers={**WRITE, 'Origin': 'http://127.0.0.1:9999'}).status_code, 403)
         for upstream in ['https://127.0.0.1:8765', 'http://evil.example', 'http://127.0.0.1.evil.example',
                          'http://user:pass@localhost:8765', 'http://localhost:8765/proxy']:

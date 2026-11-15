@@ -441,8 +441,9 @@ def create_app(*, data_dir: str | Path | None = None, upstream_url: str | None =
                 valid_origin = False
             if not valid_origin:
                 return JSONResponse({'message': 'Origem local inválida.'}, status_code=403)
-        if request.method not in ('GET', 'HEAD', 'OPTIONS') and request.headers.get('X-Fifones-City') != '1':
-            return JSONResponse({'message': 'A ação exige X-Fifones-City: 1.'}, status_code=403)
+        if request.method not in ('GET', 'HEAD', 'OPTIONS'):
+            if request.headers.get('X-Cityou-Request') != '1' and request.headers.get('X-Fifones-City') != '1':
+                return JSONResponse({'message': 'A ação exige X-Cityou-Request: 1.'}, status_code=403)
         response = await call_next(request)
         response.headers['X-Content-Type-Options'] = 'nosniff'
         path = request.url.path

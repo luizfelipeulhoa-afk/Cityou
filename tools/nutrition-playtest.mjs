@@ -15,7 +15,7 @@ const page = await ctx.newPage()
 const errors = []
 page.on('pageerror', e => errors.push(String(e)))
 const call = (path, method = 'GET', body) => page.evaluate(async ([p, m, b]) => {
-  const r = await fetch(p, { method: m, headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1' }, ...(b ? { body: JSON.stringify(b) } : {}) })
+  const r = await fetch(p, { method: m, headers: { 'Content-Type': 'application/json', 'X-Cityou-Request': '1' }, ...(b ? { body: JSON.stringify(b) } : {}) })
   return { status: r.status, data: await r.json().catch(() => null) }
 }, [path, method, body])
 const base = page.locator('.nutrition-base')

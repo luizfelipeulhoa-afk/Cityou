@@ -73,8 +73,10 @@ test('rota desconhecida responde 404 em JSON, no formato lido por ApiError', asy
 })
 
 test('método errado numa rota que existe responde 405', async () => {
-  const response = await call('/api/health', { method: 'DELETE', headers: { 'X-Fifones-City': '1', Origin: ORIGIN } })
-  assert.equal(response.status, 405)
+  for (const header of ['X-Cityou-Request', 'X-Fifones-City']) {
+    const response = await call('/api/health', { method: 'DELETE', headers: { [header]: '1', Origin: ORIGIN } })
+    assert.equal(response.status, 405, header)
+  }
 })
 
 test('escrita sem o cabeçalho, sem origem ou de outra origem é recusada', async () => {
@@ -84,6 +86,9 @@ test('escrita sem o cabeçalho, sem origem ou de outra origem é recusada', asyn
     { 'X-Fifones-City': '1', Origin: 'https://outro-site.example' },
     { 'X-Fifones-City': '1', Origin: 'não é uma url' },
     { Origin: ORIGIN },
+    { 'X-Cityou-Request': '0', Origin: ORIGIN },
+    { 'X-Cityou-Request': '1' },
+    { 'X-Cityou-Request': '1', Origin: 'https://outro-site.example' },
   ]
   for (const headers of attempts) {
     const response = await call('/api/health', { method: 'POST', headers })
