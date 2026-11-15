@@ -72,6 +72,11 @@ export default {
   // dono: com o Pão de Açúcar no lugar, sobrava ali um buraco baixo). Fica dentro do `crop.keep` abaixo.
   relief: [hill, GAP_HILL],
   transplant: [sugarloaf, urca],
+  // As montanhas atrás da grade, rebaixadas até a altura da base de construção (16/11/2026, pedido do dono: eram tão
+  // altas que escondiam o Cristo). A linha começa no meio dos patamares (z da cena −11) e vale para trás dela; a
+  // montanha do Cristo fica inteira (o círculo em volta de CRISTO_SITE), e o Pão de Açúcar e a Urca também (o
+  // rebaixamento não vale sobre os blocos transplantados). Coordenadas do terreno.
+  soften: { edge: -11 - CITY_SHIFT, blend: 4, knee: 1.6, cap: 3, keep: [{ x: CRISTO_SITE.x, z: CRISTO_SITE.z - CITY_SHIFT, radius: 6.5, blend: 4 }] },
   // O chão dos lotes do morro da comunidade sobe com o patamar (um tico abaixo do topo que sceneEnvironment.js desenha),
   // e o relevo em volta se mistura até essa altura, não até 0: sem vala entre os patamares e os morros.
   lotHeight: lot => { const h = tileHeight('cristo-redentor', lot.x + layout.center, lot.z + CITY_SHIFT + layout.center); return h ? h - 0.04 : 0 },

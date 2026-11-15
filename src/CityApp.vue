@@ -87,6 +87,10 @@ const taskSaving = ref(null)
 const refreshing = ref(false)
 const lighting = ref('day')
 const tasksOpen = ref(true)
+// O cartão "Sua próxima construção" também se recolhe (16/11/2026, pedido do dono), como o das missões; a escolha fica
+// guardada neste navegador.
+const goalOpen = ref((() => { try { return localStorage.getItem('cityou.cidade.meta') !== 'recolhida' } catch { return true } })())
+function toggleGoal() { goalOpen.value = !goalOpen.value; try { localStorage.setItem('cityou.cidade.meta', goalOpen.value ? 'aberta' : 'recolhida') } catch { /* sem armazenamento: só nesta visita */ } }
 const catalogOpen = ref(true)
 const activeFilter = ref('all')
 const selectedId = ref(null)
@@ -540,11 +544,12 @@ onUnmounted(() => {
 
     <aside v-if="scenic && !loading" class="next-build scenic-note panel" aria-label="Sobre a ilha"><span class="eyebrow">ILHA INICIAL</span><p v-if="islandBuild">Aqui você constrói o Farol, a Cabana, o Píer e decorações da ilha. Os outros prédios ficam no Rio de Janeiro.</p><p v-else>Aqui é só para contemplar o mar. Suas construções ficam no Rio de Janeiro.</p><a class="goal-action" href="./city.html?local=cristo-redentor"><span>Ir para o Rio de Janeiro</span></a></aside>
 
-    <aside v-if="!scenic && progress.goal && !loading" class="next-build panel" aria-label="Próxima construção">
-      <div class="goal-topline"><span class="eyebrow">SUA PRÓXIMA CONSTRUÇÃO</span><span class="goal-ready" v-if="!progress.missing">Pode construir</span><span v-else>{{ Math.round(progress.goalPercent) }}%</span></div>
-      <div class="goal-main"><img :src="thumbnail(progress.goal)" alt="" /><div><label class="goal-picker"><span class="sr-only">Escolher próxima construção</span><select :value="progress.goal.id" aria-label="Escolher próxima construção" @change="setGoal($event.target.value)"><option v-for="item in availableCatalog" :key="item.id" :value="item.id">{{ item.label }}</option></select><Icon name="down" :size="14" /></label><span class="goal-cost">{{ coins(Math.min(state.credits, progress.goal.cost)) }} <span>/ {{ coins(progress.goal.cost) }} moedas</span></span></div></div>
-      <div class="goal-track" role="progressbar" :aria-label="`Moedas para ${progress.goal.label}`" :aria-valuenow="Math.min(state.credits, progress.goal.cost)" :aria-valuemin="0" :aria-valuemax="progress.goal.cost"><i :style="{ transform: `scaleX(${progress.goalPercent / 100})` }" /></div>
-      <button class="goal-action" :disabled="saving || refreshing" @click="pursueGoal"><span>{{ progress.missing ? `Faltam ${coins(progress.missing)} moedas` : 'Escolher terreno' }}</span><Icon :name="progress.missing ? 'tasks' : 'arrow'" :size="16" /></button>
+    <aside v-if="!scenic && progress.goal && !loading" class="next-build panel" :class="{ collapsed: !goalOpen }" aria-label="Próxima construção">
+      <div class="goal-topline"><span class="eyebrow">SUA PRÓXIMA CONSTRUÇÃO</span><span class="goal-ready" v-if="!progress.missing">Pode construir</span><span v-else>{{ Math.round(progress.goalPercent) }}%</span><button class="icon-button goal-collapse" :aria-label="goalOpen ? 'Recolher próxima construção' : 'Expandir próxima construção'" :aria-expanded="goalOpen" @click="toggleGoal"><Icon name="down" :size="15" /></button></div>
+      <strong v-if="!goalOpen" class="goal-mini">{{ progress.goal.label }}</strong>
+      <div v-if="goalOpen" class="goal-main"><img :src="thumbnail(progress.goal)" alt="" /><div><label class="goal-picker"><span class="sr-only">Escolher próxima construção</span><select :value="progress.goal.id" aria-label="Escolher próxima construção" @change="setGoal($event.target.value)"><option v-for="item in availableCatalog" :key="item.id" :value="item.id">{{ item.label }}</option></select><Icon name="down" :size="14" /></label><span class="goal-cost">{{ coins(Math.min(state.credits, progress.goal.cost)) }} <span>/ {{ coins(progress.goal.cost) }} moedas</span></span></div></div>
+      <div v-if="goalOpen" class="goal-track" role="progressbar" :aria-label="`Moedas para ${progress.goal.label}`" :aria-valuenow="Math.min(state.credits, progress.goal.cost)" :aria-valuemin="0" :aria-valuemax="progress.goal.cost"><i :style="{ transform: `scaleX(${progress.goalPercent / 100})` }" /></div>
+      <button v-if="goalOpen" class="goal-action" :disabled="saving || refreshing" @click="pursueGoal"><span>{{ progress.missing ? `Faltam ${coins(progress.missing)} moedas` : 'Escolher terreno' }}</span><Icon :name="progress.missing ? 'tasks' : 'arrow'" :size="16" /></button>
     </aside>
 
     <aside class="missions panel" :class="{ collapsed: !tasksOpen }" aria-label="Missões da sua cidade">
