@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import Icon from './personal/Icon.vue'
 import NutritionBase from './personal/NutritionBase.vue'
 import FoodDiary from './personal/FoodDiary.vue'
@@ -39,6 +39,45 @@ const route=ref('inicio'), collapsed=ref(false), mobileMenu=ref(false), search=r
 // Pílula do menu: um indicador só, que desliza e estica até o item da rota atual (src/personal/navPill.js).
 const navTrack=ref(null), navPill=ref(null)
 useNavPill(navTrack,navPill,()=>route.value)
+// Cidade em tela cheia (16/11/2026, pedido do dono): ao abrir a cidade, o menu lateral do painel vira o trilho de ícones da
+// cidade, flutuando sobre o mapa (a cidade esconde o dela quando está dentro do painel, `in-panel` em CityApp.vue), e o
+// mapa ocupa a página inteira. A troca é animada: o menu escuro encolhe até o trilho claro (posição, tamanho, cor e
+// cantos), e volta ao sair. Com movimento reduzido ou no celular (onde o menu é gaveta) a troca é direta.
+const sidebarEl=ref(null), inCity=computed(()=>route.value==='cidade')
+// A cidade só entra no quadro depois da troca: montar o 3D trava a página e a animação perderia quadros.
+const cityMounted=ref(route.value==='cidade')
+let morph
+watch(inCity,(city,was)=>{
+  const el=sidebarEl.value
+  if(!city)cityMounted.value=false
+  if(city===was||!el||innerWidth<=650||matchMedia('(prefers-reduced-motion: reduce)').matches){cityMounted.value=city;return}
+  const from=el.getBoundingClientRect(),style=getComputedStyle(el),fromColor=style.backgroundColor,fromRadius=style.borderRadius
+  // A transição de largura do menu (recolher) não pode correr junto: a medida final sairia no meio dela.
+  el.style.transition='none'
+  nextTick(()=>{
+    const to=el.getBoundingClientRect(),end=getComputedStyle(el),main=el.parentElement.querySelector('.app-main')
+    morph?.cancel()
+    el.classList.add('morphing')
+    // Voltando ao painel, o menu fica solto durante a animação: o conteúdo já guarda o lugar dele.
+    if(!city)main.style.marginLeft=`${to.width}px`
+    const frame=(r,color,radius)=>({left:`${r.left}px`,top:`${r.top}px`,width:`${r.width}px`,height:`${r.height}px`,backgroundColor:color,borderRadius:radius})
+    morph=el.animate([frame(from,fromColor,fromRadius),frame(to,end.backgroundColor,end.borderRadius)],{duration:720,easing:'cubic-bezier(.65,0,.35,1)'})
+    // O conteúdo só aparece quando o menu já tem quase o tamanho final: nada de texto vazando no meio da troca.
+    for(const child of el.children)child.animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'none'}],{duration:380,delay:city?300:460,easing:'ease-out',fill:'backwards'})
+    // Termina uma vez só, pelo fim da animação ou, se ela for interrompida de um jeito inesperado, pelo relógio: a cidade
+    // nunca fica sem montar.
+    let ended=false
+    const done=()=>{if(ended)return;ended=true;clearTimeout(guard);el.classList.remove('morphing');el.style.transition='';main.style.marginLeft='';if(inCity.value)cityMounted.value=true}
+    const guard=setTimeout(done,1600)
+    morph.finished.then(done,done)
+    // Fica parada no primeiro quadro até a página respirar (desmontar a cidade trava uns quadros): sem pular para o fim.
+    const parts=[morph,...el.getAnimations({subtree:true}).filter(a=>a!==morph)]
+    parts.forEach(a=>a.pause())
+    requestAnimationFrame(()=>requestAnimationFrame(()=>parts.forEach(a=>a.play())))
+  })
+},{flush:'pre'})
+// "Como jogar" no trilho: abre a ajuda da cidade, que está no quadro (mesma origem).
+function cityHelp(){document.querySelector('.city-space iframe')?.contentWindow?.postMessage({type:'cityou:help'},location.origin)}
 const data=ref({entries:[],checkins:[],events:[],sources:{}}), tasks=ref([]), projects=ref([]), online=ref(navigator.onLine), loading=ref(true), refreshing=ref(false), error=ref(''), notice=ref('')
 const proofDialog=ref(null), proofSaving=ref(false)
 const saveState=computed(()=>!online.value||error.value?'offline':saving.value||proofSaving.value?'saving':'saved')
@@ -184,19 +223,19 @@ onMounted(()=>{parseRoute();refresh();window.addEventListener('hashchange',parse
 onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);window.removeEventListener('online',setOnline);window.removeEventListener('offline',setOnline);window.removeEventListener('hashchange',parseRoute);window.removeEventListener('keydown',keydown)})
 </script>
 <template>
-<main class="personal-app" :class="{ 'sidebar-compact':collapsed,'mobile-nav-open':mobileMenu }">
+<main class="personal-app" :class="{ 'sidebar-compact':collapsed,'mobile-nav-open':mobileMenu,'in-city':inCity }">
   <button v-if="mobileMenu" class="nav-scrim" aria-label="Fechar menu" @click="mobileMenu=false" />
-  <aside class="sidebar">
+  <aside ref="sidebarEl" class="sidebar">
     <a class="personal-brand" href="#/inicio" aria-label="Cityou, seu dia"><span class="personal-mark">c<span>.</span></span><strong>Cityou<span>seu espaço pessoal</span></strong></a>
     <button class="sidebar-toggle" :aria-label="collapsed?'Expandir menu':'Recolher menu'" @click="collapsed=!collapsed"><Icon name="menu" :size="16" /></button>
-    <nav aria-label="Funções do Cityou"><div ref="navTrack" class="nav-track"><span ref="navPill" class="nav-pill" aria-hidden="true" /><div v-for="group in groups" :key="group" class="nav-group"><span class="nav-group-label">{{ group }}</span><a v-for="item in sections.filter(i=>i.group===group)" :key="item.id" :href="`#/${item.id}`" :aria-label="item.label" class="personal-nav-item" :class="{active:route===item.id}" :aria-current="route===item.id?'page':undefined" :title="collapsed?item.label:undefined"><Icon :name="item.icon" :size="19" /><span>{{ item.label }}</span><small v-if="item.id==='tarefas'&&pending.length">{{ pending.length }}</small></a></div></div></nav>
+    <nav aria-label="Funções do Cityou"><div ref="navTrack" class="nav-track"><span ref="navPill" class="nav-pill" aria-hidden="true" /><a v-if="inCity" href="#/cidade" class="personal-nav-item active rail-only" aria-current="page" aria-label="Minha cidade" title="Minha cidade"><Icon name="city" :size="19" /><span>Minha cidade</span></a><div v-for="group in groups" :key="group" class="nav-group"><span class="nav-group-label">{{ group }}</span><a v-for="item in sections.filter(i=>i.group===group)" :key="item.id" :href="`#/${item.id}`" :aria-label="item.label" class="personal-nav-item" :class="{active:route===item.id}" :aria-current="route===item.id?'page':undefined" :title="collapsed||inCity?item.label:undefined"><Icon :name="item.icon" :size="19" /><span>{{ item.label }}</span><small v-if="item.id==='tarefas'&&pending.length">{{ pending.length }}</small></a></div><template v-if="inCity"><a href="#/mundo" class="personal-nav-item rail-only" aria-label="Mapa-mundo" title="Mapa-mundo"><Icon name="globe" :size="19" /><span>Mapa-mundo</span></a><button type="button" class="personal-nav-item rail-only" aria-label="Como jogar" title="Como jogar" @click="cityHelp"><Icon name="help" :size="19" /><span>Como jogar</span></button></template></div></nav>
     <div class="sidebar-bottom"><a href="#/mundo" class="city-link" :class="{active:route==='mundo'}"><span class="city-link-icon"><Icon name="globe" :size="22" /></span><span><strong>Mapa-mundo</strong><small>Suas viagens, passo a passo</small></span><Icon name="arrow" :size="15" /></a><a href="#/cidade" class="city-link" :class="{active:route==='cidade'}"><span class="city-link-icon"><Icon name="city" :size="22" /></span><span><strong>Minha cidade</strong><small>O reflexo do seu progresso</small></span><Icon name="arrow" :size="15" /></a><a href="#/conta" class="profile-link" :class="{active:route==='conta'}"><span class="profile-avatar">{{ (account?.display_name||'C').slice(0,1).toUpperCase() }}</span><span><strong>{{ account?.display_name||'Demonstração' }}</strong><small>{{ account?.email||'Seu espaço, no seu ritmo' }}</small></span><Icon name="settings" :size="17" /></a><button v-if="account" class="sign-out" :disabled="signingOut" @click="leave">{{ signingOut?'Saindo…':'Sair da conta' }}</button><a v-else class="sign-out" href="/?inicio">Criar conta ou entrar</a></div>
   </aside>
   <section class="app-main">
     <header class="personal-topbar"><div class="topbar-left"><button class="mobile-menu icon-btn" aria-label="Abrir menu" @click="mobileMenu=!mobileMenu"><Icon name="menu" /></button><span class="breadcrumb">Meu espaço <Icon name="chevron" :size="13" /><strong>{{ active?.label||(route==='mundo'?'Mapa-mundo':'Minha cidade') }}</strong></span></div><JumpBar class="topbar-jump" :items="jumpItems" @go="navigate" /><div class="topbar-actions"><span class="local-status" role="status"><i :class="{offline:saveState==='offline',busy:saveState==='saving'}" />{{ {saved:'Salvo',saving:'Salvando…',offline:'Sem conexão'}[saveState] }}</span><button class="icon-btn" aria-label="Atualizar meus dados" :disabled="refreshing" @click="refresh"><Icon name="refresh" :class="{spinning:refreshing}" :size="18" /></button><button class="new-entry" @click="showForm(route==='habitos'?'habit':route==='metas'?'goal':route==='financas'?'transaction':route==='nutricao'?'diary':route==='memorias'||route==='autoconhecimento'?'note':'task')"><Icon name="plus" :size="17" /><span>Novo registro</span></button><a class="topbar-avatar" href="#/conta" :aria-label="`Conta de ${account?.display_name||'demonstração'}`">{{ (account?.display_name||'C').slice(0,1).toUpperCase() }}</a></div></header>
     <div v-if="error && route !== 'mundo'" class="page-error" role="alert">{{ error }}<button @click="refresh">Tentar novamente</button></div>
     <div v-if="route==='mundo'" class="city-space"><div class="city-space-bar"><span><Icon name="globe" :size="17" />Seu mapa-mundo, em um espaço próprio.</span><a href="/world.html" target="_blank" rel="noopener">Abrir só o mapa <Icon name="arrow" :size="15" /></a></div><iframe src="/world.html" title="Mapa-mundo BuildU" /></div>
-    <div v-else-if="route==='cidade'" class="city-space"><div class="city-space-bar"><span><Icon name="city" :size="17" />Sua cidade, em um espaço próprio.</span><a href="/city.html" target="_blank" rel="noopener">Abrir só a cidade <Icon name="arrow" :size="15" /></a></div><iframe src="/city.html" title="Minha cidade Cityou" /></div>
+    <div v-else-if="route==='cidade'" class="city-space"><div class="city-space-bar"><span><Icon name="city" :size="17" />Sua cidade, em um espaço próprio.</span><a href="/city.html" target="_blank" rel="noopener">Abrir só a cidade <Icon name="arrow" :size="15" /></a></div><iframe v-if="cityMounted" src="/city.html" title="Minha cidade Cityou" /></div>
     <div v-else class="personal-content">
       <div class="page-heading"><div><span class="date-caption">{{ shortDate }}</span><h1>{{ route==='inicio'?greeting:active?.label }}</h1><p>{{ route==='inicio'?'Sua vida não precisa caber toda na sua cabeça.':active?.description }}</p></div><span v-if="route==='inicio'" class="greeting-orbit" aria-hidden="true"><i v-for="n in 6" :key="n" :style="{'--petal':n}" /><Icon name="spark" :size="23" /></span></div>
       <div v-if="loading" class="loading-state" role="status"><Icon name="refresh" class="spinning" />Abrindo seu espaço…</div>

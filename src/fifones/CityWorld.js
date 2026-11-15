@@ -154,7 +154,11 @@ export default class CityWorld {
     if (this.environment.landmark) void this.loadLandmark(this.region)
     // No Rio o terreno real e o Cristo começam a carregar já na construção da cidade (13/11/2026), sem esperar o
     // estado do servidor nem o `requestIdleCallback` da chegada: a rede do terreno e a do estado correm juntas.
+    // A cidade só aparece pronta (16/11/2026): `sceneReady` resolve quando o chão provisório já saiu (terreno real ou a
+    // reserva feita à mão). CityApp.vue cobre a tela até lá, para o plano liso de espera nunca aparecer.
+    this.sceneReady = new Promise(resolve => { this.markSceneReady = resolve })
     if (this.pilot && this.environment.backdrop?.length) void this.loadTerrain()
+    else this.markSceneReady()
     this.walkers = []
     this.foams = [...(this.environment.foams ?? [])]
     void this.loadCharacters()
@@ -699,6 +703,7 @@ export default class CityWorld {
       const terrain = await loadCityTerrain()
       if (this.destroyed) {
         terrain.dispose()
+        this.markSceneReady()
         return
       }
       for (const object of this.environment.backdrop) {
@@ -716,14 +721,16 @@ export default class CityWorld {
         anchor.scale.setScalar(scale)
       }
       this.refreshShadows()
+      this.markSceneReady()
     } catch {
-      if (this.destroyed) return
+      if (this.destroyed) return this.markSceneReady()
       for (const object of this.environment.backdrop) {
         object.removeFromParent()
         disposeOwned(object)
       }
       this.environment.backdrop = buildRioFallback(this.environment.group, this.layout)
       this.refreshShadows()
+      this.markSceneReady()
     }
   }
 

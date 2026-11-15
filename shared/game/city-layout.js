@@ -257,8 +257,9 @@ const protection = new Map(Object.values(pilots).map(layout => [layout, new Set(
 const hills = new Map(Object.values(pilots).map(layout => [layout, new Map(layout.hillTiles.map(([x, y, level]) => [tileKey(x, y), level]))]))
 const beaches = new Map(Object.values(pilots).map(layout => [layout, new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))]))
 
-/** Altura de cada patamar do morro da comunidade, em unidades da cena. */
-export const HILL_STEP = 0.7
+/** Altura de cada patamar do morro da comunidade, em unidades da cena (1,2 desde 16/11/2026: os patamares viraram
+ * montanha, com encosta de pedra; 0,7 parecia caixa). */
+export const HILL_STEP = 1.2
 
 /** Patamar do tile no morro da comunidade (0 fora dele). */
 export function hillLevelAt(location, x, y) {

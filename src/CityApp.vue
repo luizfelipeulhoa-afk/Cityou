@@ -77,6 +77,9 @@ const tasks = ref([])
 // null enquanto carrega; '' carregadas; texto quando a lista não veio.
 const tasksError = ref(null)
 const loading = ref(true)
+// Capa da cidade (16/11/2026): cobre a tela até o terreno real entrar (`engine.sceneReady`), para o chão liso de espera
+// nunca aparecer. Some com um esmaecer curto.
+const sceneReady = ref(false)
 const bootError = ref('')
 const sceneError = ref('')
 const saving = ref(false)
@@ -93,6 +96,10 @@ const rotation = ref(0)
 const confirmation = ref(null)
 const toast = ref(null)
 const helpOpen = ref(false)
+// Dentro do painel (/app#/cidade) o trilho de ícones é o do painel, que vira o trilho da cidade (App.vue): o daqui some e a
+// ajuda abre pelo botão de lá, por mensagem da mesma origem.
+const inPanel = (() => { try { return window.parent !== window && window.parent.location.pathname.startsWith('/app') } catch { return false } })()
+if (inPanel) window.addEventListener('message', event => { if (event.origin === window.location.origin && event.data?.type === 'cityou:help') helpOpen.value = !helpOpen.value })
 const historyOpen = ref(false)
 const missionTab = ref('tasks')
 const celebration = ref(null)
@@ -476,6 +483,8 @@ onMounted(async () => {
         },
       })
       window.__fifonesCity = { get state() { return state.value }, get engine() { return engine } }
+      // Dois quadros depois do terreno entrar: o primeiro desenho com ele já está na tela quando a capa sai.
+      engine.sceneReady.then(() => requestAnimationFrame(() => requestAnimationFrame(() => { if (!disposed) sceneReady.value = true })))
     } catch (error) { sceneError.value = error.message }
   }
   const initializeCity = async () => {
@@ -504,7 +513,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="city-app" :class="{ 'is-dusk': lighting === 'dusk', 'catalog-hidden': !catalogOpen, 'is-cutaway': !!activeInterior }">
+  <main class="city-app" :class="{ 'is-dusk': lighting === 'dusk', 'catalog-hidden': !catalogOpen, 'is-cutaway': !!activeInterior, 'in-panel': inPanel }">
     <canvas ref="canvas" class="city-canvas" :aria-label="`Cidade 3D em ${region?.nome ?? 'Rio de Janeiro'}. Arraste para explorar e use a roda do mouse para aproximar.`" />
     <div class="scene-vignette" aria-hidden="true" />
 
@@ -625,6 +634,7 @@ onUnmounted(() => {
 
     <div v-if="helpOpen" class="help-popover panel"><button class="icon-button" aria-label="Fechar ajuda" @click="helpOpen = false"><Icon name="close" :size="16" /></button><h2>Cuide da vida.<br />Construa sua cidade.</h2><p>Você começa com 50 moedas. Tarefas concluídas valem 10; hábitos, 5. A cada 10 recompensas, seu nível sobe e a cidade ganha mais espaço.</p><dl><div><dt>Explorar</dt><dd>Arraste a cidade</dd></div><div><dt>Aproximar</dt><dd>Role o mouse</dd></div><div><dt>Girar construção</dt><dd><kbd>R</kbd></dd></div><div><dt>Cancelar</dt><dd><kbd>Esc</kbd></dd></div></dl><p class="help-footnote">Seu progresso fica salvo no servidor.</p></div>
 
+    <Transition name="city-cover"><div v-if="!sceneReady && !sceneError && !bootError" class="city-cover" aria-hidden="true"><span class="city-cover-mark">c<span>.</span></span><span class="loading-line" /></div></Transition>
     <div v-if="loading || bootError || sceneError" class="city-notice panel" role="status"><span class="notice-mark">c.</span><strong>{{ sceneError ? 'Não foi possível abrir a vista 3D' : bootError ? 'A cidade está desconectada' : 'Sua cidade está chegando…' }}</strong><p v-if="bootError || sceneError">{{ sceneError || bootError }}</p><span v-else class="loading-line" /><button v-if="bootError || sceneError" class="primary-button" @click="reloadPage">Tentar novamente</button></div>
 
     <Transition name="reward"><div v-if="celebration" :key="celebration.key" class="reward-burst" role="status"><span v-for="index in 8" :key="index" class="reward-spark" :style="{ '--n': index }" aria-hidden="true" /><span class="reward-medal"><Icon :name="celebration.levelUp ? 'expand' : 'check'" :size="29" /></span><strong>{{ celebration.levelUp ? `Nível ${state.level}!` : `+${coins(celebration.amount)} moedas` }}</strong><span>{{ celebration.levelUp ? 'Mais terrenos para suas ideias.' : 'Seu progresso ganhou espaço.' }}</span></div></Transition>

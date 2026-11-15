@@ -13,9 +13,9 @@ export function newTown(location) {
   const { roadSeeds } = getCityLayout(location)
   const started_at = new Date().toISOString()
   if (isScenicCity(location)) return { revision: 0, started_at, placements: [] }
+  // Sem prédio inicial (16/11/2026, pedido do dono): nem a Sede (do Fifones) nem a praça central. A cidade começa só com as
+  // ruas de entrada, que já fazem o papel da praça para ligar as construções (connectedRoads parte delas).
   const placements = [
-    { id: 'core-plaza', kind: 'plaza', x: 8, y: 8 },
-    ...(isPilotCity(location) ? [] : [{ id: 'core-headquarters', kind: 'headquarters', x: 8, y: 7 }]),
     ...roadSeeds.map(([x, y]) => ({ id: y === 9 ? `seed-road-${x}` : `seed-road-${x}-${y}`, kind: 'road', x, y })),
     // O calçadão da orla já vem posto, mas é decoração: a pessoa o tira e o põe onde quiser.
     ...startingPromenade(location).map(({ x, y }, index) => ({ id: `orla-${index}`, kind: 'rio-calcadao', x, y })),
@@ -23,11 +23,13 @@ export function newTown(location) {
   return { revision: 0, started_at, placements }
 }
 
-// As cidades piloto (o Rio) não têm mais a Sede Fifones (plano "sair do Fifones"): cidades salvas antes perdem a
-// sede na leitura, e o lote dela volta a ser livre na próxima gravação.
-export function withoutHeadquarters(town, location) {
-  if (!isPilotCity(location) || !town.placements.some(item => item.kind === 'headquarters')) return town
-  return { ...town, placements: town.placements.filter(item => item.kind !== 'headquarters') }
+// Prédios que a cidade trazia de saída e não traz mais: a Sede (do Fifones, plano "sair do Fifones") e, desde 16/11/2026,
+// a praça central. Cidades salvas antes perdem os dois na leitura, e o lote volta a ser livre na próxima gravação. Os
+// dois custavam 0, então não há o que reembolsar.
+const STARTER_KINDS = new Set(['headquarters', 'plaza'])
+export function withoutStarterBuildings(town) {
+  if (!town.placements.some(item => STARTER_KINDS.has(item.kind))) return town
+  return { ...town, placements: town.placements.filter(item => !STARTER_KINDS.has(item.kind)) }
 }
 
 // Prédios retirados do catálogo na etapa 3 (IA e StuntSync). O custo fica só aqui, no servidor: o catálogo não os

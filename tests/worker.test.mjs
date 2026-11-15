@@ -417,7 +417,9 @@ test('trecho viário é validado e cobrado em conjunto, com reenvio idempotente'
   })
 
   await path('isolado', start.revision, 5, 5, 7, 5, 422)
-  await path('colisao', start.revision, 6, 8, 9, 8, 409)
+  // Sem praça desde 16/11/2026: a colisão se confere no calçadão que a cidade nova já traz na orla.
+  const orla = start.placements.find(item => item.kind === 'rio-calcadao')
+  await path('colisao', start.revision, orla.x, orla.y, orla.x + 1, orla.y, 409)
   assert.equal((await city(session, RIO)).credits, start.credits)
 
   const built = await path('trecho', start.revision, 6, 9, 6, 11)
