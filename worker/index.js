@@ -6,6 +6,7 @@ import { CSP_REPORT_ONLY, CSP_REPORT_MAX } from './csp.js'
 import { accountKey, demoApi, demoKeyOf, sessionCookie, sessionToken } from './demo.js'
 import { cachedRead, invalidate, isCacheableRead, markWrite, recentWrite } from './edge-cache.js'
 import { accountsEnabled, authApi, sessionTokenOf, sessionUser } from './auth.js'
+import { bootEligible, bootEmbedJson, embedBoot } from './boot.js'
 export { DemoSession } from './demo.js'
 
 const routes = [
@@ -75,37 +76,55 @@ async function handleApi(request, env, ctx, url, timing) {
 const APP_PAGES = new Set(['/app', '/app.html', '/city', '/city.html', '/world', '/world.html'])
 const LANDING_PAGES = new Set(['/', '/index.html'])
 
-/** Com as contas ativas, as páginas do app pedem login, e quem já entrou pula a página de apresentação. */
+/**
+ * Com as contas ativas, as páginas do app pedem login, e quem já entrou pula a página de apresentação.
+ * Devolve `{ response }` para redirecionar ou recusar, ou `{ user }` (pode ser null) para seguir: a conta já
+ * resolvida aqui é reaproveitada no estado inicial embutido (`worker/boot.js`), sem segunda ida ao banco.
+ */
 async function pageGate(request, env, url) {
-  if (request.method !== 'GET' || !accountsEnabled(env)) return null
+  if (request.method !== 'GET' || !accountsEnabled(env)) return {}
   const app = APP_PAGES.has(url.pathname), landing = LANDING_PAGES.has(url.pathname)
-  if (!app && !landing) return null
+  if (!app && !landing) return {}
   let user = null
   try { user = sessionTokenOf(request) ? await sessionUser(request, env) : null } catch (error) {
     console.error(JSON.stringify({ message: 'pageGate: banco indisponível', error: String(error) }))
-    if (app) return new Response('O serviço de contas está indisponível. Tente novamente.', {
+    if (app) return { response: new Response('O serviço de contas está indisponível. Tente novamente.', {
       status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
-    })
-    return null
+    }) }
+    return {}
   }
   const redirect = location => new Response(null, { status: 302, headers: { Location: location, 'Cache-Control': 'private, no-store' } })
-  if (app && !user) return redirect(`/?entrar=1&next=${encodeURIComponent(url.pathname + url.search)}`)
-  if (landing && user && !url.searchParams.has('inicio')) return redirect('/app')
-  return null
+  if (app && !user) return { response: redirect(`/?entrar=1&next=${encodeURIComponent(url.pathname + url.search)}`) }
+  if (landing && user && !url.searchParams.has('inicio')) return { response: redirect('/app') }
+  return { user }
 }
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url)
     if (!url.pathname.startsWith('/api/')) {
-      const gate = await pageGate(request, env, url)
+      const { response: gate, user: gateUser } = await pageGate(request, env, url)
       if (gate) return securityHeaders(gate, env)
-      const asset = env.ASSETS ? await env.ASSETS.fetch(request) : new Response('Not found', { status: 404 })
-      if (request.method !== 'GET' || !asset.ok || !asset.headers.get('Content-Type')?.startsWith('text/html') || sessionToken(request)) return securityHeaders(asset, env)
-      const response = new Response(asset.body, asset)
-      response.headers.set('Cache-Control', 'private, no-store')
-      response.headers.append('Set-Cookie', sessionCookie(url))
-      return securityHeaders(response, env)
+      const eligible = bootEligible(request, env, url) && Boolean(gateUser)
+      // O estado inicial é pedido ao Durable Object em paralelo com o HTML estático (docs/LATENCIA.md, item 5).
+      const [asset, bootText] = await Promise.all([
+        env.ASSETS ? env.ASSETS.fetch(request) : Promise.resolve(new Response('Not found', { status: 404 })),
+        eligible ? bootEmbedJson(env, gateUser) : Promise.resolve(null),
+      ])
+      if (request.method !== 'GET' || !asset.ok || !asset.headers.get('Content-Type')?.startsWith('text/html')) return securityHeaders(asset, env)
+      if (!sessionToken(request)) {
+        const response = new Response(asset.body, asset)
+        response.headers.set('Cache-Control', 'private, no-store')
+        response.headers.append('Set-Cookie', sessionCookie(url))
+        return securityHeaders(response, env)
+      }
+      if (bootText) {
+        const response = new Response(embedBoot(asset, bootText).body, asset)
+        response.headers.set('Cache-Control', 'private, no-store')
+        response.headers.append('Vary', 'Cookie')
+        return securityHeaders(response, env)
+      }
+      return securityHeaders(asset, env)
     }
     const timing = createTiming()
     let response

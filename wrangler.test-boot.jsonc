@@ -1,0 +1,21 @@
+{
+  // Estado inicial embutido no HTML (tests/worker-boot.test.mjs): como wrangler.test-login.jsonc (D1 local, login
+  // obrigatório), mas com `assets` para exercer o HTMLRewriter de verdade (precisa do workerd, não de um
+  // `dist` construído: a pasta só tem o HTML mínimo de que o teste precisa).
+  "name": "cityou-test-boot",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-11-09",
+  "vars": { "REQUIRE_LOGIN": "true", "SIGNUP_OPEN": "true", "CITYOU_TEST_NO_IP_LIMIT": "true" },
+  "assets": {
+    "directory": "./tests/fixtures/boot-assets",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/", "/index.html", "/app", "/app.html", "/city", "/city.html", "/world", "/world.html"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "cityou-test-boot", "database_id": "00000000-0000-0000-0000-000000000003", "migrations_dir": "migrations" }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "DEMO_SESSIONS", "class_name": "DemoSession" }]
+  },
+  "migrations": [{ "tag": "demo-v1", "new_sqlite_classes": ["DemoSession"] }]
+}

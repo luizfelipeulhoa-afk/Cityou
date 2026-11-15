@@ -57,6 +57,21 @@ export function clearCache() {
   try { Object.keys(localStorage).filter(key => key.startsWith(CACHE_PREFIX)).forEach(key => localStorage.removeItem(key)) } catch { /* Sem acesso: nada a limpar. */ }
 }
 
+// Estado embutido pelo Worker na própria página, quando há conta (etapa de latência, item 5 de docs/LATENCIA.md):
+// evita a primeira ida à rede. Só serve uma vez por carga da página, e só se o caminho pedido for o mesmo.
+let bootRead = false
+export function readBoot(path) {
+  if (bootRead || typeof document === 'undefined') return null
+  bootRead = true
+  const node = document.getElementById('cityou-boot')
+  node?.remove()
+  if (!node) return null
+  try {
+    const data = JSON.parse(node.textContent)
+    return path === `/api/personal?month=${data.events_month || ''}` ? data : null
+  } catch { return null }
+}
+
 /** Sair da conta: só vai para a página inicial se o servidor confirmou; senão lança erro e a pessoa continua dentro. */
 export async function signOut() {
   let response

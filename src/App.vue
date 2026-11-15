@@ -12,7 +12,7 @@ import JumpBar from './personal/JumpBar.vue'
 import { useNavPill } from './personal/navPill.js'
 import { areaBreakdown, cumulativeSeries, dayOf, dayRange, monthBalance } from './personal/dashboardData.js'
 // Cliente único da API (etapa 2): o mesmo `api()` da cidade, que trata o 401 levando a pessoa para entrar.
-import { ACCOUNTS_INACTIVE_NOTICE, clearCache, readCache, signOut, writeCache, addEvent, addProject, addWeight, api, completeTask, editEvent, editProject, editWeight, removeEvent, removeProject, removeWeight, stepDone } from './fifones/api.js'
+import { ACCOUNTS_INACTIVE_NOTICE, clearCache, readBoot, readCache, signOut, writeCache, addEvent, addProject, addWeight, api, completeTask, editEvent, editProject, editWeight, removeEvent, removeProject, removeWeight, stepDone } from './fifones/api.js'
 import { photoToDataUrl } from './personal/proof.js'
 const sections=[
 {id:'inicio',label:'Seu dia',icon:'home',group:'SEU ESPAÇO',description:'O que importa, sem carregar tudo na cabeça.'},
@@ -210,7 +210,19 @@ async function refresh() {
   now.value = Date.now()
   error.value = ''
   const path = `/api/personal?month=${viewMonth()}`
-  // Primeira abertura: mostra na hora o último estado guardado neste navegador e confirma com a rede por trás.
+  const boot = loading.value ? readBoot(path) : null
+  if (boot) {
+    // Estado inicial embutido pelo Worker na página (quem tem conta): já veio do servidor, sem ida à rede.
+    writeCache(path, boot)
+    data.value = boot
+    tasks.value = boot.tasks || []
+    projects.value = boot.projects || []
+    loading.value = false
+    refreshing.value = false
+    if (boot.events_month && boot.events_month !== viewMonth()) refresh()
+    return
+  }
+  // Primeira abertura sem estado embutido: mostra na hora o último estado guardado neste navegador e confirma com a rede por trás.
   const cached = loading.value ? readCache(path) : null
   if (cached) { data.value = cached; tasks.value = cached.tasks || []; projects.value = cached.projects || []; loading.value = false }
   const [personal] = await Promise.allSettled([api(path)])
