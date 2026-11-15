@@ -94,6 +94,11 @@ export default class CityWorld {
     this.activityCheckedAt = NaN
     this.activityFresh = false
     this.animationTime = 0
+    // Desenho sob demanda (etapa 7b): `dirty` pede um quadro; `framesRendered` conta os desenhados (stats()).
+    this.dirty = true
+    this.framesRendered = 0
+    this.lastRender = 0
+    this.visible = true
     this.raycaster = new THREE.Raycaster()
     this.pointer = new THREE.Vector2()
     this.floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.062)
@@ -143,6 +148,8 @@ export default class CityWorld {
     this.controls.zoomSpeed = 0.8
     this.controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }
     this.controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }
+    // Atenção: ouvinte direto, nunca `invalidate` solto (o evento viraria argumento).
+    this.controls.addEventListener('change', () => this.invalidate())
     canvas.style.touchAction = 'none'
     const { hemisphere, sun } = this.look
     this.ambient = new THREE.HemisphereLight(hemisphere.sky, hemisphere.ground, hemisphere.intensity)
@@ -182,6 +189,9 @@ export default class CityWorld {
     this.raf = requestAnimationFrame(this.frame)
     queueMicrotask(() => { if (!this.destroyed) this.callbacks.onReady() })
   }
+
+  /** Pede um quadro. Chamado por tudo o que muda a cena (estado, carga de modelo, câmera, prévia, tween). */
+  invalidate() { this.dirty = true }
 
   makeGround() {
     // Nas cidades piloto a grade só aparece ao construir: lotes claros e translúcidos, com um vão entre eles,
@@ -313,6 +323,7 @@ export default class CityWorld {
 
   setRoadPreview(cells = []) {
     if (!this.roadPreview || this.destroyed) return
+    this.invalidate()
     const count = Math.min(cells.length, this.gridSize * 2 - 1)
     const dummy = new THREE.Object3D()
     const color = new THREE.Color()
@@ -359,6 +370,15 @@ export default class CityWorld {
       if (this.tap.up(event, inside ? this.tapTarget() : null)) this.click()
     }, true)
     listen(window, 'resize', () => this.resize())
+    listen(document, 'visibilitychange', () => { if (!document.hidden) this.invalidate() })
+    // Canvas fora da tela (aba escondida, painel por cima): não desenha; ao voltar, desenha um quadro.
+    if (typeof IntersectionObserver !== 'undefined') {
+      this.visibility = new IntersectionObserver((entries) => {
+        this.visible = entries[entries.length - 1].isIntersecting
+        if (this.visible) this.invalidate()
+      })
+      this.visibility.observe(this.canvas)
+    }
     if (typeof ResizeObserver !== 'undefined') {
       this.observer = new ResizeObserver(() => this.resize())
       this.observer.observe(this.canvas.parentElement || this.canvas)
@@ -501,6 +521,7 @@ export default class CityWorld {
     this.refreshSelection()
     this.refreshPreview()
     this.refreshShadows()
+    this.invalidate()
   }
 
   // O tapete de cada lote e a calçada até a rua (lotGround.js). A calçada fica do lado da rua para onde o prédio olha
@@ -655,6 +676,7 @@ export default class CityWorld {
     record.sim.position.set(x, BUILDING_BASE_Y + lift, z)
     record.footprint = { x, z, width, depth, lift }
     this.contactDirty = true
+    this.invalidate()
     record.sim.rotation.y = -(record.placement.rotation || 0) * Math.PI / 2
     record.proxy.position.set(x, BUILDING_BASE_Y + lift + record.height / 2, z)
     record.proxy.scale.set(width * 0.92, Math.max(record.height, 0.11), depth * 0.92)
@@ -768,6 +790,7 @@ export default class CityWorld {
         walker.rotation.y = Math.atan2(first.x, first.z)
         rig?.update(0, 0, scale)
         this.environment.group.add(walker)
+        this.invalidate()
       } catch {
         // A cidade segue sem o personagem se o GLB não carregar.
       }
@@ -861,6 +884,7 @@ export default class CityWorld {
       disposeOwned(record.sim.mesh, true)
       record.sim.setMesh(group)
       record.loaded = true
+      this.invalidate()
       record.height = size.y * scale - sink
       record.sunk = sink > 0
       this.prepareLogoPivots(record, model)
@@ -888,7 +912,7 @@ export default class CityWorld {
     if (this.reducedMotion) return
     gsap.fromTo(record.sim.scale, { x: 0.72, y: 0.08, z: 0.72 }, {
       x: 1, y: 1, z: 1, duration: 0.65, ease: 'back.out(1.25)', overwrite: true,
-      onComplete: () => this.refreshShadows(),
+      onUpdate: () => this.invalidate(), onComplete: () => this.refreshShadows(),
     })
   }
 
@@ -900,10 +924,12 @@ export default class CityWorld {
     disposeOwned(record.proxy)
     if (record.levelDetails) disposeOwned(record.levelDetails)
     this.contactDirty = true
+    this.invalidate()
   }
 
   setTool(tool = {}) {
     this.tool = { mode: 'select', kind: null, rotation: 0, placementId: null, ...tool }
+    this.invalidate()
     if (this.pilot) this.tiles.visible = !this.interior && this.usesTiles()
     if (this.tool.mode !== 'road') this.setRoadPreview()
     this.refreshPreview()
@@ -930,6 +956,7 @@ export default class CityWorld {
 
   refreshPreview() {
     if (!this.preview) return
+    this.invalidate()
     const moving = this.tool.mode === 'move'
     const placement = moving ? this.state.placements?.find(item => item.id === this.tool.placementId) : null
     const kind = moving ? placement?.kind : this.tool.kind
@@ -970,6 +997,7 @@ export default class CityWorld {
 
   refreshSelection() {
     if (!this.selection) return
+    this.invalidate()
     for (const [id, record] of this.records) {
       // CubeCity's selection feedback operates on cloned materials, preserving GLTF maps.
       if (record.selected !== (id === this.selectedId)) {
@@ -1001,6 +1029,7 @@ export default class CityWorld {
   }
 
   refreshActivityStates(now = Date.now()) {
+    this.invalidate()
     this.activityFresh = this.isActivityFresh(now)
     for (const record of this.records.values()) this.applyRecordFeedback(record, now)
   }
@@ -1044,6 +1073,7 @@ export default class CityWorld {
 
   setLighting(mode) {
     if (!this.renderer) return
+    this.invalidate()
     const dusk = mode === 'dusk'
     const { sky, sun, hemisphere, exposure } = this.look
     this.scene.background.setHex(dusk ? 0xb9b9c4 : sky)
@@ -1076,7 +1106,7 @@ export default class CityWorld {
   }
 
   // Não há mais shadow map: o nome ficou porque vários pontos o chamam ao mudar peças; agora só marca a sombra de contato.
-  refreshShadows() { this.contactDirty = true }
+  refreshShadows() { this.contactDirty = true; this.invalidate() }
 
   /** Sombra de contato: um quad de gradiente radial sob cada prédio, todos num InstancedMesh (+1 draw, sem passe de sombra). */
   makeContactShadows() {
@@ -1148,6 +1178,7 @@ export default class CityWorld {
     this.arrivalTween = gsap.timeline()
       .to(this.camera.position, { ...finalPosition, duration: 0.58, ease: 'power2.out' }, 0)
       .to(this.controls.target, { ...finalTarget, duration: 0.58, ease: 'power2.out' }, 0)
+    this.arrivalTween.eventCallback('onUpdate', () => this.invalidate())
   }
 
   home() {
@@ -1195,6 +1226,7 @@ export default class CityWorld {
       this.interior.tween = gsap.timeline()
         .to(this.camera.position, { ...position, duration: 0.24, ease: 'power2.out' }, 0)
         .to(this.controls.target, { ...target, duration: 0.24, ease: 'power2.out' }, 0)
+      this.interior.tween.eventCallback('onUpdate', () => this.invalidate())
     }
     this.refreshSelection()
     this.refreshPreview()
@@ -1230,6 +1262,7 @@ export default class CityWorld {
     this.renderer.setSize(width, height, false)
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
+    this.invalidate()
   }
 
   projectTile(x, y) {
@@ -1241,7 +1274,7 @@ export default class CityWorld {
 
   stats() {
     this.ensureActivityFreshness()
-    return { placements: this.records.size, modelsLoaded: [...this.records.values()].filter(record => record.loaded).length, modelsLoading: this.pendingModels, modelErrors: [...this.records.values()].filter(record => record.error).map(record => ({ id: record.placement.id, error: record.error })), drawCalls: this.renderer?.info.render.calls || 0, triangles: this.renderer?.info.render.triangles || 0, revision: this.state.revision, selectedId: this.selectedId, activityCheckedAt: this.activity?.checked_at || null, activityStates: Object.fromEntries([...this.records].map(([id, record]) => [id, { ...record.activityView }])), upgrades: [...this.records.values()].filter(record => record.detailLevel > 1).map(record => ({ id: record.placement.id, level: record.detailLevel, detailMeshes: record.levelDetails.children.length })), previewValid: this.preview?.visible ? this.preview.userData.valid : null }
+    return { placements: this.records.size, modelsLoaded: [...this.records.values()].filter(record => record.loaded).length, modelsLoading: this.pendingModels, framesRendered: this.framesRendered, modelErrors: [...this.records.values()].filter(record => record.error).map(record => ({ id: record.placement.id, error: record.error })), drawCalls: this.renderer?.info.render.calls || 0, triangles: this.renderer?.info.render.triangles || 0, revision: this.state.revision, selectedId: this.selectedId, activityCheckedAt: this.activity?.checked_at || null, activityStates: Object.fromEntries([...this.records].map(([id, record]) => [id, { ...record.activityView }])), upgrades: [...this.records.values()].filter(record => record.detailLevel > 1).map(record => ({ id: record.placement.id, level: record.detailLevel, detailMeshes: record.levelDetails.children.length })), previewValid: this.preview?.visible ? this.preview.userData.valid : null }
   }
 
   animateActivity(time) {
@@ -1255,22 +1288,31 @@ export default class CityWorld {
       for (const logo of record.logos) logo.object.rotation.y = logo.rotation + elapsed * 0.65
     }
   }
-  frame() {
+  frame(now = performance.now()) {
     if (this.destroyed) return
     this.raf = requestAnimationFrame(this.frame)
-    const time = this.clock.getElapsedTime()
+    // Fora da tela: nenhum trabalho. Ao voltar, o observador/visibilitychange pede um quadro.
+    if (document.hidden || !this.visible) return
     const limit = this.pilot ? 20 : 12
     this.controls.target.x = THREE.MathUtils.clamp(this.controls.target.x, -limit, limit)
     this.controls.target.z = THREE.MathUtils.clamp(this.controls.target.z, -limit, limit)
     this.controls.target.y = THREE.MathUtils.clamp(this.controls.target.y, 0, 4)
-    this.controls.update()
-    if (this.camera.position.y < 1.5) this.camera.position.y = 1.5
+    // `update()` devolve true enquanto a câmera se move (inclusive no amortecimento).
+    if (this.controls.update()) this.dirty = true
+    if (this.camera.position.y < 1.5) { this.camera.position.y = 1.5; this.dirty = true }
+    // Com movimento reduzido nada anima sozinho: só desenha sob demanda. Sem ele, o ambiente (ondas, personagens,
+    // bondinho, logos) anima a no máximo 30 quadros por segundo quando nada mais pede quadro (60 se pedir).
+    if (!this.dirty && (this.reducedMotion || now - this.lastRender < 28)) return
+    this.dirty = false
+    this.lastRender = now
+    const time = this.clock.getElapsedTime()
     if (this.contactDirty) this.refreshContactShadows()
     this.environment.animate(time, this.reducedMotion)
     for (const foam of this.foams) foam.update(this.reducedMotion ? 0.5 : time)
     this.animateCharacters(time)
     this.animateActivity(time)
     this.renderer.render(this.scene, this.camera)
+    this.framesRendered++
   }
 
   destroy() {
@@ -1280,6 +1322,7 @@ export default class CityWorld {
     this.destroyed = true
     cancelAnimationFrame(this.raf)
     this.observer?.disconnect()
+    this.visibility?.disconnect()
     for (const dispose of this.disposers) dispose()
     this.controls?.dispose()
     this.lotGround?.dispose()

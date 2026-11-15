@@ -1,5 +1,12 @@
-// Reduz um GLB do Tripo (uma malha, uma textura) para o orçamento da cidade e o grava na pasta pública.
+// Reduz um GLB do Tripo (uma textura de cor) para o orçamento da cidade e o grava na pasta pública.
+// Aceita uma ou várias malhas (por exemplo o prédio e a placa do prédio), desde que todas usem a mesma textura de cor:
+// o orçamento de triângulos é dividido entre as malhas na proporção dos triângulos de cada uma, e o GLB sai com uma
+// textura WebP só. Uma malha só sai igual a antes da generalização.
 // Uso: node tools/optimize-city-models.mjs <entrada.glb> <saida.glb> [--tris 9000] [--texture 1024] [--quality 80]
+//        [--flip-limit 0.2] [--allow-uv-flip]
+// `--flip-limit` (padrão 0,2) é o cosseno mínimo entre a normal de um triângulo antes e depois de um colapso: valores
+// menores deixam colapsar mais em quinas (a forma pode ficar mais arredondada). `--allow-uv-flip` deixa de recusar
+// colapsos que viram o triângulo no espaço da textura. Os dois padrões são os de sempre.
 // Sem baixar nada da internet: o redutor é o de tools/lib/simplify-textured.mjs e a textura vai para WebP pelo
 // `sharp`, que já vem instalado com o wrangler (devDependency). O GLB sai sem normais (o material de faces planas
 // as calcula) e sem compressão de malha, então o carregador da cidade não precisa de decodificador.
@@ -37,35 +44,42 @@ function readAccessor({ json, bin }, index) {
 
 const pad4 = buffer => (buffer.length % 4 ? Buffer.concat([buffer, Buffer.alloc(4 - (buffer.length % 4))]) : buffer)
 
-/** Monta um GLB de uma malha com uma textura WebP. `material` mantém os campos do material original. */
-export function buildGlb({ positions, uvs, indices, webp, material = {}, name = 'predio' }) {
-  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity]
-  for (let i = 0; i < positions.length; i += 3) for (let c = 0; c < 3; c++) { min[c] = Math.min(min[c], positions[i + c]); max[c] = Math.max(max[c], positions[i + c]) }
-  const chunks = [pad4(Buffer.from(positions.buffer, positions.byteOffset, positions.byteLength)), pad4(Buffer.from(uvs.buffer, uvs.byteOffset, uvs.byteLength)), pad4(Buffer.from(indices.buffer, indices.byteOffset, indices.byteLength)), pad4(webp)]
+/**
+ * Monta um GLB com uma ou mais malhas que dividem uma textura WebP e um material. `material` mantém os campos do
+ * material original. Passe `parts` (lista de { positions, uvs, indices, name }) ou, para uma malha só, os campos soltos.
+ */
+export function buildGlb({ parts, positions, uvs, indices, webp, material = {}, name = 'predio' }) {
+  parts = parts || [{ positions, uvs, indices, name }]
+  const chunks = [], lengths = [], accessors = [], bufferViews = []
+  const meshes = [], nodes = []
+  parts.forEach((part, k) => {
+    const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity]
+    for (let i = 0; i < part.positions.length; i += 3) for (let c = 0; c < 3; c++) { min[c] = Math.min(min[c], part.positions[i + c]); max[c] = Math.max(max[c], part.positions[i + c]) }
+    for (const array of [part.positions, part.uvs, part.indices]) { chunks.push(pad4(Buffer.from(array.buffer, array.byteOffset, array.byteLength))); lengths.push(array.byteLength) }
+    accessors.push(
+      { bufferView: k * 3, componentType: 5126, count: part.positions.length / 3, type: 'VEC3', min, max },
+      { bufferView: k * 3 + 1, componentType: 5126, count: part.uvs.length / 2, type: 'VEC2' },
+      { bufferView: k * 3 + 2, componentType: part.indices instanceof Uint32Array ? 5125 : 5123, count: part.indices.length, type: 'SCALAR' },
+    )
+    meshes.push({ name: part.name, primitives: [{ attributes: { POSITION: k * 3, TEXCOORD_0: k * 3 + 1 }, indices: k * 3 + 2, material: 0 }] })
+    nodes.push({ mesh: k, name: part.name })
+  })
+  chunks.push(pad4(webp)); lengths.push(webp.length)
+  const imageView = parts.length * 3
   const offsets = []
   let cursor = 0
   for (const chunk of chunks) { offsets.push(cursor); cursor += chunk.length }
   const bin = Buffer.concat(chunks)
-  const lengths = [positions.byteLength, uvs.byteLength, indices.byteLength, webp.length]
+  for (let i = 0; i < chunks.length; i++) bufferViews.push({ buffer: 0, byteOffset: offsets[i], byteLength: lengths[i], ...(i < imageView ? { target: i % 3 === 2 ? 34963 : 34962 } : {}) })
   const json = {
     asset: { version: '2.0', generator: 'cityou tools/optimize-city-models.mjs' },
     extensionsUsed: ['EXT_texture_webp'], extensionsRequired: ['EXT_texture_webp'],
-    scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0, name }],
-    meshes: [{ name, primitives: [{ attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, material: 0 }] }],
+    scene: 0, scenes: [{ nodes: nodes.map((_, i) => i) }], nodes,
+    meshes,
     materials: [{ ...material, pbrMetallicRoughness: { baseColorTexture: { index: 0 }, metallicFactor: 0, roughnessFactor: 1 } }],
     textures: [{ extensions: { EXT_texture_webp: { source: 0 } } }],
-    images: [{ bufferView: 3, mimeType: 'image/webp' }],
-    accessors: [
-      { bufferView: 0, componentType: 5126, count: positions.length / 3, type: 'VEC3', min, max },
-      { bufferView: 1, componentType: 5126, count: uvs.length / 2, type: 'VEC2' },
-      { bufferView: 2, componentType: indices instanceof Uint32Array ? 5125 : 5123, count: indices.length, type: 'SCALAR' },
-    ],
-    bufferViews: [
-      { buffer: 0, byteOffset: offsets[0], byteLength: lengths[0], target: 34962 },
-      { buffer: 0, byteOffset: offsets[1], byteLength: lengths[1], target: 34962 },
-      { buffer: 0, byteOffset: offsets[2], byteLength: lengths[2], target: 34963 },
-      { buffer: 0, byteOffset: offsets[3], byteLength: lengths[3] },
-    ],
+    images: [{ bufferView: imageView, mimeType: 'image/webp' }],
+    accessors, bufferViews,
     buffers: [{ byteLength: bin.length }],
   }
   let jsonBuffer = Buffer.from(JSON.stringify(json), 'utf8')
@@ -77,40 +91,58 @@ export function buildGlb({ positions, uvs, indices, webp, material = {}, name = 
   return Buffer.concat([header, jsonHeader, jsonBuffer, binHeader, bin])
 }
 
-export async function optimizeCityModel(input, { tris = 9000, texture = 1024, quality = 80 } = {}) {
+export async function optimizeCityModel(input, { tris = 9000, texture = 1024, quality = 80, flipLimit, keepUvOrientation, minPartTriangles = 500 } = {}) {
   const glb = readGlb(input)
   const { json } = glb
-  if (json.meshes.length !== 1 || json.meshes[0].primitives.length !== 1) throw new Error('o GLB deve ter uma malha de uma só parte')
-  const primitive = json.meshes[0].primitives[0]
-  const positions = readAccessor(glb, primitive.attributes.POSITION)
-  const uvs = readAccessor(glb, primitive.attributes.TEXCOORD_0)
-  const indices = readAccessor(glb, primitive.indices)
-  const material = json.materials?.[0] ?? {}
+  if (!json.meshes?.length || json.meshes.some(mesh => mesh.primitives.length !== 1)) throw new Error('cada malha do GLB deve ter uma só parte')
+  const primitives = json.meshes.map(mesh => mesh.primitives[0])
+  const materials = primitives.map(primitive => json.materials?.[primitive.material ?? 0] ?? {})
   // A textura de cor é a do material, não a primeira imagem: alguns GLB trazem também um mapa de normais.
-  const colorTexture = material.pbrMetallicRoughness?.baseColorTexture?.index
-  const image = json.images?.[json.textures?.[colorTexture]?.source ?? 0]
+  const sources = materials.map(material => json.textures?.[material.pbrMetallicRoughness?.baseColorTexture?.index]?.source ?? 0)
+  if (new Set(sources).size !== 1) throw new Error('as malhas do GLB devem usar a mesma textura de cor')
+  const material = materials[0]
+  const image = json.images?.[sources[0]]
   if (!image || image.bufferView === undefined) throw new Error('o GLB não tem textura embutida')
   const view = json.bufferViews[image.bufferView]
   const source = glb.bin.subarray(view.byteOffset || 0, (view.byteOffset || 0) + view.byteLength)
 
-  const reduced = simplifyTextured(positions, uvs, indices, { targetTriangles: tris })
+  const inputs = primitives.map(primitive => ({
+    positions: readAccessor(glb, primitive.attributes.POSITION),
+    uvs: readAccessor(glb, primitive.attributes.TEXCOORD_0),
+    indices: readAccessor(glb, primitive.indices),
+  }))
+  const total = inputs.reduce((sum, part) => sum + part.indices.length / 3, 0)
+  const options = {}
+  if (flipLimit !== undefined) options.flipLimit = flipLimit
+  if (keepUvOrientation !== undefined) options.keepUvOrientation = keepUvOrientation
+  const parts = [], stats = { before: 0, after: 0, vertices: 0, rejected: 0, collapses: 0 }
+  inputs.forEach((part, k) => {
+    const own = part.indices.length / 3
+    // Uma malha só leva a meta inteira; com várias, cada uma leva a sua fatia (com um mínimo para as pequenas).
+    const target = inputs.length === 1 ? tris : Math.min(own, Math.max(minPartTriangles, Math.round(tris * own / total)))
+    const reduced = simplifyTextured(part.positions, part.uvs, part.indices, { targetTriangles: target, ...options })
+    parts.push({ positions: reduced.positions, uvs: reduced.uvs, indices: reduced.indices, name: json.nodes?.find(node => node.mesh === k)?.name || json.meshes[k].name || `predio${k}` })
+    for (const key of Object.keys(stats)) stats[key] += reduced.stats[key]
+  })
   const sharp = createRequire(import.meta.url)('sharp')
   const webp = await sharp(source).resize(texture, texture, { fit: 'inside', withoutEnlargement: true }).webp({ quality }).toBuffer()
   const keep = {}
   if (material.doubleSided) keep.doubleSided = true
   if (material.alphaMode) { keep.alphaMode = material.alphaMode; if (material.alphaCutoff !== undefined) keep.alphaCutoff = material.alphaCutoff }
-  const output = buildGlb({ positions: reduced.positions, uvs: reduced.uvs, indices: reduced.indices, webp, material: keep, name: json.nodes?.[0]?.name || 'predio' })
-  return { output, stats: { ...reduced.stats, textureBytes: webp.length, inputTriangles: indices.length / 3 } }
+  const output = buildGlb({ parts, webp, material: keep })
+  return { output, stats: { ...stats, textureBytes: webp.length, inputTriangles: total } }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
   const args = process.argv.slice(2)
   const flag = (name, fallback) => { const i = args.indexOf(`--${name}`); return i >= 0 ? Number(args.splice(i, 2)[1]) : fallback }
-  const tris = flag('tris', 9000), texture = flag('texture', 1024), quality = flag('quality', 80)
+  const tris = flag('tris', 9000), texture = flag('texture', 1024), quality = flag('quality', 80), flipLimit = flag('flip-limit', undefined)
+  const uvFlip = args.indexOf('--allow-uv-flip')
+  if (uvFlip >= 0) args.splice(uvFlip, 1)
   const [inFile, outFile] = args
-  if (!inFile || !outFile) { console.error('Uso: node tools/optimize-city-models.mjs <entrada.glb> <saida.glb> [--tris 9000] [--texture 1024] [--quality 80]'); process.exit(2) }
+  if (!inFile || !outFile) { console.error('Uso: node tools/optimize-city-models.mjs <entrada.glb> <saida.glb> [--tris 9000] [--texture 1024] [--quality 80] [--flip-limit 0.2] [--allow-uv-flip]'); process.exit(2) }
   const started = performance.now()
-  const { output, stats } = await optimizeCityModel(fs.readFileSync(inFile), { tris, texture, quality })
+  const { output, stats } = await optimizeCityModel(fs.readFileSync(inFile), { tris, texture, quality, flipLimit, keepUvOrientation: uvFlip >= 0 ? false : undefined })
   fs.mkdirSync(path.dirname(path.resolve(outFile)), { recursive: true })
   fs.writeFileSync(outFile, output)
   const kb = n => Math.round(n / 1024)

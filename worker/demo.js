@@ -523,7 +523,8 @@ export class DemoSession {
       this.write('task', id, task)
       this.reward('task', dateFormatter.format(completedAt), id, `Tarefa concluída: ${task.title}`)
     }
-    return json({ task, city: this.citySnapshot(DEFAULT_CITY) })
+    // A lista de tarefas vem junto para a tela não pedir de novo (uma ida ao objeto a menos; ver docs/LATENCIA.md).
+    return json({ task, tasks: this.list('task'), city: this.citySnapshot(DEFAULT_CITY) })
   }
 
   cityState() { return this.read('city', 'state') ?? newCity(START, this.testMode) }

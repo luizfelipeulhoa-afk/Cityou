@@ -17,9 +17,11 @@ const EPS = 1e-9
  * @param indices Uint32Array/Uint16Array com três índices por triângulo
  * @param options.targetTriangles número de triângulos desejado
  * @param options.seamWeight peso da multa de costura (padrão 1)
+ * @param options.flipLimit cosseno mínimo entre a normal de um triângulo antes e depois do colapso (padrão 0,2)
+ * @param options.keepUvOrientation recusa colapsos que viram o triângulo no espaço da textura (padrão true)
  * @returns { positions, uvs, indices, stats }
  */
-export function simplifyTextured(positions, uvs, indices, { targetTriangles, seamWeight = 1, flipLimit = 0.2 } = {}) {
+export function simplifyTextured(positions, uvs, indices, { targetTriangles, seamWeight = 1, flipLimit = 0.2, keepUvOrientation = true } = {}) {
   // 1. Solda por posição exata.
   const weldKey = new Map()
   const toWelded = new Int32Array(positions.length / 3)
@@ -175,7 +177,7 @@ export function simplifyTextured(positions, uvs, indices, { targetTriangles, sea
       const area = (au, av, bu, bv, du, dv) => (bu - au) * (dv - av) - (bv - av) * (du - au)
       const oldArea = area(cu, cv, uvOf(f, k1, 0), uvOf(f, k1, 1), uvOf(f, k2, 0), uvOf(f, k2, 1))
       const newArea = area(nu, nv, uvOf(f, k1, 0), uvOf(f, k1, 1), uvOf(f, k2, 0), uvOf(f, k2, 1))
-      if (oldArea * newArea < 0 && Math.abs(oldArea) > 1e-12) return null
+      if (keepUvOrientation && oldArea * newArea < 0 && Math.abs(oldArea) > 1e-12) return null
       updates.push(f, k, nu, nv)
     }
     const cost = Math.max(0, quadricError(u, v, x, y, z)) + seamWeight * penalty * length2
