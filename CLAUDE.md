@@ -183,7 +183,7 @@ Com D1 ligado, `/app`, `/city` e `/world` pedem login (`pageGate` em `worker/ind
 
 - Entrada Python local, configuração e testes: [docs/main.py.md](docs/main.py.md).
 
-- `backend/app.py` (`create_app`) só aceita acesso local; toda escrita exige o cabeçalho `X-Fifones-City: 1`.
+- `backend/app.py` (`create_app`) só aceita acesso local; toda escrita exige `X-Cityou-Request: 1` ou o cabeçalho de transição `X-Fifones-City: 1`. O Worker também aceita os dois, com a mesma exigência de origem, e o navegador envia o novo.
 - Módulos novos seguem `backend/personal.py`: `register(application, root, clock)` com SQLite próprio em `data/`.
 - Testes no padrão de `tests/test_personal.py` (`TestClient` com `base_url='http://127.0.0.1:8766'`).
 - `GET /api/personal/tasks` e `POST /api/personal/tasks/{id}/complete` (etapa 2) são as mesmas funções de `/api/workspace/tasks*`, ligadas no fim de `backend/personal.py`: localmente as tarefas continuam vindo da fonte Fifones opcional (README). Teste em `tests/test_task_routes.py`.

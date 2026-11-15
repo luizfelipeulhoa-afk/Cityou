@@ -195,7 +195,7 @@ form.addEventListener('submit', async (event) => {
   submit.textContent = copy[mode].busy
   try {
     const response = await fetch(`/api/auth/${mode}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1' }, body: JSON.stringify(data),
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Cityou-Request': '1' }, body: JSON.stringify(data),
     })
     const result = await response.json().catch(() => ({}))
     if (response.ok) { clearCache(); location.assign(nextPath); return }

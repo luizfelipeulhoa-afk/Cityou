@@ -13,7 +13,7 @@
 // Cuidado: a demonstração guarda no máximo 100 registros por tipo; uma escrita de registro com mais de ~90 chamadas passa a dar erro.
 // A sessão de demonstração é obtida sozinha (o Worker põe o cookie ao servir /app). Se o site exige login,
 // as rotas de dados respondem 401: entre numa conta e passe o cookie com --cookie.
-// Escritas levam sozinhas Origin e X-Fifones-City. Respostas com erro são contadas e o teste segue;
+// Escritas levam sozinhas Origin e X-Cityou-Request. Respostas com erro são contadas e o teste segue;
 // os tempos vêm só das respostas que deram certo.
 const argv = process.argv.slice(2)
 const flags = {}, positional = []
@@ -62,7 +62,7 @@ function request(spec, bodyText) {
   if (jar.size) headers.Cookie = cookieHeader()
   if (method !== 'GET' && method !== 'HEAD') {
     headers.Origin = origin
-    headers['X-Fifones-City'] = '1'
+    headers['X-Cityou-Request'] = '1'
     if (bodyText !== undefined) headers['Content-Type'] = 'application/json'
   }
   return fetch(base + spec.path, { method, headers, body: bodyText, cache: 'no-store', redirect: 'manual' })

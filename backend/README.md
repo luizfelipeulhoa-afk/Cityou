@@ -22,7 +22,7 @@ pasta. Nenhum arquivo ou banco do Fifones original é aberto pelo backend.
 - `GET /api/workspace/activity`: `{connected,activity,message}`; activity vem
   exclusivamente de GET /api/assistant/city-activity.
 
-Writes exigem `X-Fifones-City: 1`. Host e Origin precisam ser locais; Origin,
+Writes aceitam `X-Cityou-Request: 1` ou `X-Fifones-City: 1` durante a transição. Host e Origin precisam ser locais; Origin,
 quando presente, precisa usar a mesma porta do Host. Os erros de domínio têm
 `{message,detail,city}`; `city` é o snapshot atual, inclusive em conflito 409.
 A validação de schema usa o formato 422 padrão do FastAPI. Sync e conclusão

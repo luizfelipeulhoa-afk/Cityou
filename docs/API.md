@@ -51,7 +51,7 @@ No desenvolvimento, o Vite encaminha `/api` para o `wrangler dev`, no lugar do F
 
 - **Formato:** JSON em UTF-8. Respostas de `/api/*` saem com `Cache-Control: no-store`.
 - **Sessão:** cookie `cityou_session`, `HttpOnly; Secure; SameSite=Lax; Path=/`, válido por 30 dias. O banco guarda só o SHA-256 do token.
-- **Escritas** (`POST`, `PUT`, `PATCH`, `DELETE`) exigem o cabeçalho `X-Fifones-City: 1` (o cliente `src/fifones/api.js` já envia) e `Origin` igual ao do site. Juntos com `SameSite=Lax`, barram envio forjado por outro site.
+- **Escritas** (`POST`, `PUT`, `PATCH`, `DELETE`) exigem `X-Cityou-Request: 1` e `Origin` igual ao do site. Durante a transição, o Worker também aceita `X-Fifones-City: 1` para clientes antigos. O FastAPI local aceita os dois enquanto for o destino padrão do proxy do Vite. Juntos com `SameSite=Lax`, barram envio forjado por outro site.
 - **Identificadores:** o navegador gera o `id` (UUID) e envia no corpo do `POST`. Repetir o mesmo `POST` devolve o registro já criado, com 200, sem duplicar.
 - **Dono:** toda rota usa o `user_id` da sessão. Registro de outra conta responde 404.
 - **Erros:** `{ "message": "texto para a pessoa", "detail": "o mesmo texto", "fields": { "campo": "motivo" } }`. `ApiError` em `src/fifones/api.js` já lê `message` e `detail`.
@@ -274,7 +274,7 @@ O token vai no cabeçalho `X-Cityou-Admin`; erros: 403 (token errado), 404 (sem 
 Cada sócio roda uma vez no console do navegador, na página do app já aberta (para valer a sessão dele):
 
 ```js
-fetch('/api/admin/credits', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1', 'X-Cityou-Admin': 'COLE_O_TOKEN' }, body: '{}' }).then(r => r.json()).then(c => console.log(c.credits))
+fetch('/api/admin/credits', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Cityou-Request': '1', 'X-Cityou-Admin': 'COLE_O_TOKEN' }, body: '{}' }).then(r => r.json()).then(c => console.log(c.credits))
 ```
 
 Para criar o segredo: `npx wrangler secret put CITYOU_ADMIN_TOKEN` (ou Cloudflare → Workers → cityou → Settings → Variables and Secrets).

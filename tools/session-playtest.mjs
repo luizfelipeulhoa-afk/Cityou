@@ -15,7 +15,7 @@ const email = `e2e-${Date.now()}@example.test`, password = 'senha-sintetica-123'
   const errors = []
   page.on('pageerror', e => errors.push(String(e)))
   const call = (path, method = 'GET', body) => page.evaluate(async ([p, m, b]) => {
-    const r = await fetch(p, { method: m, headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1' }, ...(b ? { body: JSON.stringify(b) } : {}) })
+    const r = await fetch(p, { method: m, headers: { 'Content-Type': 'application/json', 'X-Cityou-Request': '1' }, ...(b ? { body: JSON.stringify(b) } : {}) })
     return { status: r.status, data: await r.json().catch(() => null) }
   }, [path, method, body])
   const credits = async () => (await call('/api/city')).data.credits
@@ -81,6 +81,7 @@ const email = `e2e-${Date.now()}@example.test`, password = 'senha-sintetica-123'
     const frame = page.frameLocator('iframe[title="Minha cidade Cityou"]')
     await frame.getByRole('button', { name: label, exact: true }).first().click({ timeout: 30000 })
     await page.waitForURL(`**/app#/${tab}`, { timeout: 10000 }).catch(() => {})
+    await page.locator('iframe[title="Minha cidade Cityou"]').waitFor({ state: 'detached', timeout: 5000 }).catch(() => {})
     const framed = await page.locator('iframe').count()
     check(`cidade embutida: ${label} abre /app#/${tab} na janela principal`, page.url().endsWith(`/app#/${tab}`) && framed === 0, `${page.url()} iframes=${framed}`)
   }
