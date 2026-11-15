@@ -35,3 +35,15 @@ test('relatório enorme é cortado, não grava nada e não derruba o Worker', as
   const posted = await harness.fetch(ORIGIN + '/api/csp-report', { method: 'POST', body: huge })
   assert.equal(posted.status, 204)
 })
+
+test('CSP_ENFORCE="true" troca o Report-Only pelo cabeçalho que bloqueia, só nas páginas', async () => {
+  const { default: worker } = await import('../worker/index.js')
+  const ASSETS = { fetch: async () => new Response('<!doctype html>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } }) }
+  const page = async env => worker.fetch(new Request(ORIGIN + '/terrain.html'), { ASSETS, ...env })
+  const watching = await page({})
+  assert.equal(watching.headers.get('Content-Security-Policy'), null)
+  assert.equal(watching.headers.get('Content-Security-Policy-Report-Only'), CSP_REPORT_ONLY)
+  const blocking = await page({ CSP_ENFORCE: 'true' })
+  assert.equal(blocking.headers.get('Content-Security-Policy'), CSP_REPORT_ONLY)
+  assert.equal(blocking.headers.get('Content-Security-Policy-Report-Only'), null)
+})

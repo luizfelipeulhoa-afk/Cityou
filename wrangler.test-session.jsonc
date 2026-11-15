@@ -4,7 +4,7 @@
   "name": "cityou-test-session",
   "main": "worker/index.js",
   "compatibility_date": "2026-11-09",
-  "vars": { "REQUIRE_LOGIN": "true" },
+  "vars": { "REQUIRE_LOGIN": "true", "SIGNUP_OPEN": "true", "CITYOU_TEST_NO_IP_LIMIT": "true" },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

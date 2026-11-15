@@ -23,7 +23,6 @@ const CENTER = 8
 const BUILDING_BASE_Y = 0.065
 const NOOP = () => {}
 const ACTIVITY_MAX_AGE = 45_000
-const ACTIVITY_STATES = new Set(['working', 'observed', 'focus', 'waiting', 'idle', 'unknown'])
 const ACTIVE_STATES = new Set(['working', 'observed', 'focus'])
 const SELECTION_EMISSION = new THREE.Color(0xf2944f)
 const ACTIVE_EMISSION = new THREE.Color(0x84cfab)
@@ -989,32 +988,6 @@ export default class CityWorld {
     bottom.scale.set(width, 1, 0.035); bottom.position.set(0, 0, depth / 2)
     left.scale.set(0.035, 1, depth); left.position.set(-width / 2, 0, 0)
     right.scale.set(0.035, 1, depth); right.position.set(width / 2, 0, 0)
-  }
-
-  setInUse(id) {
-    this.inUseId = id || null
-    this.refreshActivityStates()
-  }
-
-  setActivity(activity) {
-    if (this.destroyed) return
-    const places = activity?.places
-    if (!places || typeof places !== 'object' || Array.isArray(places)) {
-      this.activity = null
-      this.activityCheckedAt = NaN
-    }
-    else {
-      const normalized = Object.create(null)
-      for (const [kind, signal] of Object.entries(places)) {
-        normalized[kind] = {
-          state: ACTIVITY_STATES.has(signal?.state) ? signal.state : 'unknown',
-          label: typeof signal?.label === 'string' ? signal.label.slice(0, 160) : '',
-        }
-      }
-      this.activity = { places: normalized, checked_at: activity.checked_at }
-      this.activityCheckedAt = Date.parse(activity.checked_at)
-    }
-    this.refreshActivityStates()
   }
 
   isActivityFresh(now = Date.now()) {

@@ -28,7 +28,7 @@ O público inclui pessoas com TDAH e depressão. Antes de fechar os números, as
 | Tarefa concluída | +10 | +10 | uma vez por tarefa, para sempre; só as 10 primeiras do dia pagam |
 | Hábito feito | +5 | +5 | uma vez por hábito por dia; só os 8 primeiros do dia pagam |
 | Passo de meta | +5 | 0 | um por meta por dia |
-| Meta concluída | +50 | +25 | uma vez por meta |
+| Meta concluída | +50 | 5 por dia exigido, até +25 | uma vez por meta; até 3 metas pagas por dia (a que passa do teto paga no dia seguinte, sozinha) |
 | Registro do dia (lançamento, refeição, peso, reflexão) | +2 | 0 | só o primeiro de cada tipo no dia |
 | Volta depois de 7 dias ou mais sem ação | 0 | +20 | uma vez por retorno |
 

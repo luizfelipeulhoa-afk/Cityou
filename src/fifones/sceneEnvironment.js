@@ -21,8 +21,6 @@ export function material(color, options = {}) {
 export function box(parent, width, height, depth, x, y, z, mat) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat)
   mesh.position.set(x, y, z)
-  mesh.castShadow = true
-  mesh.receiveShadow = true
   parent.add(mesh)
   return mesh
 }
@@ -30,7 +28,6 @@ export function box(parent, width, height, depth, x, y, z, mat) {
 function cylinder(parent, radius, height, x, y, z, mat, top = radius, segments = 10) {
   const mesh = new THREE.Mesh(new THREE.CylinderGeometry(top, radius, height, segments), mat)
   mesh.position.set(x, y, z)
-  mesh.castShadow = true
   parent.add(mesh)
   return mesh
 }
@@ -60,11 +57,9 @@ export function tree(parent, x, z, scale = 1) {
   const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 1), material(palette.bright))
   crown.position.set(0, 0.5, 0)
   crown.scale.set(1, 1.08, 0.95)
-  crown.castShadow = true
   group.add(crown)
   const side = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2, 0), material(palette.leaf))
   side.position.set(0.13, 0.44, 0.06)
-  side.castShadow = true
   group.add(side)
   parent.add(group)
   return group
@@ -87,7 +82,6 @@ function palm(parent, x, z, scale = 1) {
     leaf.rotation.x = -Math.PI / 2 + 0.21
     leaf.rotation.z = a
     leaf.position.set(0.045, 0.88, 0)
-    leaf.castShadow = true
     g.add(leaf)
   }
   parent.add(g)
@@ -111,8 +105,6 @@ function mountain(parent, x, z, width, height, depth, colors = [0x6c926d, 0x91ac
   geometry.computeVertexNormals()
   const mesh = new THREE.Mesh(geometry, material(0xffffff, { vertexColors: true, flatShading: false }))
   mesh.position.set(x, -0.5, z)
-  mesh.castShadow = true
-  mesh.receiveShadow = true
   parent.add(mesh)
   return mesh
 }
@@ -197,7 +189,6 @@ function addRegionalScenery(group, terrain) {
   const surroundings = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), material(terrain.backdrop))
   surroundings.rotation.x = -Math.PI / 2
   surroundings.position.y = -0.65
-  surroundings.receiveShadow = true
   group.add(surroundings)
 
   if (terrain.hills) {
@@ -221,7 +212,6 @@ function sceneryTiles(group, name, cells, geometry) {
   if (cells.length === 0) return
   const tiles = new THREE.InstancedMesh(geometry ?? new THREE.BoxGeometry(1, 1, 1), material(0xffffff), cells.length)
   tiles.name = name
-  tiles.receiveShadow = true
   const item = new THREE.Object3D()
   const color = new THREE.Color()
   for (const [index, { position, scale, tint }] of cells.entries()) {
@@ -316,7 +306,6 @@ function pilotIsland(group, layout, shore, land) {
   const roof = new THREE.Mesh(new THREE.ConeGeometry(1.55, 0.95, 4), thatch)
   roof.rotation.y = Math.PI / 4
   roof.position.y = 1.62
-  roof.castShadow = true
   cabin.add(roof)
   box(cabin, 1.15, 0.07, 0.34, -0.1, 0.38, -0.5, wood)
   for (const x of [-0.55, 0.35]) box(cabin, 0.06, 0.28, 0.06, x, 0.24, -0.5, wood)
@@ -551,7 +540,6 @@ function pilotWater(island) {
   const water = new THREE.Mesh(geometry, material(0xffffff, { roughness: 0.57, vertexColors: true }))
   water.position.y = -0.5
   water.name = island ? 'Lagoa e mar aberto' : 'Baía'
-  water.receiveShadow = true
   return water
 }
 
@@ -582,7 +570,6 @@ function pilotLand(group, cells) {
   geometry.computeVertexNormals()
   const mesh = new THREE.Mesh(geometry, material(0xffffff, { vertexColors: true }))
   mesh.name = 'Patamar edificável'
-  mesh.receiveShadow = true
   group.add(mesh)
   return mesh
 }
@@ -632,7 +619,6 @@ function pilotSlope(group, layout, slope, water) {
   geometry.computeVertexNormals()
   const mesh = new THREE.Mesh(geometry, material(0xffffff, { vertexColors: true, flatShading: true }))
   mesh.name = 'Encosta protegida'
-  mesh.receiveShadow = true
   group.add(mesh)
   const monument = layout.landmarks[0]
   const forest = layout.slopeTiles
@@ -854,11 +840,9 @@ export function createEnvironment(scene, region) {
 
   const land = new THREE.Mesh(roundedBlock(19, 19, 0.85, 1.05), [material(groundColor), material(palette.sandstone)])
   land.position.y = -0.84
-  land.receiveShadow = true
   group.add(land)
   const ground = new THREE.Mesh(roundedBlock(18.72, 18.72, 0.08, 0.9), material(groundColor))
   ground.position.y = -0.03
-  ground.receiveShadow = true
   group.add(ground)
 
   if (terrain?.backdrop) {
@@ -880,7 +864,6 @@ export function createEnvironment(scene, region) {
   oceanGeometry.rotateX(-Math.PI / 2)
   const ocean = new THREE.Mesh(oceanGeometry, oceanMat)
   ocean.position.y = -0.47
-  ocean.receiveShadow = true
   group.add(ocean)
 
   // Rio's granite silhouettes are geometry, including the open-armed summit statue.
@@ -942,7 +925,6 @@ export function createEnvironment(scene, region) {
   const heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.022, 6, 4), material(0xe6bb8e), peopleCount)
   bodies.userData.decorative = true
   heads.userData.decorative = true
-  bodies.castShadow = true
   group.add(bodies, heads)
   const dummy = new THREE.Object3D()
   const colors = [0xf5c96f, 0x436d7e, 0xe98455, 0xf0ebd9, 0x688c64]
@@ -1080,7 +1062,6 @@ export function createDomainBuilding(definition, stage) {
     }
     group.userData.height = top
   }
-  group.children.forEach(child => { child.castShadow = true; child.receiveShadow = true })
   return group
 }
 
@@ -1110,7 +1091,6 @@ function createTownBuilding(kind, definition) {
     const cap = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w, d) * 0.78, 0.55, 4), tile)
     cap.rotation.y = Math.PI / 4
     cap.position.y = 0.06 + h + 0.32
-    cap.castShadow = true
     group.add(cap)
     box(group, w * 0.9, 0.05, 0.3, 0, 1.6, d / 2 + 0.16, trim)
   } else if (roof === 'awning') {
@@ -1121,7 +1101,6 @@ function createTownBuilding(kind, definition) {
     cap.scale.z = d / w
     cap.rotation.y = Math.PI / 4
     cap.position.y = 0.06 + h + 0.4
-    cap.castShadow = true
     group.add(cap)
     for (let i = 0; i < 5; i++) box(group, 0.3, 0.3, 0.04, -w / 2 + 0.3 + i * (w - 0.6) / 4, 0.9, d / 2 + 0.03, i % 2 ? cream : material(0xe0773c))
   } else {
@@ -1146,8 +1125,6 @@ export function createCoreBuilding(kind, definition = {}, placement = null) {
   const white = material(0xf0eadc), dark = material(palette.charcoal), orange = material(palette.orange)
   if (kind === 'headquarters' || kind === 'hq') {
     const body = new THREE.Mesh(roundedBlock(0.82, 0.8, 0.67, 0.13), dark)
-    body.castShadow = true
-    body.receiveShadow = true
     group.add(body)
     const roof = new THREE.Mesh(roundedBlock(0.7, 0.68, 0.05, 0.09), material(0x4b5750))
     roof.position.y = 0.67

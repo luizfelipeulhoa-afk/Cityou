@@ -12,7 +12,7 @@ import JumpBar from './personal/JumpBar.vue'
 import { useNavPill } from './personal/navPill.js'
 import { areaBreakdown, cumulativeSeries, dayOf, dayRange, monthBalance } from './personal/dashboardData.js'
 // Cliente único da API (etapa 2): o mesmo `api()` da cidade, que trata o 401 levando a pessoa para entrar.
-import { ACCOUNTS_INACTIVE_NOTICE, readCache, signOut, writeCache, addEvent, addProject, addWeight, api, completeTask, editEvent, editProject, editWeight, removeEvent, removeProject, removeWeight, stepDone } from './fifones/api.js'
+import { ACCOUNTS_INACTIVE_NOTICE, clearCache, readCache, signOut, writeCache, addEvent, addProject, addWeight, api, completeTask, editEvent, editProject, editWeight, removeEvent, removeProject, removeWeight, stepDone } from './fifones/api.js'
 import { photoToDataUrl } from './personal/proof.js'
 const sections=[
 {id:'inicio',label:'Seu dia',icon:'home',group:'SEU ESPAÇO',description:'O que importa, sem carregar tudo na cabeça.'},
@@ -83,6 +83,43 @@ watch(inCity,(city,was)=>{
 function cityHelp(){document.querySelector('.city-space iframe')?.contentWindow?.postMessage({type:'cityou:help'},location.origin)}
 const data=ref({entries:[],checkins:[],events:[],sources:{}}), tasks=ref([]), projects=ref([]), online=ref(navigator.onLine), loading=ref(true), refreshing=ref(false), error=ref(''), notice=ref('')
 const proofDialog=ref(null), proofSaving=ref(false)
+// Aba Conta, só com conta: baixar os dados e apagar a conta. O apagar confere a senha de novo no servidor.
+const exporting=ref(false), deleteDialog=ref(null), deleteSaving=ref(false)
+async function exportData(){
+  if(exporting.value)return
+  exporting.value=true
+  try{
+    const exported=await api('/api/auth/export')
+    const day=String(exported.exported_at||new Date().toISOString()).slice(0,10)
+    const url=URL.createObjectURL(new Blob([JSON.stringify(exported,null,2)],{type:'application/json'}))
+    const link=document.createElement('a')
+    link.href=url
+    link.download=`cityou-meus-dados-${day}.json`
+    document.body.append(link)
+    link.click()
+    link.remove()
+    setTimeout(()=>URL.revokeObjectURL(url),1000)
+  }catch(e){notify(e.message,'error')}
+  finally{exporting.value=false}
+}
+function openDelete(){previousFocus=document.activeElement;deleteDialog.value={password:'',error:''};nextTick(()=>document.querySelector('.delete-dialog input')?.focus())}
+function closeDelete(){if(deleteSaving.value)return;deleteDialog.value=null;previousFocus?.focus?.()}
+async function confirmDelete(){
+  const dialog=deleteDialog.value
+  if(!dialog||deleteSaving.value)return
+  if(!dialog.password){dialog.error='Digite a sua senha para confirmar.';return}
+  deleteSaving.value=true
+  dialog.error=''
+  try{
+    // fetch direto, e não api(): aqui um 401 é senha errada, e api() trataria como sessão vencida.
+    const response=await fetch('/api/auth/delete',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Cityou-Request':'1'},body:JSON.stringify({password:dialog.password})})
+    const body=await response.json().catch(()=>null)
+    if(!response.ok){dialog.error=body?.message||`Não foi possível apagar agora (${response.status}).`;return}
+    clearCache()
+    location.assign('/?inicio')
+  }catch{dialog.error='Sem conexão. Tente de novo.'}
+  finally{deleteSaving.value=false}
+}
 const saveState=computed(()=>!online.value||error.value?'offline':saving.value||proofSaving.value?'saving':'saved')
 const domains=[['saude','Saúde'],['alimentacao','Alimentação'],['financas','Finanças'],['estudos','Estudos'],['mente','Mente'],['organizacao','Organização']]
 const routeDomain={fitness:'saude',nutricao:'alimentacao',financas:'financas',estudos:'estudos',biblioteca:'estudos',autoconhecimento:'mente'}
@@ -221,7 +258,7 @@ const hasBuilding=id=>(data.value.predios||[]).includes(id)
 async function buildFor(item){if(saving.value)return;saving.value=true;try{const city=await api('/api/city');await api('/api/city/actions','POST',{type:'build',activity_id:item.id,expected_revision:city.revision,request_id:crypto.randomUUID()});data.value={...data.value,predios:[...(data.value.predios||[]),item.id]};notify(`Prédio "${item.place||item.title}" construído na cidade.`);refresh()}catch(e){notify(e.message,'error')}finally{saving.value=false}}
 async function sendProof(){const dialog=proofDialog.value;if(!dialog||proofSaving.value)return;const note=dialog.note.trim();if(!dialog.file&&note.length<20){notify('Escreva pelo menos 20 caracteres ou envie uma foto.','error');return}proofSaving.value=true;try{const proof={};if(note)proof.note=note;if(dialog.file)proof.photo=await photoToDataUrl(dialog.file);const result=await api(`/api/personal/entries/${encodeURIComponent(dialog.item.id)}/checkin`,'PUT',{done:true,proof});const {proof_result,...rest}=result;data.value={...data.value,...rest};notify(proof_result?.bonus>0?`Comprovado · +${proof_result.bonus} moedas`:proof_result?.reason==='daily_cap'?'Comprovação guardada. O bônus de hoje já foi usado.':'Comprovação atualizada.');if(dialog.preview)URL.revokeObjectURL(dialog.preview);proofDialog.value=null;previousFocus?.focus?.()}catch(e){notify(e.message,'error')}finally{proofSaving.value=false}}
 function setOnline(){online.value=navigator.onLine}
-function keydown(event){if(event.key==='Escape'){if(proofDialog.value)closeProof();else if(eventDialog.value)closeEvent();else if(projectDialog.value)closeProject();else if(weightDialog.value)closeWeight();else if(modal.value)closeForm();else mobileMenu.value=false}if(event.key==='Tab'&&(modal.value||proofDialog.value||eventDialog.value||projectDialog.value||weightDialog.value)){const root=document.querySelector(proofDialog.value?'.proof-dialog':eventDialog.value||projectDialog.value||weightDialog.value?'.side-dialog':modal.value?'.entry-dialog':'.bridge-dialog');const els=[...root.querySelectorAll('button:not(:disabled),input,select,textarea,iframe,a[href]')];if(event.shiftKey&&document.activeElement===els[0]){event.preventDefault();els.at(-1)?.focus()}else if(!event.shiftKey&&document.activeElement===els.at(-1)){event.preventDefault();els[0]?.focus()}}}
+function keydown(event){if(event.key==='Escape'){if(deleteDialog.value)closeDelete();else if(proofDialog.value)closeProof();else if(eventDialog.value)closeEvent();else if(projectDialog.value)closeProject();else if(weightDialog.value)closeWeight();else if(modal.value)closeForm();else mobileMenu.value=false}if(event.key==='Tab'&&(modal.value||deleteDialog.value||proofDialog.value||eventDialog.value||projectDialog.value||weightDialog.value)){const root=document.querySelector(deleteDialog.value?'.delete-dialog':proofDialog.value?'.proof-dialog':eventDialog.value||projectDialog.value||weightDialog.value?'.side-dialog':modal.value?'.entry-dialog':'.bridge-dialog');const els=[...root.querySelectorAll('button:not(:disabled),input,select,textarea,iframe,a[href]')];if(event.shiftKey&&document.activeElement===els[0]){event.preventDefault();els.at(-1)?.focus()}else if(!event.shiftKey&&document.activeElement===els.at(-1)){event.preventDefault();els[0]?.focus()}}}
 onMounted(()=>{parseRoute();refresh();window.addEventListener('hashchange',parseRoute);window.addEventListener('keydown',keydown);window.addEventListener('online',setOnline);window.addEventListener('offline',setOnline);poll=setInterval(()=>{if(!document.hidden&&!modal.value&&!eventDialog.value&&!projectDialog.value&&!weightDialog.value)refresh()},60000)})
 onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);window.removeEventListener('online',setOnline);window.removeEventListener('offline',setOnline);window.removeEventListener('hashchange',parseRoute);window.removeEventListener('keydown',keydown)})
 </script>
@@ -350,6 +387,8 @@ onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);window.removeEventListe
       <template v-else-if="route==='conta'">
         <section class="surface account-panel"><span class="profile-avatar large">{{ (account?.display_name||'C').slice(0,1).toUpperCase() }}</span><div><h2>{{ account?.display_name||'Demonstração' }}</h2><p>{{ account?.email||'Este espaço está guardado só neste navegador.' }}</p></div><button v-if="account" class="primary-btn" :disabled="signingOut" @click="leave">{{ signingOut?'Saindo…':'Sair da conta' }}</button><a v-else class="primary-btn" href="/?inicio">Criar conta para guardar</a></section>
         <p class="small-note">{{ account?'Seus registros ficam guardados na sua conta.':'Sem conta, tudo expira em 30 dias. Criar uma conta leva o que você já fez junto.' }}</p>
+        <section v-if="account" class="surface account-action"><div><h2>Baixar meus dados</h2><p>Um arquivo JSON com tudo o que a sua conta guarda.</p></div><button class="quiet-button" :disabled="exporting" :aria-busy="exporting" @click="exportData">{{ exporting?'Preparando…':'Baixar meus dados' }}</button></section>
+        <section v-if="account" class="surface account-action danger-zone"><div><h2>Apagar minha conta</h2><p>Apaga a conta e todos os registros, a cidade e as moedas. Não tem volta. Se quiser guardar algo, baixe seus dados antes.</p></div><button class="danger-button" @click="openDelete">Apagar minha conta</button></section>
       </template>
     </div>
   </section>
@@ -360,5 +399,6 @@ onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);window.removeEventListe
   <div v-if="projectDialog" class="personal-overlay" @click.self="closeProject"><form class="entry-dialog side-dialog" role="dialog" aria-modal="true" aria-labelledby="project-title" @submit.prevent="saveProject"><header><span class="dialog-icon"><Icon name="projects" :size="23" /></span><button type="button" class="icon-btn" aria-label="Fechar formulário" :disabled="saving" @click="closeProject"><Icon name="close" /></button></header><h2 id="project-title">{{ projectDialog.id?'Ajustar o projeto.':'Um projeto, um passo.' }}</h2><label>Como se chama?<input v-model="projectDialog.name" required maxlength="120" placeholder="Escreva aqui" /></label><label>Detalhes, se quiser<textarea v-model="projectDialog.description" rows="3" maxlength="1000" /></label><label v-if="!projectDialog.id">Qual é o próximo passo? (pode deixar para depois)<input v-model="projectDialog.next_step" maxlength="180" /></label><footer><button type="button" class="quiet-button" :disabled="saving" @click="closeProject">Agora não</button><button class="primary-btn" :disabled="saving">{{ saving?'Salvando…':'Guardar' }}<Icon name="check" :size="16" /></button></footer></form></div>
   <div v-if="weightDialog" class="personal-overlay" @click.self="closeWeight"><form class="entry-dialog side-dialog" role="dialog" aria-modal="true" aria-labelledby="weight-title" @submit.prevent="saveWeight"><header><span class="dialog-icon"><Icon name="fitness" :size="23" /></span><button type="button" class="icon-btn" aria-label="Fechar formulário" :disabled="saving" @click="closeWeight"><Icon name="close" /></button></header><h2 id="weight-title">{{ weightDialog.id?'Ajustar a pesagem.':'Peso do dia.' }}</h2><label>Quanto marcou, em kg?<input v-model="weightDialog.kg" required inputmode="decimal" placeholder="Ex.: 70,5" /></label><label>Dia<input v-model="weightDialog.day" type="date" required :min="weightMinDay()" :max="today()" :disabled="Boolean(weightDialog.id)" /></label><label>Nota, se quiser<input v-model="weightDialog.note" maxlength="200" placeholder="Ex.: depois do café" /></label><footer><button type="button" class="quiet-button" :disabled="saving" @click="closeWeight">Agora não</button><button class="primary-btn" :disabled="saving">{{ saving?'Salvando…':'Guardar' }}<Icon name="check" :size="16" /></button></footer></form></div>
   <div v-if="proofDialog" class="personal-overlay" @click.self="closeProof"><form class="entry-dialog proof-dialog" role="dialog" aria-modal="true" aria-labelledby="proof-title" @submit.prevent="sendProof"><header><span class="dialog-icon"><Icon name="check" :size="23" /></span><button type="button" class="icon-btn" aria-label="Fechar comprovação" :disabled="proofSaving" @click="closeProof"><Icon name="close" /></button></header><h2 id="proof-title">Comprovar: {{ proofDialog.item.title }}</h2><p class="proof-help">Opcional. Um relato ou uma foto rende +5 moedas, até 3 por dia. Só você vê. Marcar sem comprovar continua valendo.</p><label>O que você fez?<textarea v-model="proofDialog.note" rows="4" maxlength="500" placeholder="Pelo menos 20 caracteres, ou envie uma foto" /></label><label class="photo-field">Foto, se quiser<input type="file" accept="image/*" capture="environment" @change="pickPhoto" /></label><img v-if="proofDialog.preview" class="proof-preview" :src="proofDialog.preview" alt="Prévia da foto escolhida" /><footer><button type="button" class="quiet-button" :disabled="proofSaving" @click="closeProof">Agora não</button><button class="primary-btn" :disabled="proofSaving">{{ proofSaving?'Enviando…':'Guardar comprovação' }}<Icon name="check" :size="16" /></button></footer></form></div>
+  <div v-if="deleteDialog" class="personal-overlay" @click.self="closeDelete"><form class="entry-dialog delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-title" aria-describedby="delete-help" @submit.prevent="confirmDelete"><header><span class="dialog-icon"><Icon name="settings" :size="23" /></span><button type="button" class="icon-btn" aria-label="Fechar confirmação" :disabled="deleteSaving" @click="closeDelete"><Icon name="close" /></button></header><h2 id="delete-title">Apagar sua conta?</h2><p id="delete-help" class="proof-help">Isso apaga a sua conta e todos os seus registros, a cidade e as moedas. Não dá para desfazer. Se quiser guardar algo, baixe seus dados antes.</p><label>Digite sua senha para confirmar<input v-model="deleteDialog.password" type="password" autocomplete="current-password" required :disabled="deleteSaving" /></label><p v-if="deleteDialog.error" class="delete-error" role="alert">{{ deleteDialog.error }}</p><footer><button type="button" class="quiet-button" :disabled="deleteSaving" @click="closeDelete">Agora não</button><button class="danger-button" :disabled="deleteSaving">{{ deleteSaving?'Apagando…':'Apagar minha conta' }}</button></footer></form></div>
 </main>
 </template>

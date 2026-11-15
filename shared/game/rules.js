@@ -11,6 +11,10 @@ export const RULES = Object.freeze({
   xpStep: 50,        // quanto cada nível seguinte pede a mais
   paidHabitsPerDay: 8,
   paidTasksPerDay: 10,
+  // Meta concluída (15/11/2026): paga 5 moedas por dia que a meta exige, até o teto de goalDone (25, a partir de 5 dias),
+  // e no máximo 3 metas pagas por dia. Antes uma meta de alvo 1 pagava 25 e não havia teto: dava para criar metas sem fim.
+  goalCreditsPerTargetDay: 5,
+  paidGoalsPerDay: 3,
   backfillDays: 7,   // marcar dias passados: permitido, sem recompensa
   returnAfterDays: 7,
   rewards: Object.freeze({
@@ -57,6 +61,12 @@ export function applyXp(player, amount, rules = RULES) {
     events.push({ type: 'level_up', level, unlocks: rules.unlocks[level] ?? [] })
   }
   return { player: { ...player, level, xp, lifetimeXp }, events }
+}
+
+/** Moedas de uma meta concluída: proporcionais aos dias que ela exige, até o teto de `goalDone`. */
+export function goalCredits(target, rules = RULES) {
+  const days = Math.max(1, Math.floor(Number(target) || 1))
+  return Math.min(rules.rewards.goalDone.credits, rules.goalCreditsPerTargetDay * days)
 }
 
 /** Bônus de presença a partir dos dias ativos nos últimos 7. */

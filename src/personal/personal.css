@@ -33,6 +33,10 @@
 .sign-out{display:block;width:100%;text-align:left;font-size:10px;color:#A9CECC;padding:0 4px 18px;margin-top:-8px}.sign-out:hover{color:#FAF0D8;text-decoration:underline}.sidebar-compact .sign-out{display:none}.profile-link small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
 .local-status i.busy{animation:pulse-save 1s ease-in-out infinite}@keyframes pulse-save{50%{opacity:.35}}@media(prefers-reduced-motion:reduce){.local-status i.busy{animation:none}}
 .account-panel{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:24px}.account-panel>div{flex:1;min-width:160px}.account-panel h2{margin:0 0 4px}.account-panel p{margin:0;color:var(--muted);overflow-wrap:anywhere}
+.account-action{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:24px;margin-top:16px}.account-action>div{flex:1;min-width:160px}.account-action h2{margin:0 0 4px}.account-action p{margin:0;color:var(--muted)}
+.danger-zone{border:1px solid #c5908366}
+.danger-button{font:inherit;font-weight:700;color:#e6c3b5;background:transparent;border:1px solid #c5908366;border-radius:10px;padding:10px 16px;cursor:pointer}.danger-button:hover{background:#39252d}.danger-button:disabled{opacity:.6;cursor:default}
+.delete-error{margin:0 0 12px;color:#e6c3b5;font-size:.88rem;line-height:1.45}
 .profile-avatar.large{width:56px;height:56px;font-size:22px;flex:none}a.profile-link{text-decoration:none;color:inherit}
 .gentle-empty.soon{padding:44px 20px}
 /* Agenda real (etapa 5): calma, sem vermelho e sem aviso de atraso. O que passou fica em cinza. */

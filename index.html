@@ -85,7 +85,7 @@
       </svg>
       <div class="node node-in" style="--x:4%;--y:6%;--i:0" data-depth="14" data-loop-source="task"><span class="node-icon tasks"></span><span><strong class="loop-label">Tarefa concluída</strong><small>+10 moedas</small></span></div>
       <div class="node node-in" style="--x:4%;--y:41%;--i:1" data-depth="-10" data-loop-source="habit"><span class="node-icon habits"></span><span><strong class="loop-label">Hábito do dia</strong><small>+5 moedas</small></span></div>
-      <div class="node node-in" style="--x:4%;--y:76%;--i:2" data-depth="12" data-loop-source="goal"><span class="node-icon goals"></span><span><strong class="loop-label">Meta alcançada</strong><small>+25 moedas</small></span></div>
+      <div class="node node-in" style="--x:4%;--y:76%;--i:2" data-depth="12" data-loop-source="goal"><span class="node-icon goals"></span><span><strong class="loop-label">Meta alcançada</strong><small>até +25 moedas</small></span></div>
       <div class="node node-core" style="--x:37%;--y:18%;--i:3" data-depth="6">
         <div class="core-render">
           <img src="/brand/cidade-rio.webp" width="1120" height="700" alt="" fetchpriority="high">
@@ -253,6 +253,9 @@
   <form class="auth-form" data-auth-form novalidate>
     <label data-field="display_name"><span>Como podemos chamar você?</span>
       <input name="display_name" type="text" autocomplete="name" maxlength="60" required>
+      <small class="field-error" role="alert"></small></label>
+    <label data-field="invite" hidden><span>Código do convite</span>
+      <input name="invite" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20" placeholder="ABCD-EFGH-JKLM" disabled>
       <small class="field-error" role="alert"></small></label>
     <label data-field="email"><span>E-mail</span>
       <input name="email" type="email" autocomplete="email" inputmode="email" maxlength="200" required>

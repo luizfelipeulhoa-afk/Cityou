@@ -34,12 +34,16 @@ function guardWrite(request, url) {
 }
 
 /** Cabeçalhos de segurança de toda resposta (páginas e API). Copia a resposta: a do ASSETS pode vir imutável. */
-function securityHeaders(response) {
+// CSP_ENFORCE="true" troca o Report-Only pelo cabeçalho que bloqueia. Ligar só depois da semana sem violação (etapa 6),
+// pelo painel do Cloudflare ou em wrangler.jsonc; para voltar, basta tirar a variável.
+const cspHeader = env => env?.CSP_ENFORCE === 'true' ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only'
+
+function securityHeaders(response, env) {
   const copy = new Response(response.body, response)
   copy.headers.set('X-Content-Type-Options', 'nosniff')
   copy.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   copy.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()')
-  if ((copy.headers.get('Content-Type') || '').includes('text/html')) copy.headers.set('Content-Security-Policy-Report-Only', CSP_REPORT_ONLY)
+  if ((copy.headers.get('Content-Type') || '').includes('text/html')) copy.headers.set(cspHeader(env), CSP_REPORT_ONLY)
   return copy
 }
 
@@ -95,13 +99,13 @@ export default {
     const url = new URL(request.url)
     if (!url.pathname.startsWith('/api/')) {
       const gate = await pageGate(request, env, url)
-      if (gate) return securityHeaders(gate)
+      if (gate) return securityHeaders(gate, env)
       const asset = env.ASSETS ? await env.ASSETS.fetch(request) : new Response('Not found', { status: 404 })
-      if (request.method !== 'GET' || !asset.ok || !asset.headers.get('Content-Type')?.startsWith('text/html') || sessionToken(request)) return securityHeaders(asset)
+      if (request.method !== 'GET' || !asset.ok || !asset.headers.get('Content-Type')?.startsWith('text/html') || sessionToken(request)) return securityHeaders(asset, env)
       const response = new Response(asset.body, asset)
       response.headers.set('Cache-Control', 'private, no-store')
       response.headers.append('Set-Cookie', sessionCookie(url))
-      return securityHeaders(response)
+      return securityHeaders(response, env)
     }
     const timing = createTiming()
     let response
@@ -117,6 +121,6 @@ export default {
     }
     response.headers.set('Cache-Control', 'no-store')
     response.headers.set('Server-Timing', timing.header())
-    return securityHeaders(response)
+    return securityHeaders(response, env)
   },
 }

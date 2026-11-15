@@ -91,6 +91,12 @@ A tabela PR → etapa está em `docs/CHECKPOINT.md`. O que muda no plano:
 - **Fora do plano, já na `main`:** Fifo e personagens ambiente (#29, #30), calçadão decorativo e morro em patamares (#31), 23 prédios com GLB (#27, #29), seis decorações da ilha (#23).
 - **Etapa 6 adiantada pelo #32** (contas, isolamento do Durable Object, migrações, Vite 6.4); CSP, cabeçalho novo e corte do FastAPI continuam pendentes.
 
+### Atualização de 15/11/2026 (PRs 51 a 63)
+- **Etapa 6 quase fechada:** #55 e #56 trouxeram o cabeçalho `X-Cityou-Request` e **removeram o `backend/` FastAPI e as rotas `/api/workspace/*`** (o Vite usa o Worker na 8787). Faltam a semana de CSP sem violação e o bloqueio, limite por IP, cadastro com convite e renovação de sessão.
+- **Fora do plano, já na `main`:** treino de musculação sugerido (#53, `worker/training.js`), troca de alimento no diário (#63), landing refeita e paleta Horizonte Dourado (#60 a #62), Rio com montanhas, Pão de Açúcar, bondinho e painel em tela cheia (#52, #54, #57 a #60). A ambientação do Rio adiantou parte da 7b.
+- **Diagramas:** `docs/diagrams/cityou-mvp.drawio` (#51), atualizado nesta data.
+- **Ordem daqui para frente:** fechar a 6 → portão da 10 (D1 em prévia, exportar e apagar conta, advogado) → 7b → 8. Medir em celular real tudo o que entrou fora do plano antes de abrir contas.
+
 ## Alimentação: base calórica (pedido do dono, 14/11/2026)
 
 Fora da sequência das etapas, por pedido do dono. Regras aprovadas no projeto "CityouApp" do claude.ai (`nutricao/decisoes-2026-11-14.md` e `nutricao/decisoes-backend-2026-11-14.md`). Arquivos: `shared/game/nutrition.js`, `worker/nutrition.js`, `src/personal/NutritionBase.vue`, `src/fifones/api.js`, `docs/API.md`, `docs/INTERACTIONS.md`, `docs/DATA-MODEL.md`.
