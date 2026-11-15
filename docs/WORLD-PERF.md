@@ -157,3 +157,25 @@ Mesma máquina, mesmos comandos, 3 rodadas (a base acima é a de antes). Nenhum 
 
 Sem piora mensurável: os draws não mudam e a CPU de `render` fica igual dentro do ruído (a dispersão entre rodadas foi de 1,02× a 1,24×). Os triângulos a mais são o terreno da montanha (de 6 mil para 16 mil na malha). A linha com prédios varia por quantos e quais prédios o servidor aceitou em cada execução; a cidade vazia é a comparação limpa. Fotos em quatro ângulos com `node tools/city-look.mjs` (`.verification/`, fora do git).
 
+
+## Cidade: desenho sob demanda (etapa 7b, 16/11/2026)
+
+`CityWorld.frame()` não chama mais `renderer.render` a cada rAF. A flag `dirty` (`invalidate()`) é marcada pela câmera
+(evento `change` do OrbitControls e o retorno de `controls.update()`, que é true no amortecimento), `resize`, `setState`,
+carga de modelo, terreno, monumento e personagem, prévia, seleção, ferramenta, luz, sombras de contato, tweens de
+chegada, construção e interior (`onUpdate`) e abertura e fechamento do interior. Pontos centrais: `refreshShadows`,
+`positionRecord`, `removeRecord`, `refreshSelection`, `refreshPreview`. Com movimento reduzido nada anima sozinho, então só
+desenha quando `dirty`. Sem movimento reduzido, o ambiente (ondas, personagens, bondinho, logos) desenha a no máximo 30
+quadros por segundo quando nada pede quadro, e a cada rAF quando algo pede (interação, tween). O laço de rAF segue vivo,
+mas não faz nada com `document.hidden` ou com o canvas fora da tela (IntersectionObserver). `stats().framesRendered`
+conta os quadros desenhados.
+
+Medição (Chromium com SwiftShader, `wrangler dev` na 8885, sem limitar CPU ou rede; software, o rAF fica em ~50 ms):
+- `node tools/city-frame-bench.mjs <url> --sizes 0 --runs 1 --cpu 1 --network none [--reduce]` ganhou a coluna
+  `parado/3s` (quadros desenhados em 3 s com a cena carregada e parada).
+- Movimento reduzido: 0 quadros em 3 s parado (antes: um por rAF, ~180 a 60 Hz). Sem movimento reduzido: 49 em 3 s
+  (cadência de 30 fps com rAF de software; teto de ~90).
+- Arrastar a câmera: 21 quadros em 1,2 s (reduzido) e 33 (normal); parado de novo, 0 (reduzido) e 21 em 3 s (normal).
+- Prédio construído pela API e `setState`: aparece (`stats().placements` e `modelsLoaded` sobem) e há quadro depois
+  (2 e 14 quadros em 2,5 s).
+- Não medido: o "antes" com o mesmo comando (a árvore não está num repositório git aqui, sem como alternar versões).

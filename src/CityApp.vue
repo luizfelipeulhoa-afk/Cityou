@@ -215,9 +215,9 @@ async function refreshAll(manual = false) {
   refreshing.value = true
   try {
     const before = Number(state.value?.earned || 0)
-    const snapshot = await syncRewards()
+    // Em paralelo: as duas leituras não dependem uma da outra (uma espera de ~120 ms a menos).
+    const [snapshot] = await Promise.all([syncRewards(), reloadTasks()])
     applySnapshot(snapshot)
-    await reloadTasks()
     const earned = Number(state.value?.earned || 0) - before
     if (earned > 0) notify(`+${coins(earned)} moedas · progresso sincronizado`)
     else if (manual) notify(tasksError.value ? tasksError.value : 'Seu progresso está atualizado.', tasksError.value ? 'error' : 'success')
@@ -415,8 +415,9 @@ async function finishTask(task) {
   const before = Number(state.value?.earned || 0)
   try {
     const result = await completeTask(task.id)
-    if (!applySnapshot(result)) applySnapshot(await loadCity())
-    await reloadTasks()
+    // A resposta já traz a lista de tarefas; a cidade só é pedida de novo se a resposta for de outra região.
+    if (Array.isArray(result?.tasks)) { tasks.value = result.tasks; tasksError.value = '' }
+    await Promise.all([applySnapshot(result) ? null : loadCity().then(applySnapshot), Array.isArray(result?.tasks) ? null : reloadTasks()])
     const earned = Number(state.value?.earned || 0) - before
     notify(earned > 0 ? `Tarefa concluída · +${coins(earned)} moedas` : 'Tarefa concluída. Progresso sincronizado.')
   }
