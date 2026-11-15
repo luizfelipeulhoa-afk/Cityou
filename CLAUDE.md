@@ -211,6 +211,8 @@ Moedas de teste dos sócios: `POST /api/admin/credits` (`worker/demo.js`), só e
 
 Fita do Tempo (etapa 8, 15/11/2026): `worker/tape.js` guarda as últimas 10 ações da cidade por região (só a diferença das peças) e atende `POST /api/city/undo` e `/redo`; toda resposta da cidade traz `tape`. Pilha estrita, 120 s, só na revisão gravada; prédio de atividade e a construção que abre viagem não entram. Contrato em `docs/API.md`. Gravar a cidade passa por `saveCity` em `worker/demo.js`.
 
+**Escrita otimista na cidade (15/11/2026):** construir, mover e girar aparecem na hora (`predict` em `src/CityApp.vue`, mesma revisão; a peça provisória `pendente-…` é adotada pela do servidor em `CityWorld.setState`); em erro, a cidade volta ao estado de antes. Desfazer, refazer, demolir, melhorar e ruas desenhadas esperam o servidor. Conferência: `node tools/optimistic-playtest.mjs <url>`.
+
 No Rio, construir um prédio novo usa `previewBuild` no cliente e no Worker. O jogador confirma o total e o servidor grava o prédio e a rua automática em uma ação. Veja `docs/API.md` e `docs/INTERACTIONS.md`.
 
 Regras fixas: o navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência. Meta concluída (15/11/2026): `goalCredits` paga 5 moedas por dia exigido, até 25, e só 3 metas pagam por dia (`paidGoalsPerDay`; a que passa do teto entra na fila `reward:goal-pending` e é paga sozinha num dia seguinte, a mais antiga primeiro, por `settleGoals` em `worker/demo.js`; só meta cumprida entra na fila, e a que deixa de estar cumprida sai). Foto de comprovação: o corpo do check-in aceita a foto do tamanho da regra e o servidor tira EXIF, XMP e IPTC (`stripPhotoMetadata` em `shared/game/proof.js`).

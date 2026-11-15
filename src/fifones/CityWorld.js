@@ -482,6 +482,16 @@ export default class CityWorld {
     const animateNew = Boolean(this.hydrated)
     const placements = this.state.placements || []
     const next = new Set(placements.map(item => item.id))
+    // Escrita otimista (docs/LATENCIA.md): a peça provisória ("pendente-…") vira a do servidor no mesmo lugar, sem
+    // ser refeita nem animar de novo.
+    for (const [id, record] of [...this.records]) {
+      if (!id.startsWith('pendente-') || next.has(id)) continue
+      const real = placements.find(item => !this.records.has(item.id) && item.kind === record.placement.kind && item.x === record.placement.x && item.y === record.placement.y)
+      if (!real) continue
+      this.records.delete(id)
+      this.records.set(real.id, record)
+      if (this.selectedId === id) this.selectedId = real.id
+    }
     for (const [id, record] of this.records) {
       if (!next.has(id)) {
         if (this.interior?.placementId === id) this.closeInterior()
