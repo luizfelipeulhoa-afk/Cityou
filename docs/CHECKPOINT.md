@@ -15,7 +15,7 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 
 | Branch | O que está fazendo | Desde |
 |---|---|---|
-| `claude/ecstatic-gauss-q22jcx` | Painel pessoal com visual de dashboard: pílula no menu, "Ir para…", cartões de métrica, gráfico de área e barra por área no Seu dia (sem PR ainda) | 15/11/2026 |
+| `claude/ecstatic-gauss-q22jcx` | Paleta Horizonte Dourado na landing (seções do kit, oito destinos, faixa de números fora do topo) e no painel (cores de marca trocadas); sem PR ainda | 15/11/2026 |
 | `claude/alimentacao-calculo` | Alimentação: base calórica completa (cálculo, rotas no Durable Object, cartão na aba, testes), PR #45 | 14/11/2026 |
 | `claude/etapa-4-painel-sem-iframe` | Etapa 4: painel sem iframe do Fifones, aba Conta, Salvo/Salvando…/Sem conexão, "Em breve" (Agenda, Projetos, Fitness, Biblioteca, Estudos), Sair em todas as páginas, `next` do login validado | 13/11/2026 |
 | `claude/etapa-4-painel-sem-iframe` (inclui a etapa 5) | Etapa 5: Agenda, Projetos e Peso reais, juntada à etapa 4 | 13/11/2026 |
@@ -55,6 +55,7 @@ Testes (13/11/2026, branch `claude/etapa-2-sessao-vencida` sobre a `main` `c93d8
 6. Ocupar todo o terreno do Rio com **rua automática** (etapa 9).
 "Esqueci a senha" fica fora até haver e-mail com domínio.
 7. **Pacote conservador do PORTAR-KIT** (decisão do dono, 13/11/2026; respostas A, B, C, D, F e G): 6 domínios do Cityou, economia atual, prédio sobe sem exigir tarefas, beta por convite, sem assistente de IA, uma organização.
+8. **Paleta Horizonte Dourado** (decisão do dono, 15/11/2026, escolhida entre a paleta atual e esta): landing e painel passam a usar a paleta; a landing segue em Vue/Vite, sem Next.js nem React. Tons derivados e contrastes em `docs/DESIGN-SYSTEM.md`. A cópia "Design system Cityou" no Claude Docs ainda não foi atualizada.
 
 ## Estado das etapas (ordem: 1 ✔ → 7a ✔ → 9 ✔ → 2 ✔ → 3 ✔ → 4 ✔ → 5 e 6 → 7b → 8)
 | Etapa | Estado |

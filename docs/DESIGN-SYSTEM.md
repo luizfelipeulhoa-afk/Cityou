@@ -52,17 +52,19 @@ O Cityou tem dois mundos visuais. Cada um tem os seus tokens em `:root`.
 
 | Token | Hex | Uso |
 | --- | --- | --- |
-| bg | #0c1020 | Fundo (azul-marinho; ganha um brilho fixo azul, lilás e verde-água, `dashboard.css`) |
-| side | #0f1427 | Menu lateral (translúcido sobre o brilho) |
-| surface | #141a2e | Cartões (vidro: degradê branco de 5 a 8% por cima, borda de 8%, sem `backdrop-filter`) |
-| text / muted | #eeeef4 / #8b90a5 | Texto e texto secundário |
-| accent | #bcafff | Lilás, ação principal |
-| mint | #a1ddc5 | Concluído, cidade |
-| peach | #e8b5a0 | Atenção suave |
-| blue | #a8c5f2 | Informação |
-| series 0 a 5 | #bcafff #a1ddc5 #e8b5a0 #a8c5f2 #e6d29a #d9a8c4 | Séries de gráfico (`--series-N`): as quatro cores acima mais areia e rosa. Só para distinguir fatias, nunca para dizer bom ou ruim |
+| bg | #123842 | Fundo (noite da paleta Horizonte Dourado; ganha um brilho fixo dourado, coral e azul-mar, `dashboard.css`) |
+| side | #0e2f38 | Menu lateral (derivado: noite mais escuro, translúcido sobre o brilho) |
+| surface | #17414c | Cartões (derivado: noite mais claro; vidro com degradê branco de 5 a 8% por cima, borda de 8%, sem `backdrop-filter`) |
+| text / muted | #f6efdd / #a9cecc | Texto (areia) e texto secundário (sálvia) |
+| accent | #ffb627 | Dourado: ação principal e item ativo (cerca de 7:1 sobre a noite) |
+| mint | #7fd1c7 | Concluído, cidade (derivado: teal claro) |
+| peach | #ff9c7a | Atenção suave (derivado: coral claro) |
+| blue | #8fd0e6 | Informação (derivado: azul-mar claro) |
+| series 0 a 5 | #ffb627 #7fd1c7 #ff9c7a #8fd0e6 #f6efdd #a9cecc | Séries de gráfico (`--series-N`): as quatro cores de marca mais areia e sálvia. Só para distinguir fatias, nunca para dizer bom ou ruim |
 
-**Visual de dashboard do painel (15/11/2026, referência de UI pedida pelo dono):** menu com uma pílula que desliza e estica ao trocar de aba (`navPill.js` e `@property` em `dashboard.css`, sem GSAP), barra do topo com migalhas, "Ir para…" (Ctrl ou ⌘ + K), selo de estado e avatar, cartões de métrica com minigráfico (`MetricTile.vue`, `Sparkline.vue`), gráfico de área com tooltip (`AreaChart.vue`) e barra empilhada (`StackBar.vue`). Regras que valem para todo gráfico novo do painel: série **acumulada** (nunca cai, dia parado fica plano), só dados reais, escala que não exagera (`zero` e `minSpan` em `sparkGeometry`), sem vermelho e sem "bom ou ruim". A referência é azul; o lilás segue como cor de ação.
+Cinzas neutros e vermelhos de erro não mudaram. Os tons intermediários de lilás viraram dourado de mesma luminosidade, pela regra de matiz (`docs/known-issues.md`).
+
+**Visual de dashboard do painel (15/11/2026, referência de UI pedida pelo dono):** menu com uma pílula que desliza e estica ao trocar de aba (`navPill.js` e `@property` em `dashboard.css`, sem GSAP), barra do topo com migalhas, "Ir para…" (Ctrl ou ⌘ + K), selo de estado e avatar, cartões de métrica com minigráfico (`MetricTile.vue`, `Sparkline.vue`), gráfico de área com tooltip (`AreaChart.vue`) e barra empilhada (`StackBar.vue`). Regras que valem para todo gráfico novo do painel: série **acumulada** (nunca cai, dia parado fica plano), só dados reais, escala que não exagera (`zero` e `minSpan` em `sparkGeometry`), sem vermelho e sem "bom ou ruim". Desde 15/11/2026 a referência é a paleta Horizonte Dourado (noite no fundo, dourado na ação), na tabela acima.
 
 **Controles do mapa-mundo** (`WorldMapHud.vue`): destaque #ffd166, texto #f4f7ff, placa rgba(11, 20, 48, 0.9) com borda branca de 16%. Toque de 44 px, raio de 13 px.
 
@@ -185,8 +187,25 @@ Mudanças neste sistema: editar este arquivo por pull request. A versão compart
 
 ## Página de apresentação (16/11/2026)
 
-Tokens em `:root` de `src/landing/landing.css`, inspirados na gramática do contiant.com: roxo de ação `#8247ff` (escuro
-`#3f27ac`), blocos pastel lavanda `#dfd1f4`, areia `#f1d9d0` e gelo `#dff3f6`, sálvia `#a9cecc` para o círculo
-rabiscado, painel final `#1f2933`, texto `#0d0d0c` sobre branco. Fonte da marca (Fifones) em peso 400 nos títulos.
-Cartões com raio de 24 a 40 px, botões em pílula com um tique que desliza ao passar o mouse, rabiscos SVG desenhados
-por `stroke-dashoffset` uma vez quando entram na tela. O painel do app segue com a própria paleta (azul-marinho e lilás).
+Paleta **Horizonte Dourado** (15/11/2026, decisão do dono), com os tons derivados marcados. Tokens em `:root` de
+`src/landing/landing.css`:
+
+| Token | Hex | Uso |
+| --- | --- | --- |
+| primary | #ff6b35 | Ação (coral). O texto sobre ele é a tinta `#15202a` (cerca de 5,8:1); branco daria 2,8:1 |
+| primary-dark | #b9431f | Destaque de texto sobre fundo claro e foco (derivado; cerca de 4,7:1 sobre areia) |
+| primary-light | #ffe3d6 | Cartão coral claro (derivado) |
+| gold | #ffb627 | Destaque sobre fundo escuro (cerca de 7:1 sobre a noite) |
+| sand / pale | #f6efdd | Cartões e faixas |
+| paper | #fbf7ec | Fundo da página |
+| ice | #dcedf0 | Cartão azul-mar claro (derivado) |
+| sage | #a9cecc | Círculo rabiscado e texto secundário no escuro |
+| sage-dark | #1e5b6b | Azul-mar: estado "aberto" e aviso de contas |
+| deep | #123842 | Faixa final (noite) |
+| black | #15202a | Texto (tinta) |
+| grey | #5c6b73 | Texto secundário (cerca de 5:1 sobre o fundo) |
+| lighter / lightest | #d8cfba / #e9e2cf | Bordas (derivados) |
+
+Fonte da marca (Fifones) em peso 400 nos títulos. Cartões com raio de 24 a 40 px, botões em pílula com um tique que
+desliza ao passar o mouse, rabiscos SVG desenhados por `stroke-dashoffset` uma vez quando entram na tela. O painel do
+app usa a mesma paleta no escuro (tabela acima).

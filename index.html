@@ -6,7 +6,7 @@
 <link rel="icon" href="/brand/cityou-icon-180.png">
 <link rel="apple-touch-icon" href="/brand/cityou-icon-180.png">
 <link rel="preload" href="/fonts/fifones-body.woff2" as="font" type="font/woff2" crossorigin>
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#fbf7ec">
 <meta name="description" content="Cityou transforma tarefas, hábitos e metas em moedas para construir a sua cidade em 3D, prédio por prédio.">
 <meta property="og:title" content="Cityou · Sua rotina constrói uma cidade">
 <meta property="og:description" content="Cada tarefa, hábito e meta que você conclui vira moeda. Com elas você ergue o seu Rio de Janeiro em 3D.">
@@ -21,7 +21,7 @@
   <defs>
     <path id="u1" d="M3 10 C 60 4, 140 3, 297 8"/>
     <path id="u2" d="M10 15 C 90 10, 190 9, 290 13"/>
-    <symbol id="coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10.5" fill="#f2b53a"/><circle cx="12" cy="12" r="10.5" fill="none" stroke="#c98a1f" stroke-width="1.6"/><circle cx="12" cy="12" r="6.6" fill="none" stroke="#ffe08a" stroke-width="1.4"/><path d="M7.6 8.2 A5.4 5.4 0 0 1 12 6.1" fill="none" stroke="#fff6d6" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10.5" fill="#ffb627"/><circle cx="12" cy="12" r="10.5" fill="none" stroke="#e0940f" stroke-width="1.6"/><circle cx="12" cy="12" r="6.6" fill="none" stroke="#ffe08a" stroke-width="1.4"/><path d="M7.6 8.2 A5.4 5.4 0 0 1 12 6.1" fill="none" stroke="#fff6d6" stroke-width="1.6" stroke-linecap="round"/></symbol>
     <path id="c1" d="M154 8 C 60 2, 6 18, 8 40 C 10 62, 90 74, 170 70 C 250 66, 300 52, 296 32 C 292 12, 220 2, 130 10"/>
   </defs>
 </svg>
@@ -31,6 +31,7 @@
   <nav class="nav-links" aria-label="Seções">
     <a href="#como-funciona">Como funciona</a>
     <a href="#predios">Prédios</a>
+    <a href="#lugares">Lugares</a>
     <a href="#areas">Áreas da vida</a>
   </nav>
   <div class="nav-actions">
@@ -43,23 +44,27 @@
   <!-- HERO: título com palavra que gira e o diagrama vivo (o que você faz → moedas → a cidade), com pulsos nos caminhos. -->
   <section class="hero" data-hero>
     <div class="hero-copy">
+      <p class="eyebrow">Sua rotina vira um lugar</p>
       <h1>
-        <span class="rotator" data-rotator aria-live="off"><span class="rotator-word is-on">Termine tarefas</span><span class="rotator-word">Cuide da saúde</span><span class="rotator-word">Cumpra metas</span><span class="rotator-word">Crie hábitos</span><span class="rotator-word">Organize as contas</span></span>
-        <span class="sr-only">Termine tarefas, cuide da saúde, cumpra metas, crie hábitos e organize as contas</span>
-        <span class="h1-line">e construa a sua <span class="mark">cidade<svg class="scribble underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><use href="#u1"/><use href="#u2"/></svg></span></span>
+        <span class="h1-line">Transforme sua rotina numa <span class="mark">cidade<svg class="scribble underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><use href="#u1"/><use href="#u2"/></svg></span></span>
       </h1>
-      <p class="lede">Cada coisa que você conclui vira moeda. Com elas você ergue o seu Rio de Janeiro em 3D, prédio por prédio, no seu ritmo.</p>
+      <p class="lede">Cada coisa que você conclui vira moeda. Com elas você ergue o seu Rio de Janeiro em 3D, prédio por prédio, e depois os outros destinos do mundo.</p>
       <div class="hero-actions">
         <button class="btn btn-primary btn-large" type="button" data-auth="signup">Criar minha cidade <span class="btn-tick" aria-hidden="true"></span></button>
-        <button class="btn btn-quiet btn-large" type="button" data-auth="login">Já tenho conta</button>
+        <a class="btn btn-quiet btn-large" href="#como-funciona">Como funciona</a>
       </div>
+      <ul class="hero-stats">
+        <li><b>+10</b> moedas por tarefa concluída</li>
+        <li><b>8</b> destinos no mapa-mundo</li>
+        <li>Faltar um dia <b>não pune</b></li>
+      </ul>
     </div>
 
     <p class="sr-only">Demonstração animada do ciclo do Cityou: conclua uma atividade, ganhe moedas e construa um prédio na sua cidade.</p>
     <div class="diagram" data-diagram aria-hidden="true">
       <svg class="diagram-lines" viewBox="0 0 1200 560" preserveAspectRatio="none">
         <defs>
-          <radialGradient id="pulse-glow"><stop offset="0" stop-color="#8247ff"/><stop offset="1" stop-color="#8247ff" stop-opacity="0"/></radialGradient>
+          <radialGradient id="pulse-glow"><stop offset="0" stop-color="#ff6b35"/><stop offset="1" stop-color="#ff6b35" stop-opacity="0"/></radialGradient>
         </defs>
         <g class="links">
           <path id="l1" data-loop-path="task" d="M250 90 C 360 90, 380 250, 444 270"/>
@@ -100,18 +105,10 @@
     <button class="loop-toggle" type="button" data-loop-toggle aria-pressed="false" tabindex="-1">Pausar animação</button>
   </section>
 
-  <!-- USP duplo -->
-  <section class="usp">
-    <h2 data-reveal>Sua rotina, <span class="mark">visível<svg class="scribble underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><use href="#u1"/><use href="#u2"/></svg></span>.</h2>
-    <div class="usp-grid">
-      <article class="card tint-lavender" data-reveal><b class="big" data-count="10">10</b><h3>moedas por tarefa concluída</h3><p>Hábito do dia vale 5, meta alcançada vale 25. Quem decide é o servidor, não o navegador.</p></article>
-      <article class="card tint-ice" data-reveal><b class="big" data-count="23">23</b><h3>prédios do Rio para erguer</h3><p>Da barraca de feira ao Edifício Art Déco, cada um ocupa lotes de verdade na sua cidade.</p></article>
-    </div>
-  </section>
-
   <!-- Dor + faixa dos prédios -->
   <section class="pain" id="predios">
     <div class="pain-head" data-reveal>
+      <p class="eyebrow">O problema</p>
       <h2>Cansado de listas que <span class="mark">não dão em nada<svg class="scribble underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><use href="#u1"/><use href="#u2"/></svg></span>?</h2>
       <p>No Cityou, cada item riscado vira um lote, uma rua, uma casa. Dá para ver o quanto você já fez.</p>
       <button class="btn btn-primary" type="button" data-auth="signup">Começar agora <span class="btn-tick" aria-hidden="true"></span></button>
@@ -128,7 +125,7 @@
         <li><img src="/previews/rio-casarao.png" width="320" height="288" loading="lazy" alt=""><strong>Casarão colonial</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>50</small></li>
         <li><img src="/previews/rio-igreja.png" width="320" height="288" loading="lazy" alt=""><strong>Igrejinha da vila</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>55</small></li>
         <li><img src="/previews/rio-edificio-deco.png" width="320" height="288" loading="lazy" alt=""><strong>Edifício Art Déco</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>60</small></li>
-        <li><img src="/previews/rio-hospital.png" width="320" height="288" loading="lazy" alt=""><strong>Hospital</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>80</small></li>
+        <li><img src="/previews/rio-hospital.png" width="320" height="288" loading="lazy" alt=""><strong>Hospital</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>75</small></li>
       </ul>
     </div>
   </section>
@@ -141,7 +138,7 @@
     <div class="how-grid">
       <ol class="steps">
         <li data-reveal data-step="0"><span class="step-number">01</span><div><h3>Registre o seu dia</h3><p>Tarefas, hábitos, metas, finanças, alimentação e anotações, num painel só.</p></div></li>
-        <li data-reveal data-step="1"><span class="step-number">02</span><div><h3>Ganhe moedas pelo que fez</h3><p>Concluiu, ganhou. Sem atalho e sem compra: o que conta é o que você fez de verdade.</p></div></li>
+        <li data-reveal data-step="1"><span class="step-number">02</span><div><h3>Ganhe moedas pelo que fez</h3><p>Concluiu, ganhou. Cada moeda vem do que você fez de verdade.</p></div></li>
         <li data-reveal data-step="2"><span class="step-number">03</span><div><h3>Construa a sua cidade</h3><p>Escolha o prédio, o lote e a rua. A cidade cresce no ritmo da sua rotina.</p></div></li>
       </ol>
       <div class="demo card tint-sand" data-demo data-reveal aria-hidden="true">
@@ -168,7 +165,7 @@
         <h3>Do jeito de antes</h3>
         <ol class="chain"><li>Agenda num app</li><li>Lista de tarefas em outro</li><li>Hábitos num terceiro</li><li>Planilha das contas</li><li>Anotações soltas</li><li>Esquecer de abrir</li><li>Recomeçar do zero</li></ol>
       </article>
-      <article class="card new tint-lavender" data-reveal>
+      <article class="card new tint-coral" data-reveal>
         <h3>Com o Cityou</h3>
         <ol class="flow"><li><b>01</b>Tudo num painel só</li><li><b>02</b>Cada conclusão vira moeda</li><li><b>03</b>A cidade mostra o caminho</li></ol>
         <img src="/previews/rio-prefeitura.png" width="320" height="288" loading="lazy" alt="">
@@ -176,13 +173,32 @@
     </div>
   </section>
 
+  <!-- Destinos do mapa-mundo, em ordem. Estados: destinos de src/world/worldSpaces.js; viagens fechadas por TRAVEL_OPEN (wrangler.jsonc). -->
+  <section class="places" id="lugares">
+    <header class="section-head" data-reveal>
+      <p class="eyebrow">A jornada</p>
+      <h2>Do Rio para as <span class="mark">8 maravilhas<svg class="scribble underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><use href="#u1"/><use href="#u2"/></svg></span> do mundo.</h2>
+      <p class="lede">A Ilha Inicial e o Rio já estão abertos. Os outros destinos chegam em seguida.</p>
+    </header>
+    <ol class="places-grid">
+      <li data-reveal><span class="place-num">01</span><strong>Ilha Inicial</strong><small class="place-state is-open">aberta · ponto de partida</small></li>
+      <li data-reveal><span class="place-num">02</span><strong>Cristo Redentor</strong><small class="place-state is-open">aberto · Rio de Janeiro</small></li>
+      <li data-reveal><span class="place-num">03</span><strong>Petra</strong><small class="place-state">em breve</small></li>
+      <li data-reveal><span class="place-num">04</span><strong>Machu Picchu</strong><small class="place-state">em breve</small></li>
+      <li data-reveal><span class="place-num">05</span><strong>Chichén Itzá</strong><small class="place-state">em breve</small></li>
+      <li data-reveal><span class="place-num">06</span><strong>Coliseu</strong><small class="place-state">em breve</small></li>
+      <li data-reveal><span class="place-num">07</span><strong>Taj Mahal</strong><small class="place-state">em breve</small></li>
+      <li data-reveal><span class="place-num">08</span><strong>Grande Muralha</strong><small class="place-state">em breve</small></li>
+    </ol>
+  </section>
+
   <!-- Cartões empilhados -->
   <section class="stack">
     <h2 data-reveal>Pensado para <span class="mark">durar<svg class="scribble underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><use href="#u1"/><use href="#u2"/></svg></span></h2>
     <div class="stack-cards">
-      <article class="stack-card tint-lavender"><div><h3>Sem culpa</h3><p>Nenhuma mecânica pune ausência. Ficou uns dias fora? A cidade espera, do jeito que você deixou.</p></div><img src="/previews/rio-quiosque-coco.png" width="320" height="288" loading="lazy" alt=""></article>
-      <article class="stack-card tint-sand"><div><h3>Progresso que se vê</h3><p>O prédio de uma atividade sobe por etapas, conforme os dias e as semanas de prática. Não dá para comprar pronto.</p></div><img src="/previews/rio-sobradinho.png" width="320" height="288" loading="lazy" alt=""></article>
-      <article class="stack-card tint-ice"><div><h3>Sua conta, seus dados</h3><p>Com a conta, a sua cidade e os seus registros acompanham você em qualquer aparelho.</p></div><img src="/previews/rio-edificio-deco.png" width="320" height="288" loading="lazy" alt=""></article>
+      <article class="stack-card tint-coral"><div><h3>Sem culpa</h3><p>Nenhuma mecânica pune ausência. Ficou uns dias fora? Não há punição: a cidade continua do jeito que você deixou.</p></div><img src="/previews/rio-quiosque-coco.png" width="320" height="288" loading="lazy" alt=""></article>
+      <article class="stack-card tint-sand"><div><h3>Progresso que se vê</h3><p>O prédio de uma atividade sobe por etapas, conforme os dias e as semanas de prática.</p></div><img src="/previews/rio-sobradinho.png" width="320" height="288" loading="lazy" alt=""></article>
+      <article class="stack-card tint-ice"><div><h3>Sua conta, seus dados</h3><p>Quando as contas estiverem ativas, a sua cidade e os seus registros acompanham você em qualquer aparelho.</p></div><img src="/previews/rio-edificio-deco.png" width="320" height="288" loading="lazy" alt=""></article>
     </div>
   </section>
 
@@ -197,11 +213,11 @@
         <button role="tab" aria-selected="false" aria-controls="tab-financas" id="t-financas" tabindex="-1">Finanças</button>
         <button role="tab" aria-selected="false" aria-controls="tab-mundo" id="t-mundo" tabindex="-1">Mundo</button>
       </div>
-      <div class="tab-panel card tint-lavender" role="tabpanel" id="tab-tarefas" aria-labelledby="t-tarefas"><div><h3>Uma coisa de cada vez</h3><p>Escreva o próximo passo, conclua e veja a moeda cair. A lista de hoje cabe numa tela.</p></div><img src="/previews/tasks.png" width="320" height="288" loading="lazy" alt=""></div>
+      <div class="tab-panel card tint-coral" role="tabpanel" id="tab-tarefas" aria-labelledby="t-tarefas"><div><h3>Uma coisa de cada vez</h3><p>Escreva o próximo passo, conclua e veja a moeda cair. A lista de hoje cabe numa tela.</p></div><img src="/previews/tasks.png" width="320" height="288" loading="lazy" alt=""></div>
       <div class="tab-panel card tint-sand" role="tabpanel" id="tab-habitos" aria-labelledby="t-habitos" hidden><div><h3>Constância sem cobrança</h3><p>Marque o hábito do dia. Não há sequência para perder: cada dia feito conta, os outros não pesam.</p></div><img src="/previews/rio-academia.png" width="320" height="288" loading="lazy" alt=""></div>
       <div class="tab-panel card tint-ice" role="tabpanel" id="tab-saude" aria-labelledby="t-saude" hidden><div><h3>Peso, comida e treino</h3><p>Diário alimentar com a base TACO, pesagens com média de 7 dias e composição corporal, sem julgamento.</p></div><img src="/previews/rio-hospital.png" width="320" height="288" loading="lazy" alt=""></div>
       <div class="tab-panel card tint-sand" role="tabpanel" id="tab-financas" aria-labelledby="t-financas" hidden><div><h3>Clareza com o dinheiro</h3><p>O que entra, o que sai e o saldo do mês, num lugar só, ao lado do resto da sua rotina.</p></div><img src="/previews/rio-predio-comercial.png" width="320" height="288" loading="lazy" alt=""></div>
-      <div class="tab-panel card tint-lavender" role="tabpanel" id="tab-mundo" aria-labelledby="t-mundo" hidden><div><h3>Do Rio para o mundo</h3><p>O globo guarda oito destinos, da Ilha Inicial à Grande Muralha. O Rio já está aberto; os outros chegam em seguida.</p></div><img src="/brand/mapa-mundo.webp" width="900" height="900" loading="lazy" alt=""></div>
+      <div class="tab-panel card tint-coral" role="tabpanel" id="tab-mundo" aria-labelledby="t-mundo" hidden><div><h3>Do Rio para o mundo</h3><p>O globo guarda oito destinos, da Ilha Inicial à Grande Muralha. O Rio já está aberto; os outros chegam em seguida.</p></div><img src="/brand/mapa-mundo.webp" width="900" height="900" loading="lazy" alt=""></div>
     </div>
   </section>
 
@@ -210,8 +226,9 @@
     <div class="final" data-reveal>
       <svg class="final-lines" viewBox="0 0 800 300" preserveAspectRatio="none" aria-hidden="true"><path d="M-20 240 C 160 120, 320 300, 520 160 S 760 60, 840 120"/><path d="M-20 60 C 200 140, 380 20, 600 90 S 780 220, 840 200"/></svg>
       <img class="final-icon" src="/brand/cityou-icon.webp" width="146" height="146" loading="lazy" alt="">
-      <h2>Comece pelo primeiro <span class="mark">lote<svg class="scribble underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><use href="#u1"/><use href="#u2"/></svg></span> hoje.</h2>
-      <p>Crie a conta, registre uma tarefa de hoje e escolha onde vai o seu primeiro prédio.</p>
+      <p class="eyebrow">Comece hoje</p>
+      <h2>Comece pela <span class="mark">Ilha Inicial<svg class="scribble underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><use href="#u1"/><use href="#u2"/></svg></span> hoje.</h2>
+      <p>Registre uma tarefa, ganhe suas primeiras moedas e escolha onde vai o seu primeiro prédio.</p>
       <button class="btn btn-light btn-large" type="button" data-auth="signup">Criar minha cidade <span class="btn-tick" aria-hidden="true"></span></button>
     </div>
   </section>
@@ -219,8 +236,8 @@
 
 <footer class="footer">
   <img src="/brand/cityou-wordmark.webp" width="791" height="275" loading="lazy" alt="Cityou">
-  <p>Mais espaço para a sua vida.</p>
-  <small>© <span data-year>2026</span> Cityou</small>
+  <p>Sua rotina vira uma cidade. Do Rio às 8 maravilhas.</p>
+  <small>© <span data-year>2026</span> Cityou · Feito no Brasil</small>
 </footer>
 
 <dialog class="auth" data-auth-dialog aria-labelledby="auth-title">
