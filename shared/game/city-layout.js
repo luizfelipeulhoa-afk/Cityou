@@ -66,10 +66,7 @@ const pilots = {
         // O morro da comunidade, em patamares, na faixa protegida: ao fundo à direita e na ponta da esquerda, 2
         // patamares de 3 ou 4 fileiras cada, subindo para o fundo (cabem até os prédios 3 × 3).
         if (x >= 12) return `hill-${y <= -6 ? 2 : 1}`
-        // Na ponta da esquerda o fundo é o Pão de Açúcar (16/11/2026, transplantado do relevo real para este canto em
-        // src/terrain/regions/rio-cidade.js): as 4 fileiras de trás são a pedra, e os dois patamares de 3 fileiras sobem
-        // até o pé dele, como a comunidade da Babilônia na encosta de verdade.
-        if (x <= -5) return y <= -5 ? 'slope' : `hill-${y <= -2 ? 2 : 1}`
+        if (x <= -5) return `hill-${y <= -5 ? 2 : 1}`
         return 'slope'
       }
       return 'land'

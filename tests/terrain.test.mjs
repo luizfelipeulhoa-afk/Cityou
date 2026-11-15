@@ -290,7 +290,7 @@ test('cidade: plano sob os lotes construíveis, relevo na encosta protegida, cal
   assert.ok(scenery.getHeightAt(CRISTO_PEAK.x, CRISTO_PEAK.z - CITY_SHIFT) > 6)
 })
 
-test('cidade: o Pão de Açúcar sobe no canto da esquerda e o resto do relevo fica igual (16/11/2026)', () => {
+test('cidade: o Pão de Açúcar e a Urca sobem atrás dos patamares da direita e o resto do relevo fica igual (16/11/2026)', () => {
   const scenery = createTerrainData(cidade, heights.data)
   const without = createTerrainData({ ...cidade, transplant: [] }, heights.data)
   const top = scenery.getHeightAt(SUGARLOAF.x, SUGARLOAF.z)
@@ -304,7 +304,7 @@ test('cidade: o Pão de Açúcar sobe no canto da esquerda e o resto do relevo f
   let far = 0
   for (let j = 0; j < size; j += 3) for (let i = 0; i < size; i += 3) {
     const x = originX + i * spacing, z = originZ + j * spacing
-    if (Math.hypot(x - SUGARLOAF.x, z - SUGARLOAF.z) < 12 || nearHill(x, z)) continue
+    if (cidade.transplant.some(block => Math.hypot(x - block.to.x, z - block.to.z) < block.radius + block.blend + 6) || nearHill(x, z)) continue
     assert.ok(Math.abs(scenery.grid.heights[j * size + i] - without.grid.heights[j * size + i]) < 1e-5, `(${x}, ${z})`)
     far++
   }

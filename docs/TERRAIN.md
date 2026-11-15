@@ -42,18 +42,19 @@ para um worker continuam como próximo passo, para essa parte também cair.
 
 Custo na cidade, com renderização por software, alternando as versões: de 23.065 para 64.302 triângulos e de cerca de 11 para cerca de 10 quadros/s; CPU por quadro igual (1,0 a 1,2 ms). Os arquivos carregados na abertura de cada página não mudam. Não medido em aparelho real.
 
-## Pão de Açúcar no canto da grade (16/11/2026)
+## Pão de Açúcar atrás dos patamares da direita (16/11/2026)
 
-Pedido do dono: o canto de trás da esquerda da grade do Rio (os patamares do morro da comunidade em x −8 a −5) abria uma
-vala nos morros, porque o chão dos lotes era forçado a y = 0 no meio de um relevo de 200 a 380 m. Agora:
+Pedido do dono: atrás dos patamares do morro da comunidade da direita (x 12 a 24 da cidade) havia uma vala, uma área
+baixa quase no nível do mar entre o morro do Cristo e a montanha da direita. O Pão de Açúcar foi para lá. Os patamares
+também cavavam o chão em volta, porque o chão dos lotes era forçado a y = 0. Agora:
 
 - `region.transplant` (`terrainData.js`): copia um bloco do relevo real de um lugar para outro. Em `rio-cidade.js`, o
-  Pão de Açúcar (raio 4,6 + 3 de borda, amostrado onde ele fica de verdade, que o corte tira) vai para `SUGARLOAF`. O bloco
-  só soma onde é mais alto que o que já está lá, então os outros morros ficam iguais (teste em `tests/terrain.test.mjs`).
+  Pão de Açúcar (raio 4,6 + 3 de borda, amostrado onde ele fica de verdade, que o corte tira) vai para `SUGARLOAF`, logo
+  depois do fundo da grade, com o Morro da Urca colado à direita dele (como no Rio), fechando a vala até a montanha da direita. O bloco só soma onde é mais alto que o que já está lá, então os outros morros ficam iguais, e
+  o corte (`crop`) não vale sobre ele (teste em `tests/terrain.test.mjs`).
 - `region.lotHeight(lote)`: altura do chão de um lote livre. Os lotes do morro da comunidade sobem com o patamar (um tico
-  abaixo do topo que `communityHill` desenha), e o relevo em volta se mistura até essa altura, não até 0.
-- `city-layout.js`: as 4 fileiras de trás da ponta esquerda viraram encosta (a pedra) e os dois patamares de 3 fileiras
-  sobem até o pé dela, como a Babilônia na encosta de verdade. Os muros de arrimo ficaram no cinza do granito.
+  abaixo do topo que `communityHill` desenha), e o relevo em volta se mistura até essa altura, não até 0: os patamares
+  da direita ficam no pé da pedra. Os muros de arrimo ficaram no cinza do granito.
 
 ## Onde ver e como conferir
 

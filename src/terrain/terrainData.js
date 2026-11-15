@@ -148,6 +148,10 @@ export function createTerrainData(region, values) {
     // não decapitar uma montanha que a cena precisa mostrar inteira (o maciço atrás do morro do Cristo, no Rio).
     const kept = (x, z) => {
       let weight = 0
+      // O bloco transplantado nunca é cortado (pode cair perto da borda do corte, como o Pão de Açúcar no Rio).
+      for (const block of region.transplant ?? []) {
+        weight = Math.max(weight, 1 - smoothstep(block.radius + (block.blend ?? 3), block.radius + (block.blend ?? 3) + 4, Math.hypot(x - block.to.x, z - block.to.z)))
+      }
       for (const circle of keep) {
         weight = Math.max(weight, 1 - smoothstep(circle.radius, circle.radius + (circle.blend ?? 20), Math.hypot(x - circle.x, z - circle.z)))
       }

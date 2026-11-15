@@ -34,12 +34,14 @@ const rows = Array.from({ length: size }, (_, row) => Array.from({ length: size 
   kind(layout.min + column, layout.min + row)).join(''))
 
 // O Pão de Açúcar (16/11/2026, pedido do dono): o bloco real do mapa de alturas (onde ele fica de verdade, a leste, que o
-// corte abaixo tira) é copiado para o canto de trás da esquerda da grade, onde os patamares do morro da comunidade abriam
-// uma vala nos morros. Coordenadas do terreno. O bloco só soma onde é mais alto (terrainData.js, `transplant`), então os
-// outros morros ficam iguais; os patamares que sobram (city-layout.js) sobem até o pé da pedra.
+// corte abaixo tira) é copiado para a vala atrás dos patamares da direita, entre o morro do Cristo e a montanha da
+// direita, logo depois do fundo da grade. Coordenadas do terreno. O bloco só soma onde é mais alto (terrainData.js,
+// `transplant`, que o corte não apaga), então os outros morros ficam iguais; os patamares da direita ficam no pé da pedra.
 const SUGARLOAF_FROM = createFrame(rio).toWorld(-22.9494, -43.1558)
-export const SUGARLOAF = { x: -16, z: -21 - 0.5 }
+export const SUGARLOAF = { x: 10, z: -26 }
 const sugarloaf = { from: { x: SUGARLOAF_FROM.x - 0.3, z: SUGARLOAF_FROM.z - 0.6 }, to: SUGARLOAF, radius: 4.6, blend: 3 }
+// O Morro da Urca, colado ao Pão como no Rio de verdade, fecha o resto da vala até a montanha da direita.
+const urca = { from: { x: SUGARLOAF_FROM.x - 5.7, z: SUGARLOAF_FROM.z - 6.1 }, to: { x: 17, z: -26.5 }, radius: 3.6, blend: 3 }
 
 const peak = { x: CRISTO_PEAK.x, z: CRISTO_PEAK.z - CITY_SHIFT } // no sistema do terreno
 const peakGeo = createFrame(rio).toGeo(peak.x, peak.z)
@@ -59,12 +61,12 @@ export default {
   lots: { x0: gridX0, z0: gridZ0, rows },
   // O morro do Cristo: some ao relevo real atrás da grade (unidades do terreno).
   relief: [hill],
-  transplant: [sugarloaf],
+  transplant: [sugarloaf, urca],
   // O chão dos lotes do morro da comunidade sobe com o patamar (um tico abaixo do topo que sceneEnvironment.js desenha),
   // e o relevo em volta se mistura até essa altura, não até 0: sem vala entre os patamares e os morros.
   lotHeight: lot => { const h = tileHeight('cristo-redentor', lot.x + layout.center, lot.z + CITY_SHIFT + layout.center); return h ? h - 0.04 : 0 },
   landmarks: [...rio.landmarks, { id: 'morro-do-cristo', name: 'Morro do Cristo', ...peakGeo, radius: 10 },
-    { id: 'pao-de-acucar-cidade', name: 'Pão de Açúcar (no canto da grade)', ...createFrame(rio).toGeo(SUGARLOAF.x, SUGARLOAF.z), radius: 9 }],
+    { id: 'pao-de-acucar-cidade', name: 'Pão de Açúcar (atrás dos patamares da direita)', ...createFrame(rio).toGeo(SUGARLOAF.x, SUGARLOAF.z), radius: 9 }],
   // Chão dos lotes com o verde da mata do mapa, um tom por lote e a variação por face do relevo.
   plateau: { tint: -0.3, contrast: 0.012, facets: 0.8 },
   // Corte (13/11/2026, src/terrain/terrainData.js): além deste raio (a grade e o morro do Cristo, com folga), o
