@@ -207,6 +207,8 @@ Latência: na prévia o Durable Object custa ~120 ms por chamada (distância Wor
 
 Moedas de teste dos sócios: `POST /api/admin/credits` (`worker/demo.js`), só existe com o segredo `CITYOU_ADMIN_TOKEN`, 50.000 por sessão e uma vez; uso em `docs/API.md`. Não crie outro caminho para dar moedas sem proteção.
 
+Fita do Tempo (etapa 8, 15/11/2026): `worker/tape.js` guarda as últimas 10 ações da cidade por região (só a diferença das peças) e atende `POST /api/city/undo` e `/redo`; toda resposta da cidade traz `tape`. Pilha estrita, 120 s, só na revisão gravada; prédio de atividade e a construção que abre viagem não entram. Contrato em `docs/API.md`. Gravar a cidade passa por `saveCity` em `worker/demo.js`.
+
 No Rio, construir um prédio novo usa `previewBuild` no cliente e no Worker. O jogador confirma o total e o servidor grava o prédio e a rua automática em uma ação. Veja `docs/API.md` e `docs/INTERACTIONS.md`.
 
 Regras fixas: o navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência. Meta concluída (15/11/2026): `goalCredits` paga 5 moedas por dia exigido, até 25, e só 3 metas pagam por dia (`paidGoalsPerDay`; a que passa do teto entra na fila `reward:goal-pending` e é paga sozinha num dia seguinte, por `settleGoals` em `worker/demo.js`). Foto de comprovação: o corpo do check-in aceita a foto do tamanho da regra e o servidor tira EXIF, XMP e IPTC (`stripPhotoMetadata` em `shared/game/proof.js`).

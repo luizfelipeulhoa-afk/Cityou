@@ -184,6 +184,10 @@ A mesma função de validação roda na tela, a cada movimento, para pintar as c
 
 `POST /api/cities/{local}/actions` mantém o formato de `POST /api/city/actions` (`backend/README.md`), menos o tipo `upgrade`, para `src/CityApp.vue` mudar pouco.
 
+## Fita do Tempo: desfazer e refazer na cidade (etapa 8, 15/11/2026)
+
+`POST /api/city/undo` e `POST /api/city/redo` (com o mesmo `?local=` das ações), corpo `{ action_id, expected_revision }` e nada mais (422). `action_id` é o `request_id` da ação. Toda resposta da cidade (`GET /api/city`, ações, desfazer, refazer) traz `tape`: as ações dos últimos 120 s, da mais nova para a mais antiga, `{ action_id, label, at, state: 'done' | 'undone', amount }`. Regras (código em `worker/tape.js`): desfazer pega a última ação feita e refazer a primeira desfeita; só dentro de 120 s; só se a cidade está na revisão gravada (409 com `city` no corpo, como nas ações); até 10 ações; desfazer devolve o que a ação custou (ou tira o reembolso de uma demolição) e refazer cobra de novo (422 sem moedas). Uma ação nova apaga as desfeitas. Prédio de atividade e a construção que abre uma viagem não entram (e esvaziam a fita). O histórico registra "Desfez: …" e "Refez: …".
+
 ## Saúde
 
 `GET /api/health` → `{ "app": "cityou", "status": "ok" }`. Não exige sessão.

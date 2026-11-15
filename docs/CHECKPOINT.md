@@ -71,7 +71,7 @@ Testes (13/11/2026, branch `claude/etapa-2-sessao-vencida` sobre a `main` `c93d8
 | 5 Agenda, Projetos e Peso reais | Feita em três commits (13/11/2026, falta só ela entrar na `main`). **1 Agenda feita** (`worker/agenda.js`, `worker/records.js`, `tests/worker-agenda.test.mjs`, aba Agenda do painel); **2 Projetos feita** (`worker/projects.js`, `tests/worker-projects.test.mjs`, aba Projetos, `/api/workspace/projects` virou apelido); **3 Peso feito** (`worker/weights.js`, `tests/worker-weights.test.mjs`, aba Fitness com gráfico da média de 7 dias). Fica de fora: latência comparada com a base da etapa 1 e Biblioteca e Memórias (`sources`, etapa 4) |
 | 6 Segurança e corte do legado | Correções de contas e dependências adiantadas. **CSP em `Report-Only` feito** (`worker/csp.js`, endpoint `/api/csp-report`, cabeçalhos básicos em páginas e API; `tools/csp-probe.mjs`). Achado: o decodificador de meshopt usa WASM e viola a política sem `'wasm-unsafe-eval'`. **Decisão do dono (13/11/2026): `script-src` aceita `'wasm-unsafe-eval'`** (só WASM, JS eval segue bloqueado), para o meshopt dos GLB. A transição do #55 está publicada. Corte do legado preparado na etapa 6B. Falta validar a semana de CSP e revisar o próximo deploy. |
 | 7b Resto da ambientação | Não começada |
-| 8 Fita do Tempo e transições | Não começada |
+| 8 Fita do Tempo e transições | **Servidor feito** (15/11/2026, `worker/tape.js`, `tests/worker-tape.test.mjs`, rotas em `docs/API.md`). Faltam a fita na tela da cidade, os atalhos de teclado, as transições sem quadro branco, o Voltar hierárquico e o renome `src/fifones` → `src/city` |
 | 10 Portão para abrir contas (proposta) | Não começada; ver "Itens sem dono no plano" |
 
 ## O que falta, para o próximo developer

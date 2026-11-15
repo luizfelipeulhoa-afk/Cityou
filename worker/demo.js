@@ -5,6 +5,7 @@ import { ProofError, parseProof, sha256Hex } from '../shared/game/proof.js'
 import { buildSummary } from '../shared/game/summary.js'
 import { kindForDomain, stageFor } from '../shared/game/buildings.js'
 import { newCity, newTown, withoutStarterBuildings, withoutRetired, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
+import { tapeMethods } from './tape.js'
 import { HttpError, json, errorResponse, readJsonObject } from './http.js'
 import { dateFormatter, isDate, capOf, capMessage } from './records.js'
 import { agendaMethods } from './agenda.js'
@@ -79,6 +80,8 @@ const routes = [
   [/^\/api\/personal\/proofs\/([a-f0-9-]{36})\/(\d{4}-\d{2}-\d{2})\/photo$/, { GET: 'proofPhoto' }],
   [/^\/api\/city$/, { GET: 'city' }],
   [/^\/api\/city\/actions$/, { POST: 'cityAction' }],
+  [/^\/api\/city\/undo$/, { POST: 'cityUndo' }],
+  [/^\/api\/city\/redo$/, { POST: 'cityRedo' }],
   [/^\/api\/rewards\/sync$/, { POST: 'syncRewards' }],
   [/^\/api\/world\/progress$/, { GET: 'world', PUT: 'saveWorld' }],
   [/^\/api\/world\/travel$/, { POST: 'travel' }],
@@ -337,7 +340,7 @@ export class DemoSession {
         // `?day=` (diário) e `?q=` (busca de alimentos) valem só na leitura, como o mês.
         this.day = writes ? null : url.searchParams.get('day')
         this.query = writes ? null : url.searchParams.get('q')
-        if (handler === 'city' || handler === 'cityAction' || handler === 'syncRewards') {
+        if (['city', 'cityAction', 'syncRewards', 'cityUndo', 'cityRedo'].includes(handler)) {
           this.requireLocation(location)
           return this[handler](body, location)
         }
@@ -346,7 +349,7 @@ export class DemoSession {
         return this[handler](body, id, proof)
       })
     } catch (error) {
-      if (error instanceof HttpError && handler === 'cityAction' && ![403, 404, 410].includes(error.status)) {
+      if (error instanceof HttpError && ['cityAction', 'cityUndo', 'cityRedo'].includes(handler) && ![403, 404, 410].includes(error.status)) {
         // A leitura do corpo pode ceder a execução enquanto outra requisição adota o objeto.
         try { this.ownerFor(account) } catch (accessError) {
           if (accessError instanceof HttpError) return errorResponse(accessError.status, accessError.message)
@@ -580,7 +583,7 @@ export class DemoSession {
     return ids
   }
 
-  citySnapshot(location) { return this.withStages(snapshot(this.regionalCity(location, this.cityState()), location, this.testMode)) }
+  citySnapshot(location) { return { ...this.withStages(snapshot(this.regionalCity(location, this.cityState()), location, this.testMode)), tape: this.tapeView(location) } }
 
   city(_, location) { return json(this.citySnapshot(location)) }
 
@@ -662,19 +665,17 @@ export class DemoSession {
     const recorded = this.read('city-request', action.request_id)
     if (recorded !== null) {
       if (recorded !== fingerprint) throw new HttpError(409, 'Esse request_id já foi usado para outra ação.')
-      return json(this.withStages(snapshot(city, location, this.testMode)))
+      return json(this.citySnapshot(location))
     }
     const progress = this.progressState()
     const resolved = this.withActivity(action)
+    const before = city.placements.map(item => ({ ...item }))
     applyCityAction(city, resolved, location, this.testMode, this.activityContext(resolved))
-    if (location === START) {
-      this.write('city', 'state', city)
-    } else {
-      const { credits, history, placements, revision, started_at } = city
-      this.write('city', 'state', { ...home, credits, history, revision: home.revision + 1 })
-      this.write('regional-city', location, { placements, revision, started_at })
-    }
+    this.saveCity(location, home, city)
     const firstBuilding = resolved.type === 'build' && countsForTravel(resolved) && !progress.concluidos.includes(location)
+    // Fita do Tempo (worker/tape.js): prédio de atividade e a construção que abre a viagem não entram.
+    if (resolved.activity_id || firstBuilding) this.dropTape(location)
+    else this.recordTape(location, { action_id: action.request_id, ...city.history[0], before, after: city.placements, revision: city.revision })
     if (firstBuilding) {
       if (this.testMode && !progress.desbloqueados.includes(location)) progress.desbloqueados.push(location)
       progress.concluidos.push(location)
@@ -683,7 +684,18 @@ export class DemoSession {
       this.write('world', 'regional-progress', normalizeProgress(progress))
     }
     this.saveRequest('city-request', action.request_id, fingerprint)
-    return json(this.withStages(snapshot(city, location, this.testMode)))
+    return json(this.citySnapshot(location))
+  }
+
+  /** Grava a cidade: na Ilha o registro é um só; nas regionais, moedas e histórico ficam no da Ilha. */
+  saveCity(location, home, city) {
+    if (location === START) {
+      this.write('city', 'state', city)
+    } else {
+      const { credits, history, placements, revision, started_at } = city
+      this.write('city', 'state', { ...home, credits, history, revision: home.revision + 1 })
+      this.write('regional-city', location, { placements, revision, started_at })
+    }
   }
 
   progressState() {
@@ -744,4 +756,4 @@ export class DemoSession {
   }
 }
 
-Object.assign(DemoSession.prototype, agendaMethods, projectMethods, weightMethods, nutritionMethods, bodyMethods, diaryMethods, trainingMethods)
+Object.assign(DemoSession.prototype, tapeMethods, agendaMethods, projectMethods, weightMethods, nutritionMethods, bodyMethods, diaryMethods, trainingMethods)
