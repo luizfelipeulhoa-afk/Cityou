@@ -101,3 +101,12 @@
 /* Dentro do painel (16/11/2026): o trilho é o do painel, que se transforma neste (App.vue). No celular o menu do painel é
    gaveta e fica escondido junto com a barra do topo, então o trilho daqui continua. */
 @media(min-width:651px){.in-panel .nav-rail{display:none}}
+
+/* Capa da cidade (16/11/2026): cobre o chão liso de espera até o terreno real entrar (sceneReady em CityApp.vue). */
+.city-cover{position:absolute;inset:0;z-index:40;display:grid;place-content:center;justify-items:center;gap:18px;background:linear-gradient(180deg,#bfe4ef 0%,#a7d0cf 60%,#cfe3c4 100%)}
+.city-cover-mark{font-family:FifonesDisplay,Georgia,serif;font-style:italic;font-weight:650;font-size:64px;line-height:1;color:#1b7778;letter-spacing:-3px}
+.city-cover-mark span{color:#e8aa50}
+.city-cover .loading-line{width:120px}
+.city-cover-leave-active{transition:opacity .55s ease}
+.city-cover-leave-to{opacity:0}
+@media(prefers-reduced-motion:reduce){.city-cover-leave-active{transition:none}}

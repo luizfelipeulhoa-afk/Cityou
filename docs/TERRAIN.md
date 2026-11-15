@@ -60,6 +60,14 @@ também cavavam o chão em volta, porque o chão dos lotes era forçado a y = 0.
   um morro de `relief` (`GAP_HILL` em `rio-cidade.js`, 6,5 de altura) o tapa, com um círculo em `crop.keep` para o corte
   não apagá-lo.
 
+## Morro da comunidade como montanha e cidade sem Cristo (16/11/2026)
+
+- `communityHill` (`src/fifones/sceneEnvironment.js`) desenha cada patamar com topo de grama plano (onde o prédio assenta)
+  e, onde o vizinho é mais baixo, uma encosta de pedra facetada em três faixas (mato, pedra, pé) que se abre para fora;
+  as quinas convexas abrem nas duas direções e dividem os vértices, sem fresta. `HILL_STEP` passou de 0,7 para 1,2.
+- O Rio não tem mais a estátua do Cristo no morro (o morro fica). A cidade cobre a tela até o terreno real entrar
+  (`CityWorld.sceneReady`, `.city-cover` em `CityApp.vue`).
+
 ## Onde ver e como conferir
 
 - **Página de teste:** `/terrain.html` (no `npm run dev` e no site publicado; sem link no app, `noindex`). Tem as vistas dos marcos, a sobreposição das zonas bloqueadas e o toque num lote para assentar um prédio.
