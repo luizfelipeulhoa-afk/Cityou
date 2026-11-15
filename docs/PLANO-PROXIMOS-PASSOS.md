@@ -106,6 +106,9 @@ Pronto quando: `npm test` e `npm run test:worker` verdes (com `tests/nutrition.t
 ## Etapa 10 (proposta): portão para abrir contas
 Só depois das etapas 2 a 6: D1 separado para a prévia, migrações aplicadas, fluxo de conta inteiro no navegador numa prévia, restauração ensaiada, e privacidade, termos e idade revisados por advogado. Lista e critério em "Itens sem dono no plano" do `docs/CHECKPOINT.md` e em `council/COUNCIL_SINTESE.md`.
 
+## Etapa 11 (pedido do dono, 15/11/2026): pitch deck do plano até o MVP
+Uma apresentação de 10 slides que conta o plano para quem decide ou investe: proposta, onde estamos, o que entrou no PR #65, arquitetura, roteiro em quatro passos, riscos, como trabalhamos com agentes, as cinco decisões do dono e o critério de pronto do MVP. Feita no claude.ai (tipo Slides, paleta Horizonte Dourado): https://claude.ai/artifact/HxSwS69xksE6ZJ25T5LxTb (privada: só abre para quem o dono compartilhar). **Regra:** quando o estado de uma etapa mudar, atualize o deck junto com `docs/CHECKPOINT.md` e o diagrama; os números do deck saem só do checkpoint e de `docs/BENCHMARKS.md`. Pronto quando: os 10 slides batem com o checkpoint do dia.
+
 ## Fita do Tempo (o "Voltar" depois de confirmar)
 
 Hoje construir, mover, girar e evoluir gravam no primeiro clique e nada desfaz. Em vez de perguntar "tem certeza?" antes, cada ação grava na hora e vira um cartão numa fita no canto da cidade ("Construiu Farol −60"). Tocar no cartão do topo desfaz; o cartão desfeito mostra "Refazer". `Ctrl/Cmd+Z` e `Shift+Ctrl/Cmd+Z` também valem.

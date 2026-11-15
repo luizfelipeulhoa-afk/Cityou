@@ -161,6 +161,9 @@ export const stepDone = id => api(projectPath(id) + '/step-done', 'POST', {})
 export const syncRewards = () => api('/api/rewards/sync' + cityQuery, 'POST', {})
 export const cityAction = action => api('/api/city/actions' + cityQuery, 'POST',
   { ...action, request_id: action.request_id || crypto.randomUUID() }, { retry: true })
+// Fita do Tempo (worker/tape.js): o corpo é só { action_id, expected_revision }; sem retry, porque desfazer não é idempotente.
+export const cityUndo = body => api('/api/city/undo' + cityQuery, 'POST', body)
+export const cityRedo = body => api('/api/city/redo' + cityQuery, 'POST', body)
 export const loadWorldProgress = () => api('/api/world/progress')
 export const travelTo = local => api('/api/world/travel', 'POST', { local, request_id: crypto.randomUUID() }, { retry: true })
 // O servidor junta o progresso enviado ao guardado e devolve o resultado (idempotente).

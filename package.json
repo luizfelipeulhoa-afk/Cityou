@@ -20,7 +20,7 @@
     "perf:world": "node tools/world-perf.mjs",
     "perf:world-frame": "node tools/world-frame-bench.mjs",
     "perf:city": "node tools/city-frame-bench.mjs",
-    "test:worker": "node --test tests/worker-csp.test.mjs tests/worker.test.mjs tests/worker-access.test.mjs tests/worker-tasks.test.mjs tests/worker-agenda.test.mjs tests/worker-projects.test.mjs tests/worker-weights.test.mjs tests/worker-nutrition.test.mjs tests/worker-body.test.mjs tests/worker-diary.test.mjs tests/worker-training.test.mjs tests/worker-edge-cache.test.mjs tests/catalog-migration.test.mjs",
+    "test:worker": "node --test tests/worker-csp.test.mjs tests/worker.test.mjs tests/worker-access.test.mjs tests/worker-tape.test.mjs tests/worker-tasks.test.mjs tests/worker-agenda.test.mjs tests/worker-projects.test.mjs tests/worker-weights.test.mjs tests/worker-nutrition.test.mjs tests/worker-body.test.mjs tests/worker-diary.test.mjs tests/worker-training.test.mjs tests/worker-edge-cache.test.mjs tests/catalog-migration.test.mjs",
     "dev:worker": "wrangler dev --port 8787",
     "perf:api": "node tools/api-perf.mjs"
   },

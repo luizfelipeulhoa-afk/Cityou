@@ -33,7 +33,7 @@ Os atalhos de uma tecla ficam desligados enquanto o foco está em campo de texto
 | `E` ou `Enter` | Editar o item em foco |
 | `Delete` | Apagar o item em foco (com desfazer) |
 | `Ctrl` ou `Cmd` + `Enter` | Salvar o formulário |
-| `Ctrl` ou `Cmd` + `Z` | Desfazer a última ação, enquanto o aviso estiver na tela |
+| `Ctrl` ou `Cmd` + `Z` | Na cidade: desfazer a última ação da Fita do Tempo (até 120 s); com `Shift`, refazer. Ignorado em campos de texto |
 | `R` | Atualizar os dados |
 | `Esc` | Fechar diálogo, menu ou paleta (já existe) |
 | `?` | Mostrar os atalhos |
@@ -278,6 +278,8 @@ Uma cidade por local liberado. Sem `local`, abre a cidade do local atual. As reg
 | Voltar ao globo | Navegação | navegação | | Abre `world.html` |
 | Catálogo, filtros, luz do dia, entardecer, girar câmera, vista inicial, ajuda | Local | | | Igual |
 | Indicador de escritórios ativos; prédios de IA | O indicador saiu na etapa 2; os prédios de IA saem na etapa 3 | | | **Saem** |
+
+Fita do Tempo (canto de cima da cidade, `ActionTape.vue`): cada construção, mudança ou demolição vira um cartão por 120 s; o cartão feito mais novo tem "Desfazer" e o desfeito mais antigo tem "Refazer" (`POST /api/city/undo` e `/redo`, `cityUndo`/`cityRedo` em `api.js`). `Ctrl`/`Cmd` + `Z` desfaz e `Shift` + `Ctrl`/`Cmd` + `Z` refaz, fora de campos de texto; sem contador na tela.
 
 Ao posicionar uma construção:
 
