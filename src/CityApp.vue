@@ -93,6 +93,10 @@ const rotation = ref(0)
 const confirmation = ref(null)
 const toast = ref(null)
 const helpOpen = ref(false)
+// Dentro do painel (/app#/cidade) o trilho de ícones é o do painel, que vira o trilho da cidade (App.vue): o daqui some e a
+// ajuda abre pelo botão de lá, por mensagem da mesma origem.
+const inPanel = (() => { try { return window.parent !== window && window.parent.location.pathname.startsWith('/app') } catch { return false } })()
+if (inPanel) window.addEventListener('message', event => { if (event.origin === window.location.origin && event.data?.type === 'cityou:help') helpOpen.value = !helpOpen.value })
 const historyOpen = ref(false)
 const missionTab = ref('tasks')
 const celebration = ref(null)
@@ -504,7 +508,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="city-app" :class="{ 'is-dusk': lighting === 'dusk', 'catalog-hidden': !catalogOpen, 'is-cutaway': !!activeInterior }">
+  <main class="city-app" :class="{ 'is-dusk': lighting === 'dusk', 'catalog-hidden': !catalogOpen, 'is-cutaway': !!activeInterior, 'in-panel': inPanel }">
     <canvas ref="canvas" class="city-canvas" :aria-label="`Cidade 3D em ${region?.nome ?? 'Rio de Janeiro'}. Arraste para explorar e use a roda do mouse para aproximar.`" />
     <div class="scene-vignette" aria-hidden="true" />
 

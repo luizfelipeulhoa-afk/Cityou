@@ -21,7 +21,7 @@ body{background:var(--bg)}
 @property --pill-b{syntax:'<length>';inherits:false;initial-value:0px}
 @property --pill-l{syntax:'<length>';inherits:false;initial-value:0px}
 .nav-track{position:relative}
-.nav-pill{--lead:.36s cubic-bezier(.215,.61,.355,1);--trail:.55s cubic-bezier(.645,.045,.355,1);position:absolute;inset:0;pointer-events:none;opacity:0;background:linear-gradient(135deg,#bcafff30,#7c8cff1c);clip-path:inset(var(--pill-t) var(--pill-r) var(--pill-b) var(--pill-l) round 9px);transition:--pill-t var(--trail),--pill-b var(--lead),--pill-l .3s ease,--pill-r .3s ease,opacity .2s}
+.nav-pill{--lead:.36s cubic-bezier(.215,.61,.355,1);--trail:.55s cubic-bezier(.645,.045,.355,1);position:absolute;inset:0;pointer-events:none;opacity:0;background:linear-gradient(135deg,#bcafff30,#7c8cff1c);clip-path:inset(var(--pill-t) var(--pill-r) var(--pill-b) var(--pill-l) round var(--pill-round,9px));transition:--pill-t var(--trail),--pill-b var(--lead),--pill-l .3s ease,--pill-r .3s ease,opacity .2s}
 .nav-pill[data-dir=up]{transition:--pill-t var(--lead),--pill-b var(--trail),--pill-l .3s ease,--pill-r .3s ease,opacity .2s}
 .nav-pill.snap{transition:opacity .2s}
 .nav-pill.on{opacity:1}
@@ -105,3 +105,24 @@ body{background:var(--bg)}
 @media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.insight-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:950px){.topbar-jump{display:none}.topbar-actions{margin-left:auto}}
 @media(max-width:520px){.kpi-grid{gap:11px}.kpi{min-height:0;padding:14px 14px 13px}.kpi-value{font-size:22px}.kpi-value.soft{font-size:15px}.kpi-foot{flex-direction:column;align-items:flex-start;gap:8px}.spark{max-width:100%}.local-status{padding:5px 8px}.topbar-avatar{display:none}.chart-total strong{font-size:27px}}
+
+/* Cidade em tela cheia (16/11/2026): o menu vira o trilho de ícones da cidade, no mesmo creme e no mesmo lugar do trilho
+   dela (src/fifones/style.css, .nav-rail), e o mapa ocupa a página inteira. A animação da troca é de App.vue. */
+.rail-only{display:none}
+.sidebar.morphing{position:fixed!important;margin:0;overflow:clip!important;max-height:none!important;z-index:50}
+.in-city .personal-topbar,.in-city .city-space-bar,.in-city .page-error{display:none}
+.in-city .city-space{position:fixed;inset:0;height:100dvh;z-index:1;background:#a7d0cf}
+.in-city .city-space iframe{background:#a7d0cf;animation:city-in .9s cubic-bezier(.215,.61,.355,1) both}
+@keyframes city-in{from{opacity:0;transform:scale(1.04)}to{opacity:1;transform:none}}
+@media(min-width:651px){
+  .in-city .sidebar{position:fixed;z-index:20;left:24px;top:118px;width:60px;height:auto;max-height:calc(100dvh - 140px);padding:7px;border-radius:18px;border:1px solid #fff9;background:#faf7edf2;box-shadow:0 14px 34px #1c3b3430}
+  .in-city .personal-brand,.in-city .sidebar-toggle,.in-city .sidebar-bottom,.in-city .nav-group-label,.in-city .personal-nav-item>span,.in-city .personal-nav-item>small{display:none}
+  .in-city .sidebar nav{margin-top:0;padding-bottom:0;scrollbar-width:none}
+  .in-city .nav-group{margin:0}
+  .in-city .rail-only{display:flex}
+  .in-city .personal-nav-item{justify-content:center;width:44px;min-height:40px;margin:1px 0;padding:0;border-radius:12px;color:#6f8277}
+  .in-city .personal-nav-item:hover{background:#dfe8db;color:#24443a}
+  .in-city .personal-nav-item.active,.in-city .personal-nav-item.active svg{color:#fff3d8}
+  .in-city .nav-pill{--pill-round:12px;background:#1b7778}
+}
+@media(max-width:650px){.in-city .sidebar{display:none}}

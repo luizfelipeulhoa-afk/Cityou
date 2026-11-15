@@ -97,3 +97,7 @@
 
 .scenic-note p{margin:6px 0 12px;font-size:13px;line-height:1.4;color:#4f5d56}.scenic-note .goal-action{display:flex;text-decoration:none;justify-content:center}
 .city-sign-out{min-height:32px;padding:0 12px;border:1px solid #ffffff26;border-radius:999px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}.city-sign-out:hover{background:#ffffff14}.city-sign-out:focus-visible{outline:2px solid #ffd166;outline-offset:2px}
+
+/* Dentro do painel (16/11/2026): o trilho é o do painel, que se transforma neste (App.vue). No celular o menu do painel é
+   gaveta e fica escondido junto com a barra do topo, então o trilho daqui continua. */
+@media(min-width:651px){.in-panel .nav-rail{display:none}}

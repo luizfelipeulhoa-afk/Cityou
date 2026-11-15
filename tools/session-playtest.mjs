@@ -76,17 +76,20 @@ const email = `e2e-${Date.now()}@example.test`, password = 'senha-sintetica-123'
     const expectSoon = tab === 'biblioteca'
     check(`${label} ${expectSoon ? 'mostra "Em breve"' : 'é real (sem "Em breve")'}`, soon === expectSoon)
   }
+  // Cidade dentro do painel (16/11/2026): o menu do painel vira o trilho da cidade e o da cidade some; os botões do trilho
+  // levam às abas na janela principal, sem quadro sobrando.
   for (const [label, tab] of Object.entries(menu)) {
     await page.goto(BASE + '/app#/cidade')
-    const frame = page.frameLocator('iframe[title="Minha cidade Cityou"]')
-    await frame.getByRole('button', { name: label, exact: true }).first().click({ timeout: 30000 })
+    await page.locator('.sidebar').getByRole('link', { name: label, exact: true }).first().click({ timeout: 30000 })
     await page.waitForURL(`**/app#/${tab}`, { timeout: 10000 }).catch(() => {})
     await page.locator('iframe[title="Minha cidade Cityou"]').waitFor({ state: 'detached', timeout: 5000 }).catch(() => {})
     const framed = await page.locator('iframe').count()
     check(`cidade embutida: ${label} abre /app#/${tab} na janela principal`, page.url().endsWith(`/app#/${tab}`) && framed === 0, `${page.url()} iframes=${framed}`)
   }
   await page.goto(BASE + '/app#/cidade')
-  await page.frameLocator('iframe').getByRole('button', { name: 'Tarefas', exact: true }).first().waitFor({ timeout: 30000 })
+  await page.frameLocator('iframe').locator('.topbar').first().waitFor({ timeout: 30000 })
+  const railHidden = await page.frameLocator('iframe').locator('.nav-rail').evaluate(el => getComputedStyle(el).display === 'none')
+  check('cidade embutida: um trilho só (o do painel), mapa na página inteira', railHidden && await page.locator('.personal-topbar').isHidden())
   check('cidade embutida sem "Vamos reconectar"', !(await page.frameLocator('iframe').getByText('Vamos reconectar').count()))
 
   // Sessão vence com o painel aberto e a pessoa entra em Minha cidade / Mapa-mundo.
