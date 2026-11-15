@@ -21,6 +21,7 @@
   <defs>
     <path id="u1" d="M3 10 C 60 4, 140 3, 297 8"/>
     <path id="u2" d="M10 15 C 90 10, 190 9, 290 13"/>
+    <symbol id="coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10.5" fill="#f2b53a"/><circle cx="12" cy="12" r="10.5" fill="none" stroke="#c98a1f" stroke-width="1.6"/><circle cx="12" cy="12" r="6.6" fill="none" stroke="#ffe08a" stroke-width="1.4"/><path d="M7.6 8.2 A5.4 5.4 0 0 1 12 6.1" fill="none" stroke="#fff6d6" stroke-width="1.6" stroke-linecap="round"/></symbol>
     <path id="c1" d="M154 8 C 60 2, 6 18, 8 40 C 10 62, 90 74, 170 70 C 250 66, 300 52, 296 32 C 292 12, 220 2, 130 10"/>
   </defs>
 </svg>
@@ -52,21 +53,21 @@
         <button class="btn btn-primary btn-large" type="button" data-auth="signup">Criar minha cidade <span class="btn-tick" aria-hidden="true"></span></button>
         <button class="btn btn-quiet btn-large" type="button" data-auth="login">Já tenho conta</button>
       </div>
-      <p class="hero-note">Grátis. Você começa com 50 moedas de boas-vindas.</p>
     </div>
 
+    <p class="sr-only">Demonstração animada do ciclo do Cityou: conclua uma atividade, ganhe moedas e construa um prédio na sua cidade.</p>
     <div class="diagram" data-diagram aria-hidden="true">
       <svg class="diagram-lines" viewBox="0 0 1200 560" preserveAspectRatio="none">
         <defs>
           <radialGradient id="pulse-glow"><stop offset="0" stop-color="#8247ff"/><stop offset="1" stop-color="#8247ff" stop-opacity="0"/></radialGradient>
         </defs>
         <g class="links">
-          <path id="l1" d="M250 90 C 360 90, 380 250, 444 270"/>
-          <path id="l2" d="M250 280 C 340 280, 390 280, 444 280"/>
-          <path id="l3" d="M250 470 C 360 470, 380 310, 444 290"/>
-          <path id="l4" d="M756 280 C 840 280, 840 120, 950 110"/>
-          <path id="l5" d="M756 280 C 840 280, 860 300, 950 300"/>
-          <path id="l6" d="M756 280 C 840 280, 840 470, 950 480"/>
+          <path id="l1" data-loop-path="task" d="M250 90 C 360 90, 380 250, 444 270"/>
+          <path id="l2" data-loop-path="habit" d="M250 280 C 340 280, 390 280, 444 280"/>
+          <path id="l3" data-loop-path="goal" d="M250 470 C 360 470, 380 310, 444 290"/>
+          <path id="l4" data-loop-path="quiosque" d="M756 280 C 840 280, 840 120, 950 110"/>
+          <path id="l5" data-loop-path="casarao" d="M756 280 C 840 280, 860 300, 950 300"/>
+          <path id="l6" data-loop-path="artdeco" d="M756 280 C 840 280, 840 470, 950 480"/>
         </g>
         <g class="pulses">
           <circle r="9" fill="url(#pulse-glow)"><animateMotion dur="2.6s" begin="2.4s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines=".45 0 .55 1"><mpath href="#l1"/></animateMotion></circle>
@@ -77,17 +78,26 @@
           <circle r="9" fill="url(#pulse-glow)"><animateMotion dur="2.6s" begin="4.2s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keyPoints="0;1" keySplines=".45 0 .55 1"><mpath href="#l6"/></animateMotion></circle>
         </g>
       </svg>
-      <div class="node node-in" style="--x:4%;--y:6%;--i:0" data-depth="14"><span class="node-icon tasks"></span><span><strong>Tarefa concluída</strong><small>+10 moedas</small></span></div>
-      <div class="node node-in" style="--x:4%;--y:41%;--i:1" data-depth="-10"><span class="node-icon habits"></span><span><strong>Hábito do dia</strong><small>+5 moedas</small></span></div>
-      <div class="node node-in" style="--x:4%;--y:76%;--i:2" data-depth="12"><span class="node-icon goals"></span><span><strong>Meta alcançada</strong><small>+25 moedas</small></span></div>
+      <div class="node node-in" style="--x:4%;--y:6%;--i:0" data-depth="14" data-loop-source="task"><span class="node-icon tasks"></span><span><strong class="loop-label">Tarefa concluída</strong><small>+10 moedas</small></span></div>
+      <div class="node node-in" style="--x:4%;--y:41%;--i:1" data-depth="-10" data-loop-source="habit"><span class="node-icon habits"></span><span><strong class="loop-label">Hábito do dia</strong><small>+5 moedas</small></span></div>
+      <div class="node node-in" style="--x:4%;--y:76%;--i:2" data-depth="12" data-loop-source="goal"><span class="node-icon goals"></span><span><strong class="loop-label">Meta alcançada</strong><small>+25 moedas</small></span></div>
       <div class="node node-core" style="--x:37%;--y:18%;--i:3" data-depth="6">
-        <img src="/brand/cidade-rio.webp" width="1120" height="700" alt="" fetchpriority="high">
-        <span class="core-wallet"><span class="coin"></span><b data-wallet>50</b> moedas</span>
+        <div class="core-render">
+          <img src="/brand/cidade-rio.webp" width="1120" height="700" alt="" fetchpriority="high">
+          <!-- Lotes na areia do render (coordenadas em LOOP_CONFIG.lotAnchors, src/landing/loop.js). Sem JS, o estado
+               final: o Edifício Art Déco já no lote 1. -->
+          <div class="lot is-built" data-loop-lot="1" style="--lx:61%;--ly:67%"><svg class="lot-shadow" viewBox="0 0 40 12" aria-hidden="true"><ellipse cx="20" cy="6" rx="19" ry="5.5"/></svg><img src="/previews/rio-edificio-deco.png" width="320" height="288" alt=""><span class="lot-outline" data-loop-lot-outline><span>seu próximo lote</span></span></div>
+          <div class="lot" data-loop-lot="2" style="--lx:75%;--ly:76%"><svg class="lot-shadow" viewBox="0 0 40 12" aria-hidden="true"><ellipse cx="20" cy="6" rx="19" ry="5.5"/></svg><img src="/previews/rio-quiosque-coco.png" width="320" height="288" alt=""><span class="lot-outline" data-loop-lot-outline><span>seu próximo lote</span></span></div>
+          <div class="lot" data-loop-lot="3" style="--lx:63%;--ly:88%"><svg class="lot-shadow" viewBox="0 0 40 12" aria-hidden="true"><ellipse cx="20" cy="6" rx="19" ry="5.5"/></svg><img src="/previews/rio-casarao.png" width="320" height="288" alt=""><span class="lot-outline" data-loop-lot-outline><span>seu próximo lote</span></span></div>
+          <span class="day-chip" data-loop-day>Novo dia</span>
+        </div>
+        <span class="core-wallet"><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg><b data-wallet data-loop-balance aria-live="off">60</b> moedas</span>
       </div>
-      <div class="node node-out" style="--x:79%;--y:6%;--i:4" data-depth="-14"><img src="/previews/rio-quiosque-coco.png" width="320" height="288" alt=""><span><strong>Quiosque de coco</strong><small>25 moedas</small></span></div>
-      <div class="node node-out" style="--x:79%;--y:41%;--i:5" data-depth="10"><img src="/previews/rio-casarao.png" width="320" height="288" alt=""><span><strong>Casarão colonial</strong><small>50 moedas</small></span></div>
-      <div class="node node-out" style="--x:79%;--y:76%;--i:6" data-depth="-12"><img src="/previews/rio-edificio-deco.png" width="320" height="288" alt=""><span><strong>Edifício Art Déco</strong><small>60 moedas</small></span></div>
+      <div class="node node-out" style="--x:79%;--y:6%;--i:4" data-depth="-14" data-loop-card="quiosque"><img src="/previews/rio-quiosque-coco.png" width="320" height="288" alt=""><span><strong>Quiosque de coco</strong><small><span data-loop-price>25</span> moedas</small></span></div>
+      <div class="node node-out" style="--x:79%;--y:41%;--i:5" data-depth="10" data-loop-card="casarao"><img src="/previews/rio-casarao.png" width="320" height="288" alt=""><span><strong>Casarão colonial</strong><small><span data-loop-price>50</span> moedas</small></span></div>
+      <div class="node node-out" style="--x:79%;--y:76%;--i:6" data-depth="-12" data-loop-card="artdeco"><img src="/previews/rio-edificio-deco.png" width="320" height="288" alt=""><span><strong>Edifício Art Déco</strong><small><span data-loop-price>60</span> moedas</small></span></div>
     </div>
+    <button class="loop-toggle" type="button" data-loop-toggle aria-pressed="false" tabindex="-1">Pausar animação</button>
   </section>
 
   <!-- USP duplo -->
@@ -108,17 +118,17 @@
     </div>
     <div class="marquee" data-marquee>
       <ul class="marquee-track">
-        <li><img src="/previews/rio-feira-barraca.png" width="320" height="288" loading="lazy" alt=""><strong>Barraca de feira</strong><small><span class="coin"></span>20</small></li>
-        <li><img src="/previews/rio-laje.png" width="320" height="288" loading="lazy" alt=""><strong>Casa da laje</strong><small><span class="coin"></span>25</small></li>
-        <li><img src="/previews/rio-quiosque-coco.png" width="320" height="288" loading="lazy" alt=""><strong>Quiosque de coco</strong><small><span class="coin"></span>25</small></li>
-        <li><img src="/previews/rio-academia.png" width="320" height="288" loading="lazy" alt=""><strong>Academia ao ar livre</strong><small><span class="coin"></span>30</small></li>
-        <li><img src="/previews/rio-salva-vidas.png" width="320" height="288" loading="lazy" alt=""><strong>Posto salva-vidas</strong><small><span class="coin"></span>30</small></li>
-        <li><img src="/previews/rio-bonde.png" width="320" height="288" loading="lazy" alt=""><strong>Ponto do bonde</strong><small><span class="coin"></span>35</small></li>
-        <li><img src="/previews/rio-sobradinho.png" width="320" height="288" loading="lazy" alt=""><strong>Sobrado colorido</strong><small><span class="coin"></span>30</small></li>
-        <li><img src="/previews/rio-casarao.png" width="320" height="288" loading="lazy" alt=""><strong>Casarão colonial</strong><small><span class="coin"></span>50</small></li>
-        <li><img src="/previews/rio-igreja.png" width="320" height="288" loading="lazy" alt=""><strong>Igrejinha da vila</strong><small><span class="coin"></span>55</small></li>
-        <li><img src="/previews/rio-edificio-deco.png" width="320" height="288" loading="lazy" alt=""><strong>Edifício Art Déco</strong><small><span class="coin"></span>60</small></li>
-        <li><img src="/previews/rio-hospital.png" width="320" height="288" loading="lazy" alt=""><strong>Hospital</strong><small><span class="coin"></span>80</small></li>
+        <li><img src="/previews/rio-feira-barraca.png" width="320" height="288" loading="lazy" alt=""><strong>Barraca de feira</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>20</small></li>
+        <li><img src="/previews/rio-laje.png" width="320" height="288" loading="lazy" alt=""><strong>Casa da laje</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>25</small></li>
+        <li><img src="/previews/rio-quiosque-coco.png" width="320" height="288" loading="lazy" alt=""><strong>Quiosque de coco</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>25</small></li>
+        <li><img src="/previews/rio-academia.png" width="320" height="288" loading="lazy" alt=""><strong>Academia ao ar livre</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>30</small></li>
+        <li><img src="/previews/rio-salva-vidas.png" width="320" height="288" loading="lazy" alt=""><strong>Posto salva-vidas</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>30</small></li>
+        <li><img src="/previews/rio-bonde.png" width="320" height="288" loading="lazy" alt=""><strong>Ponto do bonde</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>35</small></li>
+        <li><img src="/previews/rio-sobradinho.png" width="320" height="288" loading="lazy" alt=""><strong>Sobrado colorido</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>30</small></li>
+        <li><img src="/previews/rio-casarao.png" width="320" height="288" loading="lazy" alt=""><strong>Casarão colonial</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>50</small></li>
+        <li><img src="/previews/rio-igreja.png" width="320" height="288" loading="lazy" alt=""><strong>Igrejinha da vila</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>55</small></li>
+        <li><img src="/previews/rio-edificio-deco.png" width="320" height="288" loading="lazy" alt=""><strong>Edifício Art Déco</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>60</small></li>
+        <li><img src="/previews/rio-hospital.png" width="320" height="288" loading="lazy" alt=""><strong>Hospital</strong><small><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg>80</small></li>
       </ul>
     </div>
   </section>
@@ -135,7 +145,7 @@
         <li data-reveal data-step="2"><span class="step-number">03</span><div><h3>Construa a sua cidade</h3><p>Escolha o prédio, o lote e a rua. A cidade cresce no ritmo da sua rotina.</p></div></li>
       </ol>
       <div class="demo card tint-sand" data-demo data-reveal aria-hidden="true">
-        <div class="demo-top"><span class="demo-title">Hoje</span><span class="demo-wallet"><span class="coin"></span><b data-demo-coins>5</b></span></div>
+        <div class="demo-top"><span class="demo-title">Hoje</span><span class="demo-wallet"><svg class="coin" aria-hidden="true" focusable="false"><use href="#coin"/></svg><b data-demo-coins>5</b></span></div>
         <ul class="demo-list">
           <li data-demo-item="10"><i></i><span>Enviar o relatório</span><em>+10</em></li>
           <li data-demo-item="5"><i></i><span>Caminhar 20 minutos</span><em>+5</em></li>
@@ -217,6 +227,7 @@
   <button class="auth-close" type="button" data-auth-close aria-label="Fechar">×</button>
   <img class="auth-icon" src="/brand/cityou-icon.webp" width="146" height="146" alt="">
   <h2 id="auth-title" data-auth-title>Criar conta</h2>
+  <p class="accounts-notice" data-accounts-notice hidden></p>
   <p class="auth-lede" data-auth-lede>Leva um minuto. O que você já fez neste navegador vai junto.</p>
   <div class="auth-tabs" role="tablist" aria-label="Entrar ou criar conta">
     <button type="button" role="tab" data-auth-tab="signup" aria-selected="true">Criar conta</button>

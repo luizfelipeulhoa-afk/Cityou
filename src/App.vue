@@ -11,7 +11,7 @@ import JumpBar from './personal/JumpBar.vue'
 import { useNavPill } from './personal/navPill.js'
 import { areaBreakdown, cumulativeSeries, dayOf, dayRange, monthBalance } from './personal/dashboardData.js'
 // Cliente único da API (etapa 2): o mesmo `api()` da cidade, que trata o 401 levando a pessoa para entrar.
-import { readCache, signOut, writeCache, addEvent, addProject, addWeight, api, completeTask, editEvent, editProject, editWeight, removeEvent, removeProject, removeWeight, stepDone } from './fifones/api.js'
+import { ACCOUNTS_INACTIVE_NOTICE, readCache, signOut, writeCache, addEvent, addProject, addWeight, api, completeTask, editEvent, editProject, editWeight, removeEvent, removeProject, removeWeight, stepDone } from './fifones/api.js'
 import { photoToDataUrl } from './personal/proof.js'
 const sections=[
 {id:'inicio',label:'Seu dia',icon:'home',group:'SEU ESPAÇO',description:'O que importa, sem carregar tudo na cabeça.'},
@@ -32,7 +32,9 @@ const groups=[...new Set(sections.filter(i=>!i.hidden).map(i=>i.group))]
 const now=ref(Date.now())
 // Conta da sessão (null na demonstração sem conta). O nome e o botão Sair vêm daqui.
 const account=ref(null)
-fetch('/api/auth/status',{headers:{Accept:'application/json'}}).then(r=>r.json()).then(s=>{account.value=s.user||null}).catch(()=>{})
+// Demonstração (contas ainda não ativas): o aviso que saiu do topo da landing aparece aqui, com o mesmo texto do modal.
+const accountsInactive=ref(false)
+fetch('/api/auth/status',{headers:{Accept:'application/json'}}).then(r=>r.json()).then(s=>{account.value=s.user||null;accountsInactive.value=s.accounts!==true&&!s.user}).catch(()=>{})
 const signingOut=ref(false)
 async function leave(){if(signingOut.value)return;signingOut.value=true;try{await signOut()}catch(e){notify(e.message,'error');signingOut.value=false}}
 const route=ref('inicio'), collapsed=ref(false), mobileMenu=ref(false), search=ref(''), taskFilter=ref('open')
@@ -233,6 +235,7 @@ onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);window.removeEventListe
   </aside>
   <section class="app-main">
     <header class="personal-topbar"><div class="topbar-left"><button class="mobile-menu icon-btn" aria-label="Abrir menu" @click="mobileMenu=!mobileMenu"><Icon name="menu" /></button><span class="breadcrumb">Meu espaço <Icon name="chevron" :size="13" /><strong>{{ active?.label||(route==='mundo'?'Mapa-mundo':'Minha cidade') }}</strong></span></div><JumpBar class="topbar-jump" :items="jumpItems" @go="navigate" /><div class="topbar-actions"><span class="local-status" role="status"><i :class="{offline:saveState==='offline',busy:saveState==='saving'}" />{{ {saved:'Salvo',saving:'Salvando…',offline:'Sem conexão'}[saveState] }}</span><button class="icon-btn" aria-label="Atualizar meus dados" :disabled="refreshing" @click="refresh"><Icon name="refresh" :class="{spinning:refreshing}" :size="18" /></button><button class="new-entry" @click="showForm(route==='habitos'?'habit':route==='metas'?'goal':route==='financas'?'transaction':route==='nutricao'?'diary':route==='memorias'||route==='autoconhecimento'?'note':'task')"><Icon name="plus" :size="17" /><span>Novo registro</span></button><a class="topbar-avatar" href="#/conta" :aria-label="`Conta de ${account?.display_name||'demonstração'}`">{{ (account?.display_name||'C').slice(0,1).toUpperCase() }}</a></div></header>
+    <p v-if="accountsInactive && !inCity" class="demo-notice" role="note">{{ ACCOUNTS_INACTIVE_NOTICE }}</p>
     <div v-if="error && route !== 'mundo'" class="page-error" role="alert">{{ error }}<button @click="refresh">Tentar novamente</button></div>
     <div v-if="route==='mundo'" class="city-space"><div class="city-space-bar"><span><Icon name="globe" :size="17" />Seu mapa-mundo, em um espaço próprio.</span><a href="/world.html" target="_blank" rel="noopener">Abrir só o mapa <Icon name="arrow" :size="15" /></a></div><iframe src="/world.html" title="Mapa-mundo BuildU" /></div>
     <div v-else-if="route==='cidade'" class="city-space"><div class="city-space-bar"><span><Icon name="city" :size="17" />Sua cidade, em um espaço próprio.</span><a href="/city.html" target="_blank" rel="noopener">Abrir só a cidade <Icon name="arrow" :size="15" /></a></div><iframe v-if="cityMounted" src="/city.html" title="Minha cidade Cityou" /></div>
