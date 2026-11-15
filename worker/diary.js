@@ -200,7 +200,7 @@ export const diaryMethods = {
   },
 
   editDiary(body, id) {
-    exact(body, ['meal', 'quantity', 'unit'])
+    exact(body, ['meal', 'food_id', 'quantity', 'unit'])
     if (!Object.keys(body).length) throw new HttpError(422, 'Envie ao menos um campo para alterar.')
     const current = this.read(KIND, id)
     if (!current) throw new HttpError(404, 'Este registro não existe.')
@@ -208,12 +208,13 @@ export const diaryMethods = {
     if (body.meal !== undefined) {
       next.meal = mealOf(body.meal, countFor(this.read(SCHEDULE_KIND, SCHEDULE_ID), current.day))
     }
-    if (body.quantity !== undefined || body.unit !== undefined) {
+    // Trocar o alimento (registrou ovo, era arroz): a unidade tem de valer para o novo alimento, e o servidor recalcula tudo.
+    if (body.food_id !== undefined || body.quantity !== undefined || body.unit !== undefined) {
       const quantity = body.quantity ?? current.quantity
       const unit = body.unit ?? current.unit
-      const row = foodOf(current.food_id)
+      const row = foodOf(body.food_id ?? current.food_id)
       next.grams = gramsOf(row[0], quantity, unit)
-      Object.assign(next, { quantity, unit, ...per100g(row, next.grams) })
+      Object.assign(next, { food_id: row[0], food_name: row[1], quantity, unit, ...per100g(row, next.grams) })
     }
     this.write(KIND, id, next)
     return json(this.diaryView(next.day))

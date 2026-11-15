@@ -194,7 +194,7 @@ watch(query, text => {
   }, 250)
 })
 
-// Editar: a pessoa pode trocar a refeição, a quantidade e a unidade. O alimento volta da busca pelo nome.
+// Editar: a pessoa pode trocar a refeição, o alimento, a quantidade e a unidade. O alimento atual volta da busca pelo nome.
 async function startEdit(entry) {
   const token = ++editToken // clicar em "Editar" de outro registro cancela este
   editingId.value = entry.id
@@ -236,16 +236,15 @@ function optionKey(event, index) {
 
 function saveEntry() {
   const number = Number(String(quantity.value).replace(',', '.'))
-  if (editingId.value) {
-    const [chosen, foodId] = [unit.value, food.value?.id]
-    run(() => editDiaryEntry(editingId.value, { meal: slot.value, quantity: number, unit: chosen }), () => { if (foodId) rememberUnit(foodId, chosen); cancelEdit() })
-    return
-  }
   if (!food.value) {
     errors.value = { food_id: 'Escolha um alimento da lista.' }
     return
   }
   const [chosen, foodId] = [unit.value, food.value.id]
+  if (editingId.value) {
+    run(() => editDiaryEntry(editingId.value, { meal: slot.value, food_id: foodId, quantity: number, unit: chosen }), () => { rememberUnit(foodId, chosen); cancelEdit() })
+    return
+  }
   run(
     () => addDiaryEntry({ day: view.value.day, meal: slot.value, food_id: foodId, quantity: number, unit: chosen }),
     () => { rememberUnit(foodId, chosen); cancelEdit() },
@@ -308,7 +307,7 @@ onMounted(() => goTo())
       </div>
 
       <form class="fd-form" @submit.prevent="saveEntry">
-        <p v-if="editingId" class="fd-editing"><strong>Editando um alimento.</strong> Troque a refeição, a quantidade ou a unidade.</p>
+        <p v-if="editingId" class="fd-editing"><strong>Editando um alimento.</strong> Troque a refeição, o alimento, a quantidade ou a unidade.</p>
         <label>Refeição
           <select v-model.number="slot" aria-label="Refeição">
             <option v-for="section in view.meals" :key="section.id" :value="section.id">{{ section.label }}</option>
@@ -319,7 +318,7 @@ onMounted(() => goTo())
           <label for="fd-food">Alimento</label>
           <input id="fd-food" v-model="query" type="search" autocomplete="off" role="combobox" aria-autocomplete="list"
             :aria-expanded="results.length > 0" :aria-controls="results.length ? 'fd-options' : undefined" maxlength="80"
-            :disabled="Boolean(editingId)" placeholder="Digite, por exemplo: ovo, arroz, banana"
+            placeholder="Digite, por exemplo: ovo, arroz, banana"
             :aria-invalid="Boolean(errors.food_id)" @keydown.down.prevent="focusOption(0)" @keydown.esc="results = []" />
           <span v-if="errors.food_id" class="fd-field-error">{{ errors.food_id }}</span>
           <ul v-if="results.length" id="fd-options" ref="optionsList" class="fd-options" role="listbox" aria-label="Alimentos encontrados">
@@ -334,7 +333,7 @@ onMounted(() => goTo())
         </div>
 
         <div v-if="food" class="fd-chosen">
-          <span>{{ food.name }} <button v-if="!editingId" type="button" class="quiet-button" @click="clearFood">Trocar</button></span>
+          <span>{{ food.name }} <button type="button" class="quiet-button" @click="clearFood">Trocar</button></span>
           <div class="fd-qty">
             <label>Quantidade
               <input v-model="quantity" type="text" inputmode="decimal" aria-label="Quantidade" :aria-invalid="Boolean(errors.quantity)" />
@@ -351,7 +350,7 @@ onMounted(() => goTo())
           <span v-if="errors.meal" class="fd-field-error">{{ errors.meal }}</span>
         </div>
         <div v-if="canAdd" class="fd-actions">
-          <button class="primary-btn" :disabled="busy || (!food && !editingId)">{{ editingId ? 'Salvar alteração' : 'Adicionar ao dia' }}</button>
+          <button class="primary-btn" :disabled="busy || !food">{{ editingId ? 'Salvar alteração' : 'Adicionar ao dia' }}</button>
           <button v-if="editingId" type="button" class="quiet-button" :disabled="busy" @click="cancelEdit">Cancelar edição</button>
         </div>
       </form>

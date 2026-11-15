@@ -120,6 +120,13 @@ test('edita quantidade e refeição (dentro da programação); apaga; registro q
   const edited = await send(`/api/personal/diary/${id}`, { method: 'PUT', body: { quantity: 1, meal: 3 } })
   const item = edited.entries.find(row => row.id === id)
   assert.deepEqual([item.grams, item.kcal, item.meal], [50, 72, 3])
+  // Trocar o alimento: registrou ovo, era arroz. A unidade do ovo não vale para o arroz; em gramas, o servidor recalcula.
+  await send(`/api/personal/diary/${id}`, { method: 'PUT', body: { food_id: 'taco-3' }, status: 422 })
+  await send(`/api/personal/diary/${id}`, { method: 'PUT', body: { food_id: 'nao-existe', unit: 'g' }, status: 422 })
+  const swapped = await send(`/api/personal/diary/${id}`, { method: 'PUT', body: { food_id: 'taco-3', quantity: 100, unit: 'g' } })
+  const rice = swapped.entries.find(row => row.id === id)
+  assert.deepEqual([rice.food_id, rice.food_name, rice.grams, rice.meal], ['taco-3', 'Arroz, tipo 1, cozido', 100, 3])
+  assert.equal(swapped.entries.length, 1)
   await send(`/api/personal/diary/${id}`, { method: 'PUT', body: { meal: 4 }, status: 422 })
   await send(`/api/personal/diary/${id}`, { method: 'PUT', body: { day }, status: 422 })
   await send(`/api/personal/diary/${id}`, { method: 'PUT', body: {}, status: 422 })
