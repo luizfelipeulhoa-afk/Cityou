@@ -83,7 +83,7 @@ No desenvolvimento, o Vite encaminha `/api` ao Worker local na porta 8787.
 | `GET /api/me/export` (B8) | | 200 arquivo JSON com todos os dados da conta | leitura |
 | `DELETE /api/me` (B8) | `password` | 200 `{}`; apaga a conta e todos os dados | todas |
 
-**Já implementado** (`worker/auth.js`, guia em `docs/CONTAS.md`): `signup`, `login`, `logout`, `GET /api/me` e `GET /api/auth/status` (`{ accounts, user }`, sem 401). A conta adota os dados da demonstração (`users.data_key`) antes de confirmar o cadastro e troca o cookie da demonstração. Cadastro e login aceitam até 4.000 bytes de JSON. `forgot`, `reset`, `PATCH /api/me`, exportar e apagar ficam para depois.
+**Já implementado** (`worker/auth.js`, guia em `docs/CONTAS.md`): `signup`, `login`, `logout`, `GET /api/me` e `GET /api/auth/status` (`{ accounts, invite_required, user }`, sem 401). Com `invite_required`, o cadastro exige `invite` (403 se o convite não vale, 429 se a rede passou do limite); convites em `POST /api/admin/invites` e `POST /api/admin/invites/revoke`, com o mesmo cabeçalho `X-Cityou-Admin` das moedas de teste (guia em `docs/CONTAS.md`). A conta adota os dados da demonstração (`users.data_key`) antes de confirmar o cadastro e troca o cookie da demonstração. Cadastro e login aceitam até 4.000 bytes de JSON. `forgot`, `reset`, `PATCH /api/me`, exportar e apagar ficam para depois.
 
 Senha: PBKDF2 pela Web Crypto, sal por usuário, comparação em tempo constante (`crypto.subtle.timingSafeEqual`). O número de iterações fica gravado em `users.password_iterations`.
 

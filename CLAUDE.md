@@ -176,7 +176,7 @@ desce a rua até a avenida da praia e passeia pelo calçadão. Modelo em `public
 
 ## Contas e página de apresentação
 
-Guia: `docs/CONTAS.md`. `worker/auth.js` faz cadastro, entrada e saída (cookie `cityou_session`, PBKDF2). Aplique `migrations/` antes de habilitar o D1. `users.data_key` identifica o Durable Object da conta. O cadastro confirma a adoção e troca o cookie da demonstração, e o objeto confere o proprietário e preserva os dados no alarme. Cadastro e login limitam o corpo a 4.000 bytes; o login reserva tentativas atomicamente.
+Guia: `docs/CONTAS.md`. `worker/auth.js` faz cadastro, entrada e saída (cookie `cityou_session`, PBKDF2). Aplique `migrations/` antes de habilitar o D1. `users.data_key` identifica o Durable Object da conta. O cadastro confirma a adoção e troca o cookie da demonstração, e o objeto confere o proprietário e preserva os dados no alarme. Cadastro e login limitam o corpo a 4.000 bytes; o login reserva tentativas atomicamente. Etapa 6 (15/11/2026): cadastro só com convite, um código por pessoa, salvo com `SIGNUP_OPEN="true"` (as configurações de teste ligam); limite por IP (`ip_attempts`; `CITYOU_TEST_NO_IP_LIMIT` só nos testes); sessão de 30 dias sem uso com teto de 180, renovada uma vez por dia. Migração `migrations/0003_invites_ip_limits.sql`, teste `tests/worker-access.test.mjs`, guia em `docs/CONTAS.md`.
 
 Com D1 ligado, `/app`, `/city` e `/world` pedem login (`pageGate` em `worker/index.js`) e `/` leva quem já entrou ao app. Sem D1 (configuração versionada de produção), a demonstração continua. Página nova do app entra em `APP_PAGES` e em `run_worker_first`. Links para o painel usam `/app#/...`; os `/#/...` do catálogo ainda são do Fifones: a cidade os traduz para a aba do painel (`panelTabOf` em `src/CityApp.vue`) até a etapa 3 trocar o catálogo por nomes de aba. **Login obrigatório:** `REQUIRE_LOGIN="true"` com D1 faz a API de dados responder 401 sem sessão. Teste com `wrangler.test-login.jsonc`. Falta: esqueci a senha (precisa de e-mail com domínio).
 
@@ -209,7 +209,7 @@ Moedas de teste dos sócios: `POST /api/admin/credits` (`worker/demo.js`), só e
 
 No Rio, construir um prédio novo usa `previewBuild` no cliente e no Worker. O jogador confirma o total e o servidor grava o prédio e a rua automática em uma ação. Veja `docs/API.md` e `docs/INTERACTIONS.md`.
 
-Regras fixas: o navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência.
+Regras fixas: o navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência. Meta concluída (15/11/2026): `goalCredits` paga 5 moedas por dia exigido, até 25, e só 3 metas pagam por dia (`paidGoalsPerDay`; a que passa do teto paga na próxima marcação). Foto de comprovação: o corpo do check-in aceita a foto do tamanho da regra e o servidor tira EXIF, XMP e IPTC (`stripPhotoMetadata` em `shared/game/proof.js`).
 
 ## Skills do projeto (`.claude/skills/`)
 

@@ -165,7 +165,7 @@ const copy = {
   signup: { title: 'Criar conta', lede: 'Leva um minuto. O que você já fez neste navegador vai junto.', submit: 'Criar conta', busy: 'Criando…', switch: 'Já tem conta?', other: 'Entrar' },
   login: { title: 'Entrar', lede: 'Bom ter você de volta. A sua cidade está esperando.', submit: 'Entrar', busy: 'Entrando…', switch: 'Ainda não tem conta?', other: 'Criar conta' },
 }
-let mode = 'signup', accounts = true, busy = false
+let mode = 'signup', accounts = true, inviteRequired = false, busy = false
 
 function clearErrors() {
   $$('[data-field]', form).forEach((field) => { field.classList.remove('has-error'); $('.field-error', field).textContent = ''; $('input', field).removeAttribute('aria-invalid') })
@@ -191,6 +191,10 @@ function setMode(next) {
   const name = $('[data-field="display_name"]', form)
   name.hidden = mode === 'login'
   $('input', name).disabled = mode === 'login'
+  // Beta por convite: o campo só aparece no cadastro quando o servidor pede (GET /api/auth/status).
+  const invite = $('[data-field="invite"]', form)
+  invite.hidden = mode === 'login' || !inviteRequired
+  $('input', invite).disabled = invite.hidden
   form.password.autocomplete = mode === 'login' ? 'current-password' : 'new-password'
   $('[data-password-hint]').hidden = mode === 'login'
   const footer = $('[data-auth-switch]')
@@ -222,9 +226,11 @@ form.addEventListener('submit', async (event) => {
   clearErrors()
   const data = { email: form.email.value.trim(), password: form.password.value }
   if (mode === 'signup') data.display_name = form.display_name.value.trim()
+  if (mode === 'signup' && inviteRequired) data.invite = form.invite.value.trim()
   // Confere aqui o mesmo que o servidor confere, para a resposta ser imediata.
   const problems = []
   if (mode === 'signup' && !data.display_name) problems.push(['display_name', 'Diga como podemos chamar você.'])
+  if (mode === 'signup' && inviteRequired && data.invite.toUpperCase().replace(/[\s-]/g, '').length !== 12) problems.push(['invite', 'O código tem 12 letras e números, como ABCD-EFGH-JKLM.'])
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(data.email)) problems.push(['email', 'Digite um e-mail válido, como nome@exemplo.com.'])
   if (mode === 'signup' && data.password.length < 10) problems.push(['password', `A senha precisa de 10 caracteres ou mais (faltam ${10 - data.password.length}).`])
   if (mode === 'login' && !data.password) problems.push(['password', 'Digite a sua senha.'])
@@ -266,7 +272,14 @@ form.addEventListener('submit', async (event) => {
 // Estado das contas: sem banco ligado (ou sem resposta), os botões levam à demonstração; com sessão aberta, ao app.
 function applyStatus(status) {
   accounts = status.accounts === true && !status.user
-  if (accounts) { if (params.has('entrar')) openAuth('login'); return }
+  inviteRequired = status.invite_required === true
+  // Link de convite: /?convite=ABCD-EFGH-JKLM abre o cadastro com o código já preenchido.
+  if (params.has('convite')) form.invite.value = params.get('convite').slice(0, 20)
+  if (accounts) {
+    if (params.has('entrar')) openAuth('login')
+    else if (params.has('convite')) openAuth('signup')
+    return
+  }
   $$('[data-auth="signup"]').forEach((button) => { button.textContent = status.user ? 'Abrir meu Cityou' : 'Abrir a demonstração' })
   $$('[data-auth="login"]').forEach((button) => { button.hidden = true })
   // O aviso não fica mais no topo da página: vai no modal e no topo da demonstração (/app), com o mesmo texto.

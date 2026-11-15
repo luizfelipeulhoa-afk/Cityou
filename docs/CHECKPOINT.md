@@ -15,6 +15,7 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 
 | Branch | O que está fazendo | Desde |
 |---|---|---|
+| `claude/exciting-mayer-xf1pmj` | Etapa 6 (fase A): convite por pessoa, limite por IP, sessão renovável, teto da meta, foto sem 413 e sem EXIF; depois exportar e apagar conta | 15/11/2026 |
 | `claude/treino-sugerido` | Fitness: treino de musculação sugerido (meta da base calórica + dias por semana), registro de carga e repetições, volume, 1RM estimado, próxima carga, aquecimento e aeróbio; regras com fonte no pacote de artigos do dono e triagem de esforço; PR #53 | 15/11/2026 |
 | `claude/ecstatic-gauss-q22jcx` | Paleta Horizonte Dourado na landing (seções do kit, oito destinos, faixa de números fora do topo) e no painel (cores de marca trocadas); sem PR ainda | 15/11/2026 |
 | `claude/alimentacao-calculo` | Alimentação: base calórica completa (cálculo, rotas no Durable Object, cartão na aba, testes), PR #45 | 14/11/2026 |
@@ -120,9 +121,9 @@ A revisão em `council/COUNCIL_SINTESE.md` achou problemas que nenhuma etapa cob
 | ~~Sessão vencida dentro do quadro do painel abre a página de apresentação dentro do quadro~~ (corrigido, `npm run test:session`); a página de apresentação trata falha de rede como "contas desligadas"; consulta de 30 s da cidade | 2 | Teste de navegador com sessão vencida no painel, na cidade e no mapa |
 | "Exportar meus dados" e "Apagar minha conta" na aba Conta; barra de moedas e nível lendo o `resumo`; etapa do prédio e comprovações no painel | 4 | Exportar devolve tudo; apagar remove o objeto e as sessões; com teste |
 | Dividir `worker/demo.js` por assunto, só movendo código; editar e apagar registro; `request_id` ao criar; janela de datas no servidor (`canMarkDay`) | 5 | Testes passam antes e depois da divisão; reenvio não duplica |
-| Limite por IP e cadastro com convite; renovação e limpeza de sessão; registro de cadastro, login, bloqueio e moedas de teste; custo do hash de senha medido numa prévia; API com 503 quando o banco cai; limite da foto de comprovação igual ao da regra | 6 | Testes e a medida em `docs/BENCHMARKS.md` |
+| ~~Limite por IP e cadastro com convite; renovação e limpeza de sessão~~ (feitos em 15/11/2026, `tests/worker-access.test.mjs`); registro de cadastro, login, bloqueio e moedas de teste; custo do hash de senha medido numa prévia; API com 503 quando o banco cai; limite da foto de comprovação igual ao da regra | 6 | Testes e a medida em `docs/BENCHMARKS.md` |
 | Portão para abrir contas: D1 separado para a prévia, migrações aplicadas, fluxo de conta inteiro no navegador numa prévia, restauração ensaiada, privacidade, termos e idade revisados por advogado | 10 (nova) | Lista toda marcada |
-| Regras do jogo: meta com alvo 1 paga 25 moedas sem teto; moedas sem uso depois de cerca de um mês | decisão do dono | — |
+| ~~Regras do jogo: meta com alvo 1 paga 25 moedas sem teto~~ (15/11/2026: 5 por dia exigido até 25, no máximo 3 metas pagas por dia; o dono pode mudar os números em `shared/game/rules.js`); moedas sem uso depois de cerca de um mês | decisão do dono | — |
 | Diagramas no draw.io (`docs/diagrams/`): roteiro, arquitetura, fluxos de conta, ameaças | a qualquer momento | Abrem no draw.io |
 
 ### Pendências soltas

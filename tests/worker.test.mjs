@@ -48,6 +48,8 @@ test('health: banco sem migrações responde no_schema; com migrações, ok', as
   await applyMigration(env.DB, '0001_init.sql')
   assert.equal((await (await call('/api/health')).json()).db, 'no_schema')
   await applyMigration(env.DB, '0002_account_data.sql')
+  assert.equal((await (await call('/api/health')).json()).db, 'no_schema')
+  await applyMigration(env.DB, '0003_invites_ip_limits.sql')
   const response = await call('/api/health')
   assert.equal((await response.json()).db, 'ok')
 })
@@ -292,7 +294,8 @@ test('metas premiam a carteira uma vez, ao atingir a quantidade de dias', async 
   await check(goal, false)
   await check(goal, true)
   const player = await city(session, RIO)
-  assert.equal(player.credits, 75)
+  // Meta de alvo 1 paga 5 moedas (5 por dia exigido, até 25: goalCredits em shared/game/rules.js).
+  assert.equal(player.credits, 55)
   assert.equal(player.reward_count, 1)
 })
 
@@ -671,7 +674,7 @@ const account = (n = crypto.randomUUID().slice(0, 8)) => ({ email: `socio-${n}@c
 
 test('conta: cadastro abre sessão, valida os campos e não aceita e-mail repetido', async () => {
   const visitor = browser()
-  assert.deepEqual(await (await visitor('/api/auth/status')).json(), { accounts: true, user: null })
+  assert.deepEqual(await (await visitor('/api/auth/status')).json(), { accounts: true, invite_required: false, user: null })
   assert.equal((await visitor('/api/me')).status, 401)
   const bad = await visitor('/api/auth/signup', { method: 'POST', body: { email: 'sem-arroba', password: 'curta', display_name: '' } })
   assert.equal(bad.status, 422)
@@ -681,7 +684,7 @@ test('conta: cadastro abre sessão, valida os campos e não aceita e-mail repeti
   assert.equal(created.status, 201)
   const { user } = await created.json()
   assert.equal(user.email, data.email)
-  assert.match(created.headers.getSetCookie()[0], /^cityou_session=[a-f0-9]{64}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=2592000(; Secure)?$/)
+  assert.match(created.headers.getSetCookie()[0], /^cityou_session=[a-f0-9]{64}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=15552000(; Secure)?$/)
   assert.deepEqual((await (await visitor('/api/me')).json()).user, user)
   assert.equal((await (await visitor('/api/auth/status')).json()).user.id, user.id)
   assert.equal((await browser()('/api/auth/signup', { method: 'POST', body: data })).status, 409)
@@ -818,6 +821,7 @@ test('conta: login retoma a adoção quando o cadastro não conseguiu confirmar 
     body: JSON.stringify(data),
   }), {
     DB: env.DB,
+    SIGNUP_OPEN: 'true',
     DEMO_SESSIONS: {
       getByName: () => ({ fetch: async url => new Response(null, {
         status: new URL(url).pathname === '/internal/hold-for-adoption' ? 204 : 503,
@@ -833,7 +837,7 @@ test('conta: login retoma a adoção quando o cadastro não conseguiu confirmar 
 
 test('conta: sem banco, as rotas de conta avisam e o app segue como demonstração', async () => {
   const response = await closedHarness.fetch(`${ORIGIN}/api/auth/status`)
-  assert.deepEqual(await response.json(), { accounts: false, user: null })
+  assert.deepEqual(await response.json(), { accounts: false, invite_required: false, user: null })
   const signup = await closedHarness.fetch(`${ORIGIN}/api/auth/signup`, {
     method: 'POST', body: JSON.stringify(account()), headers: { Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json' },
   })
@@ -851,7 +855,7 @@ test('login obrigatório: sem sessão a API de dados responde 401; saúde e cont
     assert.match((await response.json()).message, /Entre na sua conta/)
   }
   assert.equal((await send('/api/health')).status, 200)
-  assert.deepEqual(await (await send('/api/auth/status')).json(), { accounts: true, user: null })
+  assert.deepEqual(await (await send('/api/auth/status')).json(), { accounts: true, invite_required: false, user: null })
   // A conta nova entra e passa a usar a API normalmente.
   const signup = await send('/api/auth/signup', { method: 'POST', headers, body: JSON.stringify(account()) })
   assert.equal(signup.status, 201)

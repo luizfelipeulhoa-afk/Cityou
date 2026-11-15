@@ -1,6 +1,6 @@
 import { normalizeProgress, unlockSpace } from '../src/world/progress.js'
 import { SPACE_ORDER } from '../src/world/worldSpaces.js'
-import { DOMAINS, RULES } from '../shared/game/rules.js'
+import { DOMAINS, RULES, goalCredits } from '../shared/game/rules.js'
 import { ProofError, parseProof, sha256Hex } from '../shared/game/proof.js'
 import { buildSummary } from '../shared/game/summary.js'
 import { kindForDomain, stageFor } from '../shared/game/buildings.js'
@@ -86,7 +86,11 @@ const routes = [
 // Moedas de teste para os sócios: só com o segredo CITYOU_ADMIN_TOKEN (wrangler secret), uma vez por sessão.
 // Sem o segredo configurado a rota nem existe (404). O navegador continua sem poder mandar créditos por conta própria.
 const ADMIN_CREDITS = 50_000
-async function requireAdmin(request, env) {
+// Corpo das escritas: 24 KB, salvo a conclusão com comprovação, que pode trazer a foto (até RULES.proof.photoMaxBytes,
+// em base64, ~1,34 vez maior) mais a nota. Antes a foto permitida pela regra recebia 413.
+const BODY_MAX = 24_000
+const CHECKIN_BODY_MAX = Math.ceil(RULES.proof.photoMaxBytes * 1.4) + 4_000
+export async function requireAdmin(request, env) {
   const secret = env?.CITYOU_ADMIN_TOKEN
   if (typeof secret !== 'string' || secret.length < 16) throw new HttpError(404, 'Rota não encontrada.')
   const [given, expected] = await Promise.all([
@@ -280,7 +284,7 @@ export class DemoSession {
       const owner = this.ownerFor(account)
       const writes = request.method !== 'GET'
       // DELETE não tem corpo: o servidor não lê nada e passa {}.
-      const body = !writes ? undefined : request.method === 'DELETE' ? {} : await readJsonObject(request, 24_000)
+      const body = !writes ? undefined : request.method === 'DELETE' ? {} : await readJsonObject(request, handler === 'checkin' ? CHECKIN_BODY_MAX : BODY_MAX)
       let proof
       if (handler === 'checkin' && body.proof !== undefined) {
         try {
@@ -432,7 +436,7 @@ export class DemoSession {
     const proofResult = done && proof ? this.saveProof(entry, day, proof) : null
     this.write('checkin', `${id}:${day}`, { entry_id: id, day, done: Number(done) })
     if (done && entry.kind === 'habit') this.reward('habit', day, id, `Hábito concluído: ${entry.title}`)
-    if (done && entry.kind === 'goal') this.rewardGoal(entry)
+    if (done && entry.kind === 'goal') this.rewardGoal(entry, day)
     const overview = this.overview()
     return json(proofResult ? { ...overview, proof_result: proofResult } : overview)
   }
@@ -555,16 +559,19 @@ export class DemoSession {
     return this.city(undefined, location)
   }
 
-  rewardGoal(entry) {
+  // Paga uma vez por meta. Com o teto do dia cheio, a meta fica para a próxima marcação (não perde nada).
+  rewardGoal(entry, day) {
     const key = 'reward:goal'
-    if (this.read(key, entry.id)) return
+    const dayKey = `reward:goal-day:${day}`
+    if (this.read(key, entry.id) || this.list(dayKey, RULES.paidGoalsPerDay).length >= RULES.paidGoalsPerDay) return
     const { total } = this.sql.exec(
       "SELECT count(*) AS total FROM records WHERE kind = 'checkin' AND id GLOB ? AND json_extract(value, '$.done') = 1",
       `${entry.id}:*`,
     ).one()
     if (total < entry.target) return
-    this.grantReward(RULES.rewards.goalDone.credits, `Meta concluída: ${entry.title}`)
+    this.grantReward(goalCredits(entry.target), `Meta concluída: ${entry.title}`)
     this.write(key, entry.id, true)
+    this.write(dayKey, entry.id, true)
   }
 
   // Moedas de teste dos sócios (rota protegida por segredo): uma vez por sessão, sem contar como recompensa nem como ganho.

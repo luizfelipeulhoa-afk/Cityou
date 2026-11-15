@@ -3,7 +3,7 @@
   "name": "cityou-test-login",
   "main": "worker/index.js",
   "compatibility_date": "2026-11-09",
-  "vars": { "REQUIRE_LOGIN": "true" },
+  "vars": { "REQUIRE_LOGIN": "true", "SIGNUP_OPEN": "true", "CITYOU_TEST_NO_IP_LIMIT": "true" },
   "d1_databases": [
     { "binding": "DB", "database_name": "cityou-test-login", "database_id": "00000000-0000-0000-0000-000000000001", "migrations_dir": "migrations" }
   ],
