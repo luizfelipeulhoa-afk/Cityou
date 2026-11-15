@@ -12,7 +12,7 @@ import { DemoSession, sessionCookie } from '../worker/demo.js'
 const ORIGIN = 'https://cityou.test'
 const TOKEN = 'segredo-de-teste-com-mais-de-16'
 const harness = createTestHarness({
-  workers: [{ configPath: 'wrangler.test.jsonc', vars: { SIGNUP_OPEN: 'false', CITYOU_ADMIN_TOKEN: TOKEN, CITYOU_TEST_NO_IP_LIMIT: '' } }],
+  workers: [{ configPath: 'wrangler.test.jsonc', vars: { SIGNUP_OPEN: 'false', CITYOU_ADMIN_TOKEN: TOKEN, CITYOU_TEST_NO_IP_LIMIT: '', CITYOU_SESSION_CACHE_SECONDS: '0' } }],
 })
 let env
 const DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
@@ -291,4 +291,40 @@ test('meta: com a fila maior que o teto, saem só as três mais antigas, e volta
   fake.settleGoals('2026-11-16')
   assert.deepEqual(pending(), [])
   assert.equal(paid.length, 7)
+})
+
+test('sessão no cache do ponto de presença: o banco é lido uma vez, sair vale na hora, exportar e apagar conferem no banco', async () => {
+  const cached = createTestHarness({ workers: [{ configPath: 'wrangler.test.jsonc', vars: { SIGNUP_OPEN: 'true', CITYOU_SESSION_CACHE_SECONDS: '30' } }] })
+  await cached.listen()
+  try {
+    const db = (await cached.getWorker().getEnv()).DB
+    if (!await db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'invites'").first()) {
+      for (const file of readdirSync('migrations').filter(name => name.endsWith('.sql')).sort()) {
+        const sql = readFileSync(join('migrations', file), 'utf8').replace(/^\s*--.*$/gm, '')
+        await db.batch(sql.split(';').map(part => part.trim()).filter(Boolean).map(statement => db.prepare(statement)))
+      }
+    }
+    const send = (path, { method = 'GET', body, cookie } = {}) => cached.fetch(ORIGIN + path, {
+      method, body: body && JSON.stringify(body),
+      headers: { Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
+    })
+    const signup = async () => {
+      const response = await send('/api/auth/signup', { method: 'POST', body: account() })
+      assert.equal(response.status, 201)
+      return response.headers.getSetCookie().find(item => item.startsWith('cityou_session=')).split(';')[0]
+    }
+    const who = async cookie => (await (await send('/api/auth/status', { cookie })).json()).user
+    // 1. Com a sessão no cache, apagar a linha no banco não muda a resposta dentro da janela: prova que o banco não foi lido.
+    const first = await signup()
+    assert.ok(await who(first))
+    await db.prepare('UPDATE sessions SET expires_at = ? WHERE user_id = (SELECT id FROM users ORDER BY created_at DESC LIMIT 1)').bind('2000-01-01T00:00:00.000Z').run()
+    assert.ok(await who(first), 'a segunda leitura saiu do cache')
+    // ...mas exportar confere no banco, e a sessão vencida não passa.
+    assert.equal((await send('/api/auth/export', { cookie: first })).status, 401)
+    // 2. Sair apaga a entrada do cache: a próxima leitura já não tem conta.
+    const second = await signup()
+    assert.ok(await who(second))
+    assert.equal((await send('/api/auth/logout', { method: 'POST', body: {}, cookie: second })).status, 200)
+    assert.equal(await who(second), null)
+  } finally { await cached.close() }
 })
