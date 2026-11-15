@@ -4,6 +4,7 @@ Atualizado em 13/11/2026. Para continuar em outra IA ou com outro dev: `node too
 
 ## Rumo ao MVP
 
+- **Diagramas:** `docs/diagrams/cityou-mvp.drawio` (roteiro, arquitetura, fluxos de conta e ameaças), com o estado de 15/11/2026. Atualize junto com este arquivo.
 - **Objetivo:** entregar a primeira versão utilizável do Cityou, com painel pessoal e cidade 3D ligados aos dados do próprio app, sem depender do Fifones.
 - **O que falta:** as etapas 2 a 5 estão no código e na `main` (PRs #34, #37, #38 e #40 para a etapa 5) e as etapas 2 a 4 foram conferidas no navegador num Worker local com contas (13/11/2026). Faltam segurança e corte do legado (6), o resto da ambientação (7b), a Fita do Tempo (8) e o portão para abrir contas (10, proposta). A latência da prévia ainda passa do alvo de 60 ms no servidor (piso de ~130 ms, ver a etapa 5). Falta validar contas numa prévia publicada e medir em celular físico.
 - **Próximo passo:** (1) **etapa 6** (segurança e corte do legado): CSP em `Report-Only` primeiro, pronta quando `npm test`, `npm run test:worker` e `npm run test:session` passam e o cabeçalho novo estiver em `Report-Only`; (2) decisão do dono sobre a latência (cache de leitura já está; falta escolher entre escrita otimista generalizada e Smart Placement).
