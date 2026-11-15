@@ -29,16 +29,22 @@ export function stripPhotoMetadata(bytes) {
     const parts = [bytes.subarray(0, 2)]
     let at = 2, changed = false
     while (at + 4 <= bytes.length && bytes[at] === 0xff) {
+      if (bytes[at + 1] === 0xff) { at++; continue } // bytes de preenchimento antes do marcador
       const marker = bytes[at + 1]
-      if (marker === 0xda) break // começo da imagem: o resto vai inteiro
+      if (marker === 0xda) break // começo da imagem: o resto vai até o fim dela
       const size = (bytes[at + 2] << 8) | bytes[at + 3]
       if (size < 2 || at + 2 + size > bytes.length) break
       if (marker === 0xe1 || marker === 0xed) changed = true
       else parts.push(bytes.subarray(at, at + 2 + size))
       at += 2 + size
     }
+    // Depois do fim da imagem (FFD9, que não aparece dentro dos dados comprimidos) podem vir imagens extras (MPF),
+    // cada uma com o próprio EXIF: corta ali.
+    let end = bytes.length
+    for (let i = at; i + 1 < bytes.length; i++) if (bytes[i] === 0xff && bytes[i + 1] === 0xd9) { end = i + 2; break }
+    if (end < bytes.length) changed = true
     if (!changed) return bytes
-    parts.push(bytes.subarray(at))
+    parts.push(bytes.subarray(at, end))
     const out = new Uint8Array(parts.reduce((total, part) => total + part.length, 0))
     let offset = 0
     for (const part of parts) { out.set(part, offset); offset += part.length }

@@ -67,14 +67,14 @@ externo + Hyperdrive). O D1 aqui guarda só contas e sessões; a troca de banco 
 - **Criar e cancelar** (só com `CITYOU_ADMIN_TOKEN`, no console do navegador no site, como em `docs/API.md`):
   `fetch('/api/admin/invites', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Cityou-Request': '1', 'X-Cityou-Admin': 'COLE_O_TOKEN' }, body: JSON.stringify({ label: 'Ana', max_uses: 1, days: 14 }) }).then(r => r.json()).then(console.log)`
   O código aparece só nessa resposta. Mande o link `https://<site>/?convite=<código>`, que abre o cadastro já preenchido. Para cancelar: `POST /api/admin/invites/revoke` com `{ code }`.
-- **Limite por IP**: cadastro 5 por hora e login 30 a cada 15 minutos por rede (`ip_attempts`), além das 8 tentativas por e-mail. O IP é lido de `CF-Connecting-IP` e só entra no banco como hash junto com a janela.
+- **Limite por IP**: cadastro 5 por hora e login 30 a cada 15 minutos por rede (`ip_attempts`), além das 8 tentativas por e-mail. O IP é lido de `CF-Connecting-IP` (no IPv6 conta a rede /64) e só entra no banco como hash junto com a janela. **Ação do dono antes de abrir contas:** `npx wrangler secret put CITYOU_IP_SALT` com um texto aleatório longo; sem ele o hash é só pseudonimização (dá para refazer um IPv4 percorrendo os endereços). A janela é fixa: na virada passam até o dobro (10 cadastros) em poucos minutos.
 - **Sessão**: vence com 30 dias sem uso e, de todo jeito, 180 dias depois de entrar. O uso renova o prazo no máximo uma vez por dia. O login apaga as sessões vencidas da conta e as janelas de tentativa com mais de um dia.
 
 ## O que ficou de fora
 
 - **Esqueci a senha** (`/api/auth/forgot`, `/api/auth/reset`): precisa de um serviço de e-mail com domínio próprio.
   Enquanto isso, trocar a senha de alguém exige mexer no banco.
-- `PATCH /api/me`, exportar e apagar a conta.
+- `PATCH /api/me`. (Exportar e apagar a conta entraram em 15/11/2026: `docs/API.md`, seção Conta.)
 - Entrar com Google ou outro provedor.
 
 ## Imagens e marca

@@ -3,7 +3,7 @@
 // Os dados da pessoa continuam no Durable Object DemoSession: `users.data_key` é o nome do objeto dela.
 // No cadastro, a conta adota o objeto da sessão de demonstração do navegador, então nada do que ela já fez se perde.
 import { sha256Hex } from '../shared/game/proof.js'
-import { accountKey, adoptAccountData, demoKeyOf, holdAccountData, requireAdmin, sessionCookie as freshDemoCookie } from './demo.js'
+import { accountKey, adoptAccountData, demoKeyOf, eraseAccountData, exportAccountData, holdAccountData, requireAdmin, sessionCookie as freshDemoCookie } from './demo.js'
 import { HttpError, json, readJsonObject } from './http.js'
 
 const SESSION_COOKIE = 'cityou_session'
@@ -85,7 +85,10 @@ async function reserveIp(request, env, action) {
   const { max, minutes } = IP_LIMITS[action]
   const windowMs = minutes * 60_000
   const windowStart = new Date(Math.floor(Date.now() / windowMs) * windowMs).toISOString()
-  const ipHash = await hashToken(`${windowStart}|${ip}`)
+  // IPv6: conta a rede /64, que é o que uma casa ou um aparelho costuma ter; senão cada endereço novo furaria o limite.
+  const network = ip.includes(':') ? ip.split(':').slice(0, 4).join(':') : ip
+  // CITYOU_IP_SALT (segredo opcional, `wrangler secret put`) impede refazer o IP a partir do hash percorrendo os endereços.
+  const ipHash = await hashToken(`${env.CITYOU_IP_SALT ?? ''}|${windowStart}|${network}`)
   const reserved = await env.DB.prepare(
     `INSERT INTO ip_attempts (ip_hash, action, window_start, count) VALUES (?, ?, ?, 1)
      ON CONFLICT (ip_hash, action, window_start) DO UPDATE SET count = count + 1
@@ -94,14 +97,14 @@ async function reserveIp(request, env, action) {
   if (!reserved) throw new HttpError(429, `Muitas tentativas desta rede. Espere ${minutes} minutos e tente de novo.`)
 }
 
-/** Apaga janelas de tentativa com mais de um dia e as sessões vencidas da conta. Barato: roda no login. */
-async function cleanUp(env, userId) {
+/** Apaga janelas de tentativa com mais de um dia e todas as sessões vencidas (índice em expires_at). Roda no login. */
+async function cleanUp(env) {
   const now = new Date()
   const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
   await env.DB.batch([
     env.DB.prepare('DELETE FROM login_attempts WHERE window_start < ?').bind(dayAgo),
     env.DB.prepare('DELETE FROM ip_attempts WHERE window_start < ?').bind(dayAgo),
-    env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND expires_at <= ?').bind(userId, now.toISOString()),
+    env.DB.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(now.toISOString()),
   ])
 }
 
@@ -115,12 +118,6 @@ function newInviteCode() {
 }
 
 const INVITE_INVALID = 'Este convite não vale mais (usado, vencido ou cancelado). Peça outro.'
-
-async function checkInvite(env, value) {
-  const valid = await env.DB.prepare('SELECT 1 FROM invites WHERE code_hash = ? AND uses < max_uses AND revoked_at IS NULL AND expires_at > ?')
-    .bind(await hashToken(normalizeInvite(value)), new Date().toISOString()).first()
-  if (!valid) throw new HttpError(403, INVITE_INVALID, { invite: 'Convite sem validade.' })
-}
 
 /** Gasta um uso do convite, de forma atômica. Devolve o hash do código, ou lança 403. */
 async function useInvite(env, value) {
@@ -198,8 +195,20 @@ async function signup({ request, env, url }) {
   if (await env.DB.prepare('SELECT 1 FROM users WHERE email = ?').bind(email).first()) {
     throw new HttpError(409, 'Já existe uma conta com este e-mail. Entre com a sua senha.', { email: 'E-mail já cadastrado.' })
   }
-  // Confere o convite antes de reservar os dados da demonstração; o uso só é gasto logo antes de gravar a conta.
-  if (!inviteOpen(env)) await checkInvite(env, body.invite)
+  // O convite é gasto antes de reservar os dados da demonstração (sem corrida que trave a demonstração);
+  // qualquer falha daqui até gravar a conta devolve o uso.
+  const inviteHash = inviteOpen(env) ? null : await useInvite(env, body.invite)
+  try {
+    const response = await createAccount({ request, env, url, body, email, name, inviteHash })
+    if (!response.ok) await releaseInvite(env, inviteHash) // a demonstração venceu (410): a conta não foi criada
+    return response
+  } catch (error) {
+    await releaseInvite(env, inviteHash)
+    throw error
+  }
+}
+
+async function createAccount({ request, env, url, body, email, name, inviteHash }) {
   // A conta fica com os dados da demonstração deste navegador, se ninguém os adotou antes.
   const id = crypto.randomUUID(), salt = randomHex(16), now = new Date().toISOString()
   const hash = await hashPassword(body.password, salt, ITERATIONS)
@@ -211,15 +220,12 @@ async function signup({ request, env, url }) {
       return json({ message: error.message, detail: error.message }, 410, { 'Set-Cookie': freshDemoCookie(url) })
     }
   }
-  // O convite é gasto por último, antes de gravar a conta; se a gravação falhar, o uso volta.
-  const inviteHash = inviteOpen(env) ? null : await useInvite(env, body.invite)
   try {
     await env.DB.prepare(
       `INSERT INTO users (id, email, display_name, password_hash, password_salt, password_iterations, created_at, updated_at, data_key, invite_hash)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(id, email, name, hash, salt, ITERATIONS, now, now, dataKey, inviteHash).run()
   } catch (error) {
-    await releaseInvite(env, inviteHash)
     if (/UNIQUE.*users\.email/i.test(String(error))) throw new HttpError(409, 'Já existe uma conta com este e-mail. Entre com a sua senha.', { email: 'E-mail já cadastrado.' })
     if (/UNIQUE.*users\.data_key/i.test(String(error))) throw new HttpError(409, 'Os dados desta demonstração já estão vinculados. Reabra o Cityou e tente novamente.')
     throw error
@@ -262,7 +268,7 @@ async function login({ request, env, url }) {
       .bind(email, windowStart).run()
   }
   if (!valid) throw new HttpError(401, WRONG)
-  await cleanUp(env, user.id)
+  await cleanUp(env)
   await adoptAccountData(env, user.data_key ?? await accountKey(user.id), user.id)
   const cookie = await openSession(env, url, user.id)
   return json({ user: publicUser(user) }, 200, { 'Set-Cookie': cookie })
@@ -278,7 +284,49 @@ async function logout({ request, env, url }) {
   return response
 }
 
+/** GET /api/auth/export: tudo o que a conta guarda, num JSON para baixar (LGPD art. 18, portabilidade e acesso). */
+async function exportAccount({ request, env }) {
+  const user = await sessionUser(request, env)
+  if (!user) throw new HttpError(401, 'Entre na sua conta para continuar.')
+  const { records } = await exportAccountData(env, user.data_key ?? await accountKey(user.id), user.id)
+  const day = new Date().toISOString().slice(0, 10)
+  return json({ exported_at: new Date().toISOString(), user: publicUser(user), records }, 200, {
+    'Content-Disposition': `attachment; filename="cityou-meus-dados-${day}.json"`,
+  })
+}
+
+/**
+ * POST /api/auth/delete: apaga a conta e todos os dados, depois de conferir a senha de novo.
+ * Os dados do objeto somem primeiro; só depois a conta sai do banco, então uma falha no meio deixa a conta e a pessoa
+ * pode tentar de novo. O e-mail fica livre para um cadastro novo.
+ */
+async function deleteAccount({ request, env, url }) {
+  const user = await sessionUser(request, env)
+  if (!user) throw new HttpError(401, 'Entre na sua conta para continuar.')
+  const body = await readJsonObject(request, MAX_AUTH_BODY)
+  if (typeof body.password !== 'string' || !body.password || body.password.length > 200) {
+    throw fieldsError({ password: 'Digite a sua senha para confirmar.' })
+  }
+  await reserveIp(request, env, 'login')
+  const row = await env.DB.prepare('SELECT password_hash, password_salt, password_iterations FROM users WHERE id = ?').bind(user.id).first()
+  const hash = await hashPassword(body.password, row.password_salt, row.password_iterations)
+  if (!sameText(hash, row.password_hash)) throw new HttpError(401, 'Senha incorreta.', { password: 'Senha incorreta.' })
+  await eraseAccountData(env, user.data_key ?? await accountKey(user.id), user.id)
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id),
+    env.DB.prepare('DELETE FROM password_resets WHERE user_id = ?').bind(user.id),
+    env.DB.prepare('DELETE FROM login_attempts WHERE email = ?').bind(user.email),
+    env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id),
+  ])
+  const response = json({ deleted: true })
+  response.headers.append('Set-Cookie', sessionCookie(url, 'x', 0))
+  response.headers.append('Set-Cookie', freshDemoCookie(url))
+  return response
+}
+
 const handlers = {
+  'GET /api/auth/export': exportAccount,
+  'POST /api/auth/delete': deleteAccount,
   'POST /api/auth/signup': signup,
   'POST /api/auth/login': login,
   'POST /api/auth/logout': logout,
@@ -303,6 +351,7 @@ export async function authApi(context) {
   }
   const admin = adminHandlers[`${request.method} ${url.pathname}`]
   if (admin) {
+    await requireAdmin(request, env) // sem o segredo, 404: a rota nem parece existir
     if (!accountsEnabled(env)) throw new HttpError(503, 'As contas ainda não estão ativas.')
     return admin(context)
   }

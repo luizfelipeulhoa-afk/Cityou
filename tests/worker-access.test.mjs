@@ -81,6 +81,9 @@ test('limite por IP: o sexto cadastro da mesma rede na hora recebe 429', async (
   assert.equal((await post('/api/auth/signup', account({ invite: 'AAAA-BBBB-CCCC' }), ip)).status, 429)
   // Outra rede segue livre, e o IP não fica guardado em texto.
   assert.equal((await post('/api/auth/signup', account({ invite: 'AAAA-BBBB-CCCC' }), { 'CF-Connecting-IP': '198.51.100.2' })).status, 403)
+  // IPv6: endereços diferentes da mesma rede /64 contam juntos.
+  for (let i = 1; i <= 5; i++) await post('/api/auth/signup', account({ invite: 'AAAA-BBBB-CCCC' }), { 'CF-Connecting-IP': `2001:db8:1:2::${i}` })
+  assert.equal((await post('/api/auth/signup', account({ invite: 'AAAA-BBBB-CCCC' }), { 'CF-Connecting-IP': '2001:db8:1:2::99' })).status, 429)
   const rows = await env.DB.prepare('SELECT ip_hash FROM ip_attempts').all()
   assert.ok(rows.results.every(row => !row.ip_hash.includes('203.0.113.7')))
 })
@@ -165,4 +168,55 @@ test('foto: o servidor tira EXIF e XMP do JPEG e do WebP', () => {
   assert.equal(Buffer.from(clean).includes(Buffer.from('EXIF')), false)
   assert.equal(clean[20] & 0x0c, 0)
   assert.equal(clean[4] | (clean[5] << 8), clean.length - 8)
+
+  // Bytes de preenchimento antes do marcador e uma segunda imagem (MPF) depois do fim, com o próprio EXIF: tudo sai.
+  const tricky = Uint8Array.from([0xff, 0xd8, 0xff, ...jfif, ...exif, ...scan, 0xff, 0xd8, ...exif, 0xff, 0xd9])
+  const out = stripPhotoMetadata(tricky)
+  assert.deepEqual([...out], [0xff, 0xd8, ...jfif, ...scan])
+})
+
+test('administração de convites: sem o token, a rota responde 404 e não se revela', async () => {
+  const none = createTestHarness({ workers: [{ configPath: 'wrangler.test-closed.jsonc' }] })
+  await none.listen()
+  try {
+    const response = await none.fetch(ORIGIN + '/api/admin/invites', {
+      method: 'POST', headers: { Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json' }, body: '{"label":"x"}',
+    })
+    assert.equal(response.status, 404)
+  } finally { await none.close() }
+})
+
+test('conta: exportar devolve tudo o que ela guarda, e apagar some com conta e dados', async () => {
+  const { code } = await (await invite({ label: 'exportar', max_uses: 2 })).json()
+  const data = account({ invite: code })
+  const created = await post('/api/auth/signup', data)
+  assert.equal(created.status, 201)
+  const cookie = created.headers.getSetCookie().map(item => item.split(';')[0]).join('; ')
+  const send = (path, method = 'GET', body) => harness.fetch(ORIGIN + path, {
+    method, headers: { Cookie: cookie, Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json', 'CF-Connecting-IP': '10.9.9.9' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  assert.equal((await send('/api/personal/entries', 'POST', { kind: 'habit', title: 'Ler 10 páginas', day: DAY })).status, 201)
+  const exported = await send('/api/auth/export')
+  assert.equal(exported.status, 200)
+  assert.match(exported.headers.get('Content-Disposition'), /cityou-meus-dados-\d{4}-\d{2}-\d{2}\.json/)
+  const dump = await exported.json()
+  assert.equal(dump.user.email, data.email)
+  assert.ok(dump.records.some(record => record.kind === 'entry' && record.value.title === 'Ler 10 páginas'))
+  assert.equal(dump.records.some(record => record.kind === 'account'), false)
+  assert.equal(JSON.stringify(dump).includes('password'), false)
+  // Sem sessão não exporta nem apaga; senha errada não apaga.
+  assert.equal((await harness.fetch(ORIGIN + '/api/auth/export')).status, 401)
+  assert.equal((await send('/api/auth/delete', 'POST', { password: 'senha-errada-mesmo' })).status, 401)
+  const deleted = await send('/api/auth/delete', 'POST', { password: data.password })
+  assert.equal(deleted.status, 200)
+  assert.ok(deleted.headers.getSetCookie().some(item => /^cityou_session=x;.*Max-Age=0/.test(item)))
+  assert.equal((await send('/api/me')).status, 401)
+  assert.equal(await env.DB.prepare('SELECT 1 FROM users WHERE email = ?').bind(data.email).first(), null)
+  // O mesmo e-mail pode criar uma conta nova, que começa vazia.
+  const again = await post('/api/auth/signup', { ...data, invite: code })
+  assert.equal(again.status, 201)
+  const fresh = again.headers.getSetCookie().map(item => item.split(';')[0]).join('; ')
+  const second = await (await harness.fetch(ORIGIN + '/api/auth/export', { headers: { Cookie: fresh } })).json()
+  assert.equal(second.records.some(record => record.kind === 'entry'), false)
 })

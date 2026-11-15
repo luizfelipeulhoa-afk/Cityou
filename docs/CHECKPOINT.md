@@ -108,7 +108,7 @@ O PR #55 foi integrado e a publicação de transição aceitou os dois cabeçalh
 Verificação local da 6B em 15/11: 120 testes JS, 110 Worker, build, mapa e 32/32 conferências de sessão. O proxy do Vite confirmou cadastro e persistência com a origem local e recusou origens inválidas. O probe observou oito navegações, nove GLB e zero violações; o teste de navegador do globo confirmou ida e volta para Ilha e Rio. O roteiro completo dos pilotos ainda procura a ferramenta de rua na Ilha, onde ela não é exibida.
 
 ### Etapa 7b: resto da ambientação
-Entrada animada dos prédios na carga inicial e terreno entrando com a névoa abrindo (ficaram da 7a); desenho sob demanda (`invalidate`); GLB legados reduzidos e com hash; vegetação em volta dos prédios; unificar a `toLambert` duplicada em `SpaceMarker.js`; `constrainCamera` na cidade.
+Entrada animada dos prédios na carga inicial e terreno entrando com a névoa abrindo (ficaram da 7a); desenho sob demanda (`invalidate`); GLB legados reduzidos e com hash; vegetação em volta dos prédios; a `toLambert` de `SpaceMarker.js` fica separada (não é equivalente à de `lambert.js`); `constrainCamera` na cidade.
 
 ### Etapa 8: Fita do Tempo e transições
 Desfazer/refazer com pilha estrita no servidor (só o topo, só se a revisão for a gravada depois, janela de 120 s, últimas 10 ações, reembolso integral, `action_id`); `ActionTape.vue`; cortina na cor do céu, pré-busca e View Transition progressiva; Voltar hierárquico (‹ Mapa, ‹ Painel); renome `src/fifones` → `src/city` por último, num PR só de `git mv`.
@@ -119,9 +119,9 @@ A revisão em `council/COUNCIL_SINTESE.md` achou problemas que nenhuma etapa cob
 | Item | Etapa sugerida | Pronto quando |
 |---|---|---|
 | ~~Sessão vencida dentro do quadro do painel abre a página de apresentação dentro do quadro~~ (corrigido, `npm run test:session`); a página de apresentação trata falha de rede como "contas desligadas"; consulta de 30 s da cidade | 2 | Teste de navegador com sessão vencida no painel, na cidade e no mapa |
-| "Exportar meus dados" e "Apagar minha conta" na aba Conta; barra de moedas e nível lendo o `resumo`; etapa do prédio e comprovações no painel | 4 | Exportar devolve tudo; apagar remove o objeto e as sessões; com teste |
+| ~~"Exportar meus dados" e "Apagar minha conta" na aba Conta~~ (15/11/2026, teste em `tests/worker-access.test.mjs`); barra de moedas e nível lendo o `resumo`; etapa do prédio e comprovações no painel | 4 | Exportar devolve tudo; apagar remove o objeto e as sessões; com teste |
 | Dividir `worker/demo.js` por assunto, só movendo código; editar e apagar registro; `request_id` ao criar; janela de datas no servidor (`canMarkDay`) | 5 | Testes passam antes e depois da divisão; reenvio não duplica |
-| ~~Limite por IP e cadastro com convite; renovação e limpeza de sessão~~ (feitos em 15/11/2026, `tests/worker-access.test.mjs`); registro de cadastro, login, bloqueio e moedas de teste; custo do hash de senha medido numa prévia; API com 503 quando o banco cai; limite da foto de comprovação igual ao da regra | 6 | Testes e a medida em `docs/BENCHMARKS.md` |
+| ~~Limite por IP e cadastro com convite; renovação e limpeza de sessão~~ (feitos em 15/11/2026, `tests/worker-access.test.mjs`); registro de cadastro, login, bloqueio e moedas de teste; ~~custo do hash de senha~~ (medido local em 15/11/2026: ~20 ms de CPU, passa do limite de 10 ms do Workers Free; ver `docs/BENCHMARKS.md`; falta repetir numa prévia); API com 503 quando o banco cai; ~~limite da foto de comprovação igual ao da regra~~ (15/11/2026) | 6 | Testes e a medida em `docs/BENCHMARKS.md` |
 | Portão para abrir contas: D1 separado para a prévia, migrações aplicadas, fluxo de conta inteiro no navegador numa prévia, restauração ensaiada, privacidade, termos e idade revisados por advogado | 10 (nova) | Lista toda marcada |
 | ~~Regras do jogo: meta com alvo 1 paga 25 moedas sem teto~~ (15/11/2026: 5 por dia exigido até 25, no máximo 3 metas pagas por dia; o dono pode mudar os números em `shared/game/rules.js`); moedas sem uso depois de cerca de um mês | decisão do dono | — |
 | Diagramas no draw.io (`docs/diagrams/`): roteiro, arquitetura, fluxos de conta, ameaças | a qualquer momento | Abrem no draw.io |
@@ -134,7 +134,7 @@ A revisão em `council/COUNCIL_SINTESE.md` achou problemas que nenhuma etapa cob
 - **Base da prévia publicada** (etapa 1): `node tools/api-perf.mjs <url> --suite 50 --cookie '<sessão>'`; precisa de URL e cookie.
 - `tools/pilot-perf.mjs` voltou a medir Ilha e Rio a partir de uma sessão nova, sem gravar construções ou viagens. Rodadas e próximos passos em [BENCHMARKS](BENCHMARKS.md).
 - **Não conferido visualmente depois da 7a:** a Ilha Inicial, o modo "Luz do anoitecer" (`setLighting('dusk')`, calibrado com ACES) e as outras cidades antigas. Só o Rio foi fotografado.
-- `sceneEnvironment.js` ainda tem 24 `castShadow`/`receiveShadow` sem efeito; `refreshShadows()` em `CityWorld.js` agora só marca a sombra de contato (nome herdado).
+- (feito 15/11/2026: `castShadow`/`receiveShadow` saíram de `sceneEnvironment.js`) `refreshShadows()` em `CityWorld.js` agora só marca a sombra de contato (nome herdado).
 - Peso medido só com renderização por software e Worker local; nada foi medido em celular de verdade.
 
 ## Como rodar

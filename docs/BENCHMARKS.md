@@ -31,6 +31,12 @@ Histórico consolidado em 13/11/2026. As fontes preservam as tabelas completas e
 
 Para repetir o microbenchmark, carregue `src/terrain/regions/rio.height.png` uma vez com `readFile`. Em cada iteração, use `performance.now()` antes e depois de `decodePng(bytes)` e novamente depois de `createTerrainData(region, image.data)`, com a exportação padrão de `rio-cidade.js`. Descarte as 10 primeiras iterações, ordene as 50 seguintes e use os elementos 25 e 48 para p50 e p95 pelo método do posto mais próximo.
 
+## Custo do hash de senha (15/11/2026, local)
+
+PBKDF2-SHA256 com 100 mil iterações (`ITERATIONS` em `worker/auth.js`, o teto da Web Crypto dos Workers). Medido no Worker local (`wrangler` test harness, 25 logins de e-mail sem conta, que calculam um hash cada; script em `node` com `createTestHarness`, sem cache): **p50 26 ms, mínimo 20 ms, p95 284 ms** (o p95 inclui o primeiro pedido, que aquece o Worker). O mesmo hash em Node puro, nesta máquina de 4 núcleos: 19 ms. Ou seja, **cerca de 20 ms de CPU por cadastro ou login**.
+
+O que isso decide: o plano **Workers Free** limita a CPU a **10 ms por pedido**, então cadastro e login passariam do limite e falhariam; o **Workers Paid** dá 30 s por padrão. Antes de ligar as contas (etapa 10), confirme o plano pago na conta do Cloudflare e repita a medida numa prévia publicada (`--cookie` não é preciso: `POST /api/auth/login` com um e-mail sem conta). Não baixe as iterações para caber no plano grátis: 100 mil já está abaixo do que a OWASP recomenda para PBKDF2-SHA256 (600 mil), e é o máximo que a plataforma aceita.
+
 ## O que medir e melhorar a seguir
 
 Use as rodadas recentes como referência para a máquina e o navegador desta auditoria. Diferenças de ambiente, build, câmera ou cena afetam a comparação com a base histórica. Confirme a mesma configuração e distribuição de prédios antes de atribuir ganhos à etapa 9.

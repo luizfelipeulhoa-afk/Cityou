@@ -24,6 +24,8 @@ const COOKIE = 'cityou_demo'
 const ACCOUNT_HEADER = 'X-Cityou-Account'
 const HOLD_PATH = '/internal/hold-for-adoption'
 const ADOPT_PATH = '/internal/adopt'
+const EXPORT_PATH = '/internal/export'
+const ERASE_PATH = '/internal/erase'
 const ADOPTION_HOLD_MS = 5 * 60 * 1000
 const SESSION_SECONDS = 30 * 24 * 60 * 60
 const previewEnabled = env => env?.CITYOU_TEST_OPEN_REGIONS === '1'
@@ -138,6 +140,17 @@ async function updateAdoption(env, key, path, account) {
 
 export const holdAccountData = (env, key, account) => updateAdoption(env, key, HOLD_PATH, account)
 export const adoptAccountData = (env, key, account) => updateAdoption(env, key, ADOPT_PATH, account)
+
+/** Exportar e apagar a conta (worker/auth.js): só o dono do objeto passa. Erro do objeto vira 503. */
+async function accountData(env, key, path, account) {
+  const response = await sessionStub(env, key).fetch(`https://cityou.internal${path}`, {
+    method: path === EXPORT_PATH ? 'GET' : 'POST', headers: { [ACCOUNT_HEADER]: account },
+  })
+  if (!response.ok) throw new HttpError(503, 'Não foi possível acessar seus dados agora. Tente de novo.')
+  return response
+}
+export const exportAccountData = async (env, key, account) => (await accountData(env, key, EXPORT_PATH, account)).json()
+export const eraseAccountData = (env, key, account) => accountData(env, key, ERASE_PATH, account)
 
 async function reservedAccount(db, key) {
   if (!db || !key) return null
@@ -273,6 +286,22 @@ export class DemoSession {
       }
       return new Response(null, { status: 204 })
     }
+    if ((path === EXPORT_PATH && request.method === 'GET') || (path === ERASE_PATH && request.method === 'POST')) {
+      // Só a conta dona: um objeto sem dono (demonstração) ou de outra conta recusa.
+      if (!account || this.read('account', 'owner') !== account) return errorResponse(403, 'Estes dados não são desta conta.')
+      if (path === EXPORT_PATH) {
+        const records = this.sql.exec("SELECT kind, id, value FROM records WHERE kind <> 'account' ORDER BY kind, rowid").toArray()
+          .map(row => ({ kind: row.kind, id: row.id, value: JSON.parse(row.value) }))
+        return json({ records })
+      }
+      // Apagar: some tudo; o objeto fica marcado como vencido para não voltar a ser usado.
+      this.storage.transactionSync(() => {
+        this.sql.exec('DELETE FROM records')
+        this.write('account', 'expired', true)
+      })
+      await this.storage.deleteAlarm()
+      return new Response(null, { status: 204 })
+    }
     const location = url.searchParams.get('local') ?? DEFAULT_CITY
     const route = routes.find(([pattern]) => pattern.test(path))
     if (!route) return errorResponse(404, 'Rota não encontrada.')
@@ -390,6 +419,7 @@ export class DemoSession {
   }
 
   overview() {
+    this.settleGoals(dateFormatter.format(new Date()))
     const proofs = this.list('proof').map(({ photo, ...rest }) => ({ ...rest, has_photo: Boolean(photo) }))
     const today = dateFormatter.format(new Date())
     const entries = this.list('entry')
@@ -559,11 +589,16 @@ export class DemoSession {
     return this.city(undefined, location)
   }
 
-  // Paga uma vez por meta. Com o teto do dia cheio, a meta fica para a próxima marcação (não perde nada).
+  // Paga uma vez por meta. Com o teto do dia cheio, a meta fica na fila ('reward:goal-pending') e é paga sozinha
+  // num dia seguinte, na primeira leitura ou marcação (settleGoals): ninguém precisa marcar de novo para não perder.
   rewardGoal(entry, day) {
     const key = 'reward:goal'
     const dayKey = `reward:goal-day:${day}`
-    if (this.read(key, entry.id) || this.list(dayKey, RULES.paidGoalsPerDay).length >= RULES.paidGoalsPerDay) return
+    if (this.read(key, entry.id)) return
+    if (this.list(dayKey, RULES.paidGoalsPerDay).length >= RULES.paidGoalsPerDay) {
+      this.write('reward:goal-pending', entry.id, { id: entry.id, since: day })
+      return
+    }
     const { total } = this.sql.exec(
       "SELECT count(*) AS total FROM records WHERE kind = 'checkin' AND id GLOB ? AND json_extract(value, '$.done') = 1",
       `${entry.id}:*`,
@@ -572,6 +607,17 @@ export class DemoSession {
     this.grantReward(goalCredits(entry.target), `Meta concluída: ${entry.title}`)
     this.write(key, entry.id, true)
     this.write(dayKey, entry.id, true)
+    this.sql.exec("DELETE FROM records WHERE kind = 'reward:goal-pending' AND id = ?", entry.id)
+  }
+
+  /** Paga as metas da fila que esperam desde um dia anterior, até o teto de hoje. */
+  settleGoals(today) {
+    for (const pending of this.list('reward:goal-pending', RULES.paidGoalsPerDay)) {
+      if (pending.since >= today) continue
+      const entry = this.read('entry', pending.id)
+      if (!entry) { this.sql.exec("DELETE FROM records WHERE kind = 'reward:goal-pending' AND id = ?", pending.id); continue }
+      this.rewardGoal(entry, today)
+    }
   }
 
   // Moedas de teste dos sócios (rota protegida por segredo): uma vez por sessão, sem contar como recompensa nem como ganho.

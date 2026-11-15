@@ -13,6 +13,9 @@ CREATE TABLE invites (
 
 ALTER TABLE users ADD COLUMN invite_hash TEXT;
 
+-- A limpeza das sessões vencidas (worker/auth.js, cleanUp) apaga por expires_at.
+CREATE INDEX sessions_expires ON sessions(expires_at);
+
 CREATE TABLE ip_attempts (
   ip_hash TEXT NOT NULL,
   action TEXT NOT NULL,
