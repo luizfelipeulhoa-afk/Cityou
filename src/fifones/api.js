@@ -143,7 +143,7 @@ export async function api(path, method = 'GET', body, { retry = false, keepalive
 }
 
 const cityLocation = new URLSearchParams(globalThis.location?.search).get('local')
-const cityQuery = cityLocation ? '?' + new URLSearchParams({ local: cityLocation }) : ''
+export const cityQuery = cityLocation ? '?' + new URLSearchParams({ local: cityLocation }) : ''
 
 export const loadCity = async () => {
   const city = await api('/api/city' + cityQuery)

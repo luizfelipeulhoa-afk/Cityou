@@ -4,7 +4,7 @@ import { previewBuild, previewRoadPath, roadPath, usesAutoRoad } from '../shared
 import { findSpace } from './world/worldSpaces.js'
 import CityWorld from './fifones/CityWorld.js'
 import { progression } from './fifones/progression.js'
-import { PANEL_TABS, cityAction, cityRedo, cityUndo, completeTask, goToPanel, loadAccount, loadCity, loadTasks, signOut, syncRewards } from './fifones/api.js'
+import { PANEL_TABS, cityAction, cityQuery, cityRedo, cityUndo, completeTask, goToPanel, loadAccount, loadCity, loadTasks, readCache, signOut, syncRewards, writeCache } from './fifones/api.js'
 import ActionTape from './components/ActionTape.vue'
 const account = ref(null)
 loadAccount().then(user => { account.value = user })
@@ -59,6 +59,10 @@ function panelTabOf(destination) {
 }
 const canvas = ref(null)
 const requestedRegion = findSpace(new URLSearchParams(window.location.search).get('local'))
+// Mesma chave do GET /api/city (etapa de latência, item 3 de docs/LATENCIA.md): a cidade guardada no navegador
+// entra na cena antes da resposta do servidor, e esta chave garante que a cidade testada com `?local=` não
+// pise no cache da cidade de verdade da pessoa.
+const cityCacheKey = '/api/city' + cityQuery
 const state = ref(null)
 const region = computed(() => requestedRegion ?? findSpace(state.value?.location_id))
 // A Ilha Inicial é só cenário: sem catálogo, ruas nem prédios. As construções ficam no Rio de Janeiro.
@@ -178,7 +182,9 @@ function notify(message, kind = 'success') {
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toast.value = null }, kind === 'error' ? 6500 : 4000)
 }
-function applySnapshot(value) {
+// `silent`: não comemora moedas ganhas entre a última cidade guardada no navegador e a resposta de verdade
+// (não foi agora que entraram; só a sessão alcançando o que já tinha acontecido).
+function applySnapshot(value, { silent = false } = {}) {
   if (disposed) return false
   const snapshot = value?.city || value
   if (!snapshot || !Array.isArray(snapshot.placements)) return false
@@ -186,12 +192,13 @@ function applySnapshot(value) {
   if (state.value && Number(snapshot.revision) < Number(state.value.revision)) return false
   const previous = state.value
   state.value = snapshot
-  if (previous && snapshot.earned > previous.earned) celebrate(snapshot.earned - previous.earned, snapshot.level > previous.level)
+  if (!silent && previous && snapshot.earned > previous.earned) celebrate(snapshot.earned - previous.earned, snapshot.level > previous.level)
   if (selectedId.value && !snapshot.placements.some(item => item.id === selectedId.value)) {
     if (activeInterior.value || interiorPending.value) closeInterior()
     selectedId.value = null
   }
   engine?.setState(snapshot)
+  writeCache(cityCacheKey, snapshot)
   return true
 }
 function startPolling() {
@@ -531,10 +538,17 @@ onMounted(async () => {
       engine.sceneReady.then(() => requestAnimationFrame(() => requestAnimationFrame(() => { if (!disposed) sceneReady.value = true })))
     } catch (error) { sceneError.value = error.message }
   }
+  // Cidade guardada no navegador (etapa de latência, item 3 de docs/LATENCIA.md): a cena começa com ela, sem
+  // esperar o servidor, e `applySnapshot` troca pela resposta de verdade assim que ela chega (silenciosa: o
+  // reencontro com o servidor não é a hora de comemorar moedas que já estavam ganhas).
   const initializeCity = async () => {
+    if (!requestedRegion) {
+      const cached = readCache(cityCacheKey)
+      if (cached && applySnapshot(cached, { silent: true })) initializeScene()
+    }
     try {
-      applySnapshot(await loadCity())
-      if (!requestedRegion) initializeScene()
+      applySnapshot(await loadCity(), { silent: Boolean(state.value) })
+      if (!engine && !disposed) initializeScene()
     } catch (error) { if (!disposed) bootError.value = error.message }
     finally { if (!disposed) loading.value = false }
   }
