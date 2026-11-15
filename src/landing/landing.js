@@ -276,6 +276,9 @@ function applyStatus(status) {
   // Link de convite: /?convite=ABCD-EFGH-JKLM abre o cadastro com o código já preenchido.
   if (params.has('convite')) form.invite.value = params.get('convite').slice(0, 20)
   if (accounts) {
+    // O HTML já nasce com "Abrir a demonstração" e o botão Entrar escondido; só com contas ativas voltam os rótulos de conta.
+    $$('[data-auth="signup"]').forEach((button) => { button.textContent = button.dataset.label })
+    $$('[data-auth="login"]').forEach((button) => { button.hidden = false })
     if (params.has('entrar')) openAuth('login')
     else if (params.has('convite')) openAuth('signup')
     return
