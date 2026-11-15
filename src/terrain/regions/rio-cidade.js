@@ -14,6 +14,12 @@ export const CITY_SHIFT = 5
 export const CRISTO_PEAK = { x: -3, z: -20 }
 // O Cristo no morro tem esta fração do tamanho do monumento de outras cidades (LANDMARK_HEIGHT em sceneEnvironment.js).
 export const CRISTO_SCALE = 0.6
+// O Cristo volta (16/11/2026, pedido do dono), agora no pico da montanha grande à esquerda da grade, como o Corcovado
+// visto da praia (coordenadas da cena da cidade). `cityTerrain.js` crava a base no ponto mais baixo do topo, para a rocha
+// atravessar a base em vez de a estátua flutuar.
+export const CRISTO_SITE = { x: -19.5, z: -14.5 }
+// Bondinho (cableCar.js): da Urca ao Pão de Açúcar, nos topos medidos dos dois blocos (coordenadas da cena da cidade).
+export const CABLE_CAR = { from: { x: 19, z: -18.5 }, to: { x: 10.5, z: -20.5 } }
 
 const layout = getCityLayout('cristo-redentor')
 const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))

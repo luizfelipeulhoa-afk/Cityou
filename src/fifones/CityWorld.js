@@ -713,7 +713,9 @@ export default class CityWorld {
       this.environment.backdrop = []
       this.environment.group.add(terrain.group)
       if (terrain.foam) this.foams.push(terrain.foam)
-      // O Cristo sai do chão provisório e vai, menor, para o topo do morro do terreno.
+      // O bondinho anda no mesmo relógio da espuma (com movimento reduzido, parado nas estações).
+      if (terrain.cableCar) this.foams.push(terrain.cableCar)
+      // O Cristo sai do chão provisório e vai, menor, para o pico da montanha da esquerda (16/11/2026).
       const anchor = this.environment.landmark
       if (anchor && terrain.landmark) {
         const { x, y, z, scale } = terrain.landmark
