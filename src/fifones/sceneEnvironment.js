@@ -680,8 +680,9 @@ function createPilotEnvironment(group, region, layout) {
     const backdrop = [sea, placeholder].filter(Boolean)
     // O morro da comunidade fica fora do `backdrop`: vale com o terreno real e com a reserva.
     communityHill(group, layout)
-    const landmarkY = slopeHeight(site.x, site.y, layout.min)
-    const landmark = addLandmark(group, region, site.x - layout.center, landmarkY, site.y - layout.center)
+    // O Cristo: aqui só a âncora (a capa da cidade cobre a tela até o terreno chegar); CityWorld.loadTerrain a leva ao pico
+    // da montanha da esquerda (CRISTO_SITE em rio-cidade.js).
+    const landmark = addLandmark(group, region, site.x - layout.center, 0, site.y - layout.center)
     return { group, landmark, backdrop, tileColor: 0xe9f5d8, animate: () => {}, lamps: [], setDusk() {} }
   }
   const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
@@ -732,35 +733,81 @@ function islandShorePoints(layout, water) {
   return points
 }
 
-// O morro da comunidade: patamares de HILL_STEP de altura sobre o platô (o terreno deixa esses lotes planos, em
-// y = 0, no máscara de rio-cidade.js). Cada patamar é plano para o prédio assentar; onde o vizinho é mais baixo
-// sobe uma parede de arrimo. Uma malha só, com cor por vértice, faces planas.
+// O morro da comunidade como montanha (16/11/2026, pedido do dono: os patamares eram caixas): cada patamar continua com
+// o topo plano onde o prédio assenta (HILL_STEP por nível), mas as bordas viram encosta de pedra facetada que se abre
+// até o chão, como o pé de um morro, com uma faixa de mato no alto. Os pontos de cada encosta saem da posição no mundo
+// (`jitter`), então duas encostas que se encontram numa quina dividem os mesmos vértices e não abrem fresta. Uma malha
+// só, cor por face, faces planas, nas cores do terreno (PALETTE de terrainData.js).
 function communityHill(group, layout) {
   if (!layout.hillTiles?.length) return null
   const levelOf = new Map(layout.hillTiles.map(([x, y, level]) => [tileKey(x, y), level]))
   const inside = (x, y) => x >= layout.min && x <= layout.max && y >= layout.min && y <= layout.max
+  const heightOf = (x, y) => (inside(x, y) ? levelOf.get(tileKey(x, y)) ?? 0 : 0) * HILL_STEP
   const vertices = [], colors = []
-  const earth = new THREE.Color(0xb07a4f), grass = new THREE.Color(0x4e9f5d)
-  // Mais alto, mais terra à mostra: o morro vai da mata para a terra batida.
-  const tops = [1, 2, 3].map(level => grass.clone().lerp(earth, 0.28 + level * 0.12))
-  const wall = earth.clone().lerp(new THREE.Color(0xa9a9b8), 0.3)
-  const color = new THREE.Color()
-  const push = (point, rgb, tone) => { vertices.push(point[0], point[1], point[2]); colors.push(rgb.r * tone, rgb.g * tone, rgb.b * tone) }
+  const grass = [new THREE.Color(0x7bc67e), new THREE.Color(0x63b26c), new THREE.Color(0x4e9f5d)]
+  const rocks = [new THREE.Color(0xa9a9b8), new THREE.Color(0x9a9aa9), new THREE.Color(0xb6b2b8), new THREE.Color(0x8f8c99)]
+  const earth = new THREE.Color(0xb07a4f), moss = new THREE.Color(0x4e9f5d)
+  const hash = (a, b, c = 0) => { const v = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return v - Math.floor(v) }
+  const triangle = (a, b, c, color) => {
+    vertices.push(...a, ...b, ...c)
+    for (let i = 0; i < 3; i++) colors.push(color.r, color.g, color.b)
+  }
+  // Topos: grama em três tons, sorteados por lote; o patamar de cima puxa um pouco para a terra.
   for (const [tx, ty, level] of layout.hillTiles) {
     const x = tx - layout.center, z = ty - layout.center, top = level * HILL_STEP
-    const tone = 1 + ((Math.abs(tx * 13 + ty * 7) % 5) - 2) * 0.03
-    const corners = [[x - 0.5, top, z - 0.5], [x - 0.5, top, z + 0.5], [x + 0.5, top, z + 0.5], [x + 0.5, top, z - 0.5]]
-    for (const index of [0, 1, 2, 0, 2, 3]) push(corners[index], tops[level - 1], tone)
-    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nx = tx + dx, ny = ty + dz
-      // Fora da grade o chão também é o platô (y = 0): a parede desce até ele, para o morro não ser uma folha oca.
-      const base = (inside(nx, ny) ? levelOf.get(tileKey(nx, ny)) ?? 0 : 0) * HILL_STEP
+    const color = grass[Math.floor(hash(tx, ty) * 3)].clone().lerp(earth, (level - 1) * 0.12)
+    const a = [x - 0.5, top, z - 0.5], b = [x - 0.5, top, z + 0.5], c = [x + 0.5, top, z + 0.5], d = [x + 0.5, top, z - 0.5]
+    triangle(a, b, c, color); triangle(a, c, d, color)
+  }
+  // Encostas: onde o vizinho é mais baixo, a borda desce em três faixas (mato, pedra, pé) e se abre para fora.
+  const sides = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+  for (const [tx, ty, level] of layout.hillTiles) {
+    const x = tx - layout.center, z = ty - layout.center, top = level * HILL_STEP
+    for (const [dx, dz] of sides) {
+      const base = heightOf(tx + dx, ty + dz)
       if (base >= top) continue
-      // A parede fica na borda do tile, do alto do patamar até o chão do vizinho.
-      const a = dx ? [x + dx * 0.5, z - 0.5] : [x - 0.5, z + dz * 0.5]
-      const b = dx ? [x + dx * 0.5, z + 0.5] : [x + 0.5, z + dz * 0.5]
-      const shade = (point, height) => push([point[0], height, point[1]], wall, height === top ? 1 : 0.8)
-      for (const [point, height] of [[a, top], [b, top], [b, base], [a, top], [b, base], [a, base]]) shade(point, height)
+      const drop = top - base
+      // Quanto a encosta se abre: mais para quem desce até o chão da cidade, pouco entre um patamar e outro.
+      const flare = Math.min(0.42, drop * 0.3)
+      // As duas pontas da borda e, para cada uma, se a quina é convexa (o lote ao lado também desce): aí a base abre
+      // também na direção da borda, e a encosta vizinha encontra esta no mesmo ponto.
+      const along = dx ? [0, 1] : [1, 0]
+      const ends = [-1, 1].map(sign => {
+        const ex = x + dx * 0.5 + along[0] * sign * 0.5, ez = z + dz * 0.5 + along[1] * sign * 0.5
+        const sideLower = heightOf(tx + along[0] * sign, ty + along[1] * sign) < top
+        const diagonalLower = heightOf(tx + dx + along[0] * sign, ty + dz + along[1] * sign) < top
+        const convex = sideLower && diagonalLower
+        const out = (t, extra = 0) => {
+          const spread = flare * t + extra
+          return [ex + dx * spread + (convex ? along[0] * sign * spread : 0), ez + dz * spread + (convex ? along[1] * sign * spread : 0)]
+        }
+        return { ex, ez, out }
+      })
+      // Um ponto do meio da borda, puxado para fora ao acaso: a encosta não fica reta.
+      const mx = x + dx * 0.5, mz = z + dz * 0.5
+      const point = (end, t, y) => {
+        const [px, pz] = end.out(t, (hash(end.ex, end.ez, t * 10) - 0.35) * 0.08 * Math.min(1, drop))
+        return [px, y, pz]
+      }
+      const middle = (t, y) => {
+        const bulge = flare * t + 0.04 + hash(mx, mz, t * 10) * 0.07 * Math.min(1, drop)
+        return [mx + dx * bulge, y, mz + dz * bulge]
+      }
+      // Alturas das faixas: o mato logo abaixo do topo, depois a pedra até o pé.
+      const rows = [[0, top], [0.22, top - drop * 0.18], [0.65, base + drop * 0.42], [1, base]]
+      for (let r = 0; r < rows.length - 1; r++) {
+        const [t0, y0] = rows[r], [t1, y1] = rows[r + 1]
+        const upper = [point(ends[0], t0, y0), middle(t0, y0), point(ends[1], t0, y0)]
+        const lower = [point(ends[0], t1, y1), middle(t1, y1), point(ends[1], t1, y1)]
+        for (let k = 0; k < 2; k++) {
+          const tone = r === 0 ? moss.clone().multiplyScalar(0.9 + hash(mx + k, mz, r) * 0.15)
+            : r === rows.length - 2 && base === 0 ? earth.clone().lerp(rocks[0], 0.55).multiplyScalar(0.92 + hash(mz, mx + k, r) * 0.1)
+              : rocks[Math.floor(hash(mx + k * 0.5, mz, r + 3) * rocks.length)]
+          const second = r === 0 ? tone : tone.clone().multiplyScalar(0.94)
+          triangle(upper[k], lower[k], lower[k + 1], tone)
+          triangle(upper[k], lower[k + 1], upper[k + 1], second)
+        }
+      }
     }
   }
   const geometry = new THREE.BufferGeometry()
@@ -768,7 +815,7 @@ function communityHill(group, layout) {
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
   geometry.computeVertexNormals()
   const mesh = new THREE.Mesh(geometry, material(0xffffff, { vertexColors: true, flatShading: true, side: THREE.DoubleSide }))
-  mesh.name = 'Morro da comunidade (patamares)'
+  mesh.name = 'Morro da comunidade (montanha em patamares)'
   mesh.userData.decorative = true
   group.add(mesh)
   return mesh

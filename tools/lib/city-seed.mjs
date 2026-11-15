@@ -13,7 +13,7 @@ export function createSeeder(base) {
   }
 
   async function api(cookie, path, body) {
-    const headers = { Cookie: cookie, Origin: new URL(base).origin, 'X-Fifones-City': '1', 'Content-Type': 'application/json' }
+    const headers = { Cookie: cookie, Origin: new URL(base).origin, 'X-Cityou-Request': '1', 'Content-Type': 'application/json' }
     const response = await fetch(base + path, { method: body ? 'POST' : 'GET', headers, body: body ? JSON.stringify(body) : undefined })
     return { ok: response.ok, status: response.status, json: await response.json().catch(() => ({})) }
   }

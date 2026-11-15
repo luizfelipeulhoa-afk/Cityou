@@ -103,6 +103,77 @@ export function createTerrainData(region, values) {
     }
   }
 
+  // ---- Transplante (`region.transplant`): copia um bloco do relevo real de um lugar para outro (no Rio, o Pão de Açúcar
+  // para o canto do morro da comunidade). Cada entrada: { from: {x, z}, to: {x, z}, radius, blend, rotate (radianos) }.
+  // O bloco só soma onde é mais alto que o que já está lá (máximo), então o resto do relevo fica como estava; a borda de
+  // `blend` unidades leva o bloco ao chão do lugar sem degrau. A amostra de origem é bilinear sobre as alturas originais.
+  if (region.transplant?.length) {
+    const source = heights.slice(), sourceValues = values
+    values = values.slice()
+    const sample = (x, z, array) => {
+      const fi = Math.min(last - 1e-6, Math.max(0, (x - originX) / spacing)), fj = Math.min(last - 1e-6, Math.max(0, (z - originZ) / spacing))
+      const i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j, at = (a, b) => array[b * size + a]
+      return (at(i, j) * (1 - u) + at(i + 1, j) * u) * (1 - v) + (at(i, j + 1) * (1 - u) + at(i + 1, j + 1) * u) * v
+    }
+    for (const block of region.transplant) {
+      const { from, to, radius, blend: edge = 3, rotate = 0, scale = 1 } = block
+      const cos = Math.cos(rotate), sin = Math.sin(rotate), reachBlock = radius + edge
+      for (let j = 0; j < size; j++) {
+        const dz = originZ + j * spacing - to.z
+        if (Math.abs(dz) > reachBlock) continue
+        for (let i = 0; i < size; i++) {
+          const dx = originX + i * spacing - to.x
+          const distance = Math.hypot(dx, dz)
+          if (distance > reachBlock) continue
+          const sx = from.x + dx * cos - dz * sin, sz = from.z + dx * sin + dz * cos
+          const weight = 1 - smoothstep(radius, reachBlock, distance)
+          const index = j * size + i
+          const lifted = seaY + (sample(sx, sz, source) - seaY) * weight * scale
+          if (lifted > heights[index]) {
+            heights[index] = lifted
+            if (sample(sx, sz, sourceValues) > 0 && values[index] === 0) values[index] = 1
+          }
+        }
+      }
+    }
+  }
+
+  // ---- Rebaixamento (`region.soften`): atrás de uma linha (z menor que `edge`), o relevo acima de `knee` é achatado aos
+  // poucos até no máximo `cap`, numa curva suave (sem platô de mesa). Fica de fora o que está em `keep` (círculos
+  // { x, z, radius, blend }) e os blocos transplantados. No Rio, as montanhas atrás da grade ficam na altura da base de
+  // construção e o Cristo, o Pão de Açúcar e a Urca seguem inteiros (16/11/2026, pedido do dono).
+  if (region.soften) {
+    const { edge, blend: band = 4, knee, cap, keep = [] } = region.soften
+    const circles = [...keep, ...(region.transplant ?? []).map(block => ({ x: block.to.x, z: block.to.z, radius: block.radius + (block.blend ?? 3), blend: 3 }))]
+    const squash = h => (h <= knee ? h : knee + (cap - knee) * Math.tanh((h - knee) / (cap - knee)))
+    for (let j = 0; j < size; j++) {
+      const wz = originZ + j * spacing
+      const behind = smoothstep(edge, edge - band, wz)
+      if (behind <= 0) continue
+      for (let i = 0; i < size; i++) {
+        const index = j * size + i, h = heights[index]
+        if (h <= knee) continue
+        const wx = originX + i * spacing
+        let kept = 0
+        for (const c of circles) kept = Math.max(kept, 1 - smoothstep(c.radius, c.radius + (c.blend ?? 3), Math.hypot(wx - c.x, wz - c.z)))
+        const weight = behind * (1 - kept)
+        if (weight > 0) heights[index] = h + (squash(h) - h) * weight
+      }
+    }
+  }
+
+  // ---- Morros achatados no lugar (`region.squash`: círculos { x, z, radius, blend, knee, cap }): dentro do círculo o que
+  // passa de `knee` desce numa curva suave até no máximo `cap` (no Rio, a montanha do Cristo, 16/11/2026).
+  for (const hill of region.squash ?? []) {
+    const curve = h => (h <= hill.knee ? h : hill.knee + (hill.cap - hill.knee) * Math.tanh((h - hill.knee) / (hill.cap - hill.knee)))
+    for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+      const index = j * size + i, h = heights[index]
+      if (h <= hill.knee) continue
+      const weight = 1 - smoothstep(hill.radius, hill.radius + (hill.blend ?? 4), Math.hypot(originX + i * spacing - hill.x, originZ + j * spacing - hill.z))
+      if (weight > 0) heights[index] = h + (curve(h) - h) * weight
+    }
+  }
+
   // ---- Corte (`region.crop`): além deste raio do centro dado, o relevo real vira mar liso, com uma faixa de mistura.
   // Mais barato que só apertar `detail.maxTriangles`: tira de vez a praia e os morros reais distantes que a câmera e a
   // névoa da cidade (CityWorld, src/terrain/lighting.js) nunca mostravam mesmo, e corta os triângulos de lá também.
@@ -113,6 +184,10 @@ export function createTerrainData(region, values) {
     // não decapitar uma montanha que a cena precisa mostrar inteira (o maciço atrás do morro do Cristo, no Rio).
     const kept = (x, z) => {
       let weight = 0
+      // O bloco transplantado nunca é cortado (pode cair perto da borda do corte, como o Pão de Açúcar no Rio).
+      for (const block of region.transplant ?? []) {
+        weight = Math.max(weight, 1 - smoothstep(block.radius + (block.blend ?? 3), block.radius + (block.blend ?? 3) + 4, Math.hypot(x - block.to.x, z - block.to.z)))
+      }
       for (const circle of keep) {
         weight = Math.max(weight, 1 - smoothstep(circle.radius, circle.radius + (circle.blend ?? 20), Math.hypot(x - circle.x, z - circle.z)))
       }
@@ -135,6 +210,10 @@ export function createTerrainData(region, values) {
 
   // ---- Platô: os cantos dos lotes livres e decorativos ficam em y = 0, e os vizinhos se misturam ao relevo ----
   const isPlateau = new Uint8Array(size * size)
+  // Altura de cada vértice do platô: 0, salvo os lotes em patamar (`region.lotHeight(lote)`, o morro da comunidade no
+  // Rio), onde o chão sobe junto com o patamar. Canto entre dois patamares fica no mais baixo (o patamar de cima o
+  // cobre), e o relevo em volta se mistura até a altura do platô mais próximo, não até 0: sem vala em volta do morro.
+  const plateauHeight = new Float32Array(size * size).fill(Infinity)
   const plateauVertices = []
   for (const lot of lots.playable) {
     const i = (lot.x - 0.5 - originX) / spacing, j = (lot.z - 0.5 - originZ) / spacing, cells = 1 / spacing
@@ -142,9 +221,11 @@ export function createTerrainData(region, values) {
       throw new Error('Os cantos dos lotes precisam cair em amostras do mapa de alturas (confira heightmap.center e spacing).')
     }
     if (i < 0 || j < 0 || i + cells > last || j + cells > last) throw new Error(`O lote (${lot.x}, ${lot.z}) fica fora do mapa de alturas.`)
+    const lift = region.lotHeight?.(lot) ?? 0
     for (let dj = 0; dj <= cells; dj++) {
       for (let di = 0; di <= cells; di++) {
         const index = (j + dj) * size + i + di
+        plateauHeight[index] = Math.min(plateauHeight[index], lift)
         if (!isPlateau[index]) { isPlateau[index] = 1; plateauVertices.push([i + di, j + dj]) }
       }
     }
@@ -154,13 +235,13 @@ export function createTerrainData(region, values) {
   for (let j = Math.max(0, line(play.minZ) - reach); j <= Math.min(last, line(play.maxZ) + reach); j++) {
     for (let i = Math.max(0, column(play.minX) - reach); i <= Math.min(last, column(play.maxX) + reach); i++) {
       const index = j * size + i
-      if (isPlateau[index]) { heights[index] = 0; continue }
-      let nearest = Infinity
+      if (isPlateau[index]) { heights[index] = plateauHeight[index]; continue }
+      let nearest = Infinity, floor = 0
       for (const [pi, pj] of plateauVertices) {
         const distance = (pi - i) ** 2 + (pj - j) ** 2
-        if (distance < nearest) nearest = distance
+        if (distance < nearest) { nearest = distance; floor = plateauHeight[pj * size + pi] }
       }
-      heights[index] *= smoothstep(0, values[index] === 0 ? plateau.shore : plateau.blend, Math.sqrt(nearest) * spacing)
+      heights[index] = floor + (heights[index] - floor) * smoothstep(0, values[index] === 0 ? plateau.shore : plateau.blend, Math.sqrt(nearest) * spacing)
     }
   }
 

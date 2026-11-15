@@ -246,8 +246,8 @@ test('rio: a API do terreno responde pela máscara', () => {
 })
 
 // ---------- Cenário da cidade ----------
-import cidade, { CITY_SHIFT, CRISTO_PEAK } from '../src/terrain/regions/rio-cidade.js'
-import { getCityLayout, tileKey } from '../shared/game/city-layout.js'
+import cidade, { CITY_SHIFT, CRISTO_SITE, SUGARLOAF } from '../src/terrain/regions/rio-cidade.js'
+import { getCityLayout, HILL_STEP, tileHeight, tileKey } from '../shared/game/city-layout.js'
 
 test('cidade: plano sob os lotes construíveis, relevo na encosta protegida, calçadão plano na orla e o morro do Cristo', () => {
   const layout = getCityLayout('cristo-redentor')
@@ -273,19 +273,66 @@ test('cidade: plano sob os lotes construíveis, relevo na encosta protegida, cal
       }
       land++
       assert.equal(kind, 'free', `tile (${tx}, ${ty})`)
+      // No morro da comunidade o chão sobe com o patamar (um tico abaixo do topo desenhado): nada de vala (16/11/2026).
+      const lift = tileHeight('cristo-redentor', tx, ty)
+      if (lift) {
+        const y = scenery.getHeightAt(x, z)
+        assert.ok(y >= lift - HILL_STEP - 0.05 && y <= lift, `patamar (${tx}, ${ty}): ${y}`)
+        continue
+      }
       for (const [dx, dz] of [[0, 0], [-0.5, -0.5], [0.5, 0.5]]) assert.equal(scenery.getHeightAt(x + dx, z + dz), 0)
     }
   }
   assert.ok(land > 700)
   assert.ok(beach >= (layout.max - layout.min + 1) * 2, `${beach} lotes de praia`)
   assert.equal(scenery.lots.playable.length, land + beach)
-  // O morro do Cristo fica bem acima do platô.
-  assert.ok(scenery.getHeightAt(CRISTO_PEAK.x, CRISTO_PEAK.z - CITY_SHIFT) > 6)
+  // A montanha do Cristo fica bem acima do platô (16/11/2026: o Cristo está no pico da esquerda).
+  assert.ok(scenery.getHeightAt(CRISTO_SITE.x, CRISTO_SITE.z - CITY_SHIFT) > 5.5)
+})
+
+test('cidade: as montanhas atrás da grade ficam na altura da base de construção, menos Cristo, Pão e Urca (16/11/2026)', () => {
+  const scenery = createTerrainData(cidade, heights.data)
+  const tall = createTerrainData({ ...cidade, soften: undefined }, heights.data)
+  const { cap, edge, blend, keep } = cidade.soften
+  const near = (x, z, list) => list.some(c => Math.hypot(x - c.x, z - c.z) < c.radius + (c.blend ?? 3))
+  const blocks = cidade.transplant.map(b => ({ x: b.to.x, z: b.to.z, radius: b.radius + b.blend, blend: 3 }))
+  let lowered = 0
+  for (let x = -60; x <= 40; x += 2) for (let z = edge - blend - 2; z >= -110; z -= 2) {
+    if (near(x, z, keep) || near(x, z, blocks)) continue
+    const h = scenery.getHeightAt(x, z)
+    assert.ok(h <= cap + 0.15, `(${x}, ${z}) ainda tem ${h.toFixed(1)} de altura`)
+    if (tall.getHeightAt(x, z) > cap + 1) lowered++
+  }
+  assert.ok(lowered > 50, `o teste precisa de montanhas rebaixadas (achou ${lowered})`)
+  // Na frente da linha (a grade e o que fica diante dos patamares), nada muda.
+  for (const [x, z] of [[-14, -2], [0, 0], [10, 5], [20, -4]]) assert.equal(scenery.getHeightAt(x, z), tall.getHeightAt(x, z))
+})
+
+test('cidade: o Pão de Açúcar e a Urca sobem atrás dos patamares da direita e o resto do relevo fica igual (16/11/2026)', () => {
+  const scenery = createTerrainData(cidade, heights.data)
+  const without = createTerrainData({ ...cidade, transplant: [] }, heights.data)
+  const top = scenery.getHeightAt(SUGARLOAF.x, SUGARLOAF.z)
+  // 396 m × 1,6 / 50 m por unidade ≈ 12,7 acima do mar (−0,4); a malha simplifica um pouco o topo.
+  assert.ok(top > 5.5, `topo do Pão de Açúcar: ${top}`)
+  assert.ok(top > without.getHeightAt(SUGARLOAF.x, SUGARLOAF.z) + 2, 'é o bloco transplantado que sobe ali')
+  // Longe do bloco (raio + borda + mistura do platô), a altura não muda.
+  const { size, spacing, originX, originZ } = scenery.grid
+  const hill = getCityLayout('cristo-redentor').hillTiles.map(([tx, ty]) => [tx - 8, ty - 8 - CITY_SHIFT])
+  const nearHill = (x, z) => hill.some(([hx, hz]) => Math.abs(x - hx) < 4 && Math.abs(z - hz) < 4)
+  let far = 0
+  for (let j = 0; j < size; j += 3) for (let i = 0; i < size; i += 3) {
+    const x = originX + i * spacing, z = originZ + j * spacing
+    if (cidade.transplant.some(block => Math.hypot(x - block.to.x, z - block.to.z) < block.radius + block.blend + 6) || cidade.squash.some(c => Math.hypot(x - c.x, z - c.z) < c.radius + c.blend + 1) || nearHill(x, z)) continue
+    assert.ok(Math.abs(scenery.grid.heights[j * size + i] - without.grid.heights[j * size + i]) < 1e-5, `(${x}, ${z})`)
+    far++
+  }
+  assert.ok(far > 1000)
 })
 
 test('cidade: o corte do relevo distante não decapita o maciço atrás do Cristo (13/11/2026)', () => {
-  const scenery = createTerrainData(cidade, heights.data)
-  const uncut = createTerrainData({ ...cidade, crop: undefined }, heights.data)
+  // Teste só do corte: sem o rebaixamento das montanhas de trás (16/11/2026), que achata o maciço de propósito.
+  const scenery = createTerrainData({ ...cidade, soften: undefined }, heights.data)
+  const uncut = createTerrainData({ ...cidade, crop: undefined, soften: undefined }, heights.data)
   // Sem `crop.keep`, o círculo do corte (raio ~33 + 14 de mistura em volta da grade e do morro) zerava tudo a partir de ~47
   // unidades do centro, e a montanha aparecia cortada no meio. Onde o terreno completo tem montanha (altura >= 8), o da
   // cidade tem de ter a mesma montanha.

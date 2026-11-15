@@ -3,7 +3,7 @@
 // e as regras do servidor não mudam: o terreno só desenha o que fica em volta.
 import rio from './rio.js'
 import { createFrame } from '../frame.js'
-import { getCityLayout, tileKey } from '../../../shared/game/city-layout.js'
+import { getCityLayout, tileHeight, tileKey } from '../../../shared/game/city-layout.js'
 
 // O terreno anda esta distância para +Z (o mar) na cena, para a praia real cair junto à orla da cidade.
 // Na máscara os lotes ficam no sistema do terreno: z do terreno = z da cidade − CITY_SHIFT.
@@ -14,6 +14,12 @@ export const CITY_SHIFT = 5
 export const CRISTO_PEAK = { x: -3, z: -20 }
 // O Cristo no morro tem esta fração do tamanho do monumento de outras cidades (LANDMARK_HEIGHT em sceneEnvironment.js).
 export const CRISTO_SCALE = 0.6
+// O Cristo volta (16/11/2026, pedido do dono), agora no pico da montanha grande à esquerda da grade, como o Corcovado
+// visto da praia (coordenadas da cena da cidade). `cityTerrain.js` crava a base no ponto mais baixo do topo, para a rocha
+// atravessar a base em vez de a estátua flutuar.
+export const CRISTO_SITE = { x: -19.5, z: -14.5 }
+// Bondinho (cableCar.js): da Urca ao Pão de Açúcar, nos topos medidos dos dois blocos (coordenadas da cena da cidade).
+export const CABLE_CAR = { from: { x: 19, z: -18.5 }, to: { x: 10.5, z: -20.5 } }
 
 const layout = getCityLayout('cristo-redentor')
 const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
@@ -33,6 +39,18 @@ const kind = (x, y) => {
 const rows = Array.from({ length: size }, (_, row) => Array.from({ length: size }, (_, column) =>
   kind(layout.min + column, layout.min + row)).join(''))
 
+// O Pão de Açúcar (16/11/2026, pedido do dono): o bloco real do mapa de alturas (onde ele fica de verdade, a leste, que o
+// corte abaixo tira) é copiado para a vala atrás dos patamares da direita, entre o morro do Cristo e a montanha da
+// direita, logo depois do fundo da grade. Coordenadas do terreno. O bloco só soma onde é mais alto (terrainData.js,
+// `transplant`, que o corte não apaga), então os outros morros ficam iguais; os patamares da direita ficam no pé da pedra.
+const SUGARLOAF_FROM = createFrame(rio).toWorld(-22.9494, -43.1558)
+export const SUGARLOAF = { x: 10, z: -26 }
+const sugarloaf = { from: { x: SUGARLOAF_FROM.x - 0.3, z: SUGARLOAF_FROM.z - 0.6 }, to: SUGARLOAF, radius: 4.6, blend: 3, scale: 0.55 }
+// O Morro da Urca, colado ao Pão como no Rio de verdade, fecha o resto da vala até a montanha da direita.
+const urca = { from: { x: SUGARLOAF_FROM.x - 5.7, z: SUGARLOAF_FROM.z - 6.1 }, to: { x: 17, z: -26.5 }, radius: 3.6, blend: 3, scale: 0.6 }
+
+export const GAP_HILL = { x: 20.5, z: -19.5, radiusX: 5.5, radiusZ: 6.5, height: 6.5 }
+
 const peak = { x: CRISTO_PEAK.x, z: CRISTO_PEAK.z - CITY_SHIFT } // no sistema do terreno
 const peakGeo = createFrame(rio).toGeo(peak.x, peak.z)
 const hill = { x: peak.x, z: peak.z, radiusX: 18, radiusZ: 9.5, height: 6.5 }
@@ -50,8 +68,23 @@ export default {
   name: 'Rio de Janeiro · cenário da cidade',
   lots: { x0: gridX0, z0: gridZ0, rows },
   // O morro do Cristo: some ao relevo real atrás da grade (unidades do terreno).
-  relief: [hill],
-  landmarks: [...rio.landmarks, { id: 'morro-do-cristo', name: 'Morro do Cristo', ...peakGeo, radius: 10 }],
+  // Morro que tapa a vala entre os patamares da direita, a Urca e a montanha da frente à direita (16/11/2026, pedido do
+  // dono: com o Pão de Açúcar no lugar, sobrava ali um buraco baixo). Fica dentro do `crop.keep` abaixo.
+  relief: [hill, GAP_HILL],
+  // Pão e Urca a cerca de 55% da altura real (`scale`) e a montanha do Cristo achatada até 6,5 (16/11/2026, pedido do
+  // dono: Cristo e bondinho estavam altos demais); o Cristo e as estações do bondinho se assentam nos topos novos.
+  transplant: [sugarloaf, urca],
+  squash: [{ x: CRISTO_SITE.x, z: CRISTO_SITE.z - CITY_SHIFT, radius: 7, blend: 4, knee: 3, cap: 6.5 }],
+  // As montanhas atrás da grade, rebaixadas até a altura da base de construção (16/11/2026, pedido do dono: eram tão
+  // altas que escondiam o Cristo). A linha começa no meio dos patamares (z da cena −11) e vale para trás dela; a
+  // montanha do Cristo fica inteira (o círculo em volta de CRISTO_SITE), e o Pão de Açúcar e a Urca também (o
+  // rebaixamento não vale sobre os blocos transplantados). Coordenadas do terreno.
+  soften: { edge: -11 - CITY_SHIFT, blend: 4, knee: 1.6, cap: 3, keep: [{ x: CRISTO_SITE.x, z: CRISTO_SITE.z - CITY_SHIFT, radius: 6.5, blend: 4 }] },
+  // O chão dos lotes do morro da comunidade sobe com o patamar (um tico abaixo do topo que sceneEnvironment.js desenha),
+  // e o relevo em volta se mistura até essa altura, não até 0: sem vala entre os patamares e os morros.
+  lotHeight: lot => { const h = tileHeight('cristo-redentor', lot.x + layout.center, lot.z + CITY_SHIFT + layout.center); return h ? h - 0.04 : 0 },
+  landmarks: [...rio.landmarks, { id: 'morro-do-cristo', name: 'Morro do Cristo', ...peakGeo, radius: 10 },
+    { id: 'pao-de-acucar-cidade', name: 'Pão de Açúcar (atrás dos patamares da direita)', ...createFrame(rio).toGeo(SUGARLOAF.x, SUGARLOAF.z), radius: 9 }],
   // Chão dos lotes com o verde da mata do mapa, um tom por lote e a variação por face do relevo.
   plateau: { tint: -0.3, contrast: 0.012, facets: 0.8 },
   // Corte (13/11/2026, src/terrain/terrainData.js): além deste raio (a grade e o morro do Cristo, com folga), o
@@ -64,7 +97,7 @@ export default {
     // O maciço real atrás do morro do Cristo (z de −48 para o norte, x de −80 a +10, até 24 de altura) fica de fora do corte:
     // o círculo acima o decapitava (13/11/2026, #28), e a montanha aparecia cortada no meio. O resto (praia e morros
     // distantes a leste) segue removido.
-    keep: [{ x: -32, z: -85, radius: 55, blend: 25 }],
+    keep: [{ x: -32, z: -85, radius: 55, blend: 25 }, { x: GAP_HILL.x, z: GAP_HILL.z, radius: 6, blend: 5 }],
   },
   // A névoa da cidade fecha bem mais perto que a da faixa de Copacabana (13/11/2026, src/terrain/lighting.js:
   // TERRAIN.fog, 80 unidades): com o corte acima, o mar aberto já cobre o resto, então o orçamento de malha da

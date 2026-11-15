@@ -77,6 +77,9 @@ const tasks = ref([])
 // null enquanto carrega; '' carregadas; texto quando a lista não veio.
 const tasksError = ref(null)
 const loading = ref(true)
+// Capa da cidade (16/11/2026): cobre a tela até o terreno real entrar (`engine.sceneReady`), para o chão liso de espera
+// nunca aparecer. Some com um esmaecer curto.
+const sceneReady = ref(false)
 const bootError = ref('')
 const sceneError = ref('')
 const saving = ref(false)
@@ -84,6 +87,10 @@ const taskSaving = ref(null)
 const refreshing = ref(false)
 const lighting = ref('day')
 const tasksOpen = ref(true)
+// O cartão "Sua próxima construção" também se recolhe (16/11/2026, pedido do dono), como o das missões; a escolha fica
+// guardada neste navegador.
+const goalOpen = ref((() => { try { return localStorage.getItem('cityou.cidade.meta') !== 'recolhida' } catch { return true } })())
+function toggleGoal() { goalOpen.value = !goalOpen.value; try { localStorage.setItem('cityou.cidade.meta', goalOpen.value ? 'aberta' : 'recolhida') } catch { /* sem armazenamento: só nesta visita */ } }
 const catalogOpen = ref(true)
 const activeFilter = ref('all')
 const selectedId = ref(null)
@@ -93,6 +100,10 @@ const rotation = ref(0)
 const confirmation = ref(null)
 const toast = ref(null)
 const helpOpen = ref(false)
+// Dentro do painel (/app#/cidade) o trilho de ícones é o do painel, que vira o trilho da cidade (App.vue): o daqui some e a
+// ajuda abre pelo botão de lá, por mensagem da mesma origem.
+const inPanel = (() => { try { return window.parent !== window && window.parent.location.pathname.startsWith('/app') } catch { return false } })()
+if (inPanel) window.addEventListener('message', event => { if (event.origin === window.location.origin && event.data?.type === 'cityou:help') helpOpen.value = !helpOpen.value })
 const historyOpen = ref(false)
 const missionTab = ref('tasks')
 const celebration = ref(null)
@@ -476,6 +487,8 @@ onMounted(async () => {
         },
       })
       window.__fifonesCity = { get state() { return state.value }, get engine() { return engine } }
+      // Dois quadros depois do terreno entrar: o primeiro desenho com ele já está na tela quando a capa sai.
+      engine.sceneReady.then(() => requestAnimationFrame(() => requestAnimationFrame(() => { if (!disposed) sceneReady.value = true })))
     } catch (error) { sceneError.value = error.message }
   }
   const initializeCity = async () => {
@@ -504,7 +517,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="city-app" :class="{ 'is-dusk': lighting === 'dusk', 'catalog-hidden': !catalogOpen, 'is-cutaway': !!activeInterior }">
+  <main class="city-app" :class="{ 'is-dusk': lighting === 'dusk', 'catalog-hidden': !catalogOpen, 'is-cutaway': !!activeInterior, 'in-panel': inPanel }">
     <canvas ref="canvas" class="city-canvas" :aria-label="`Cidade 3D em ${region?.nome ?? 'Rio de Janeiro'}. Arraste para explorar e use a roda do mouse para aproximar.`" />
     <div class="scene-vignette" aria-hidden="true" />
 
@@ -531,11 +544,12 @@ onUnmounted(() => {
 
     <aside v-if="scenic && !loading" class="next-build scenic-note panel" aria-label="Sobre a ilha"><span class="eyebrow">ILHA INICIAL</span><p v-if="islandBuild">Aqui você constrói o Farol, a Cabana, o Píer e decorações da ilha. Os outros prédios ficam no Rio de Janeiro.</p><p v-else>Aqui é só para contemplar o mar. Suas construções ficam no Rio de Janeiro.</p><a class="goal-action" href="./city.html?local=cristo-redentor"><span>Ir para o Rio de Janeiro</span></a></aside>
 
-    <aside v-if="!scenic && progress.goal && !loading" class="next-build panel" aria-label="Próxima construção">
-      <div class="goal-topline"><span class="eyebrow">SUA PRÓXIMA CONSTRUÇÃO</span><span class="goal-ready" v-if="!progress.missing">Pode construir</span><span v-else>{{ Math.round(progress.goalPercent) }}%</span></div>
-      <div class="goal-main"><img :src="thumbnail(progress.goal)" alt="" /><div><label class="goal-picker"><span class="sr-only">Escolher próxima construção</span><select :value="progress.goal.id" aria-label="Escolher próxima construção" @change="setGoal($event.target.value)"><option v-for="item in availableCatalog" :key="item.id" :value="item.id">{{ item.label }}</option></select><Icon name="down" :size="14" /></label><span class="goal-cost">{{ coins(Math.min(state.credits, progress.goal.cost)) }} <span>/ {{ coins(progress.goal.cost) }} moedas</span></span></div></div>
-      <div class="goal-track" role="progressbar" :aria-label="`Moedas para ${progress.goal.label}`" :aria-valuenow="Math.min(state.credits, progress.goal.cost)" :aria-valuemin="0" :aria-valuemax="progress.goal.cost"><i :style="{ transform: `scaleX(${progress.goalPercent / 100})` }" /></div>
-      <button class="goal-action" :disabled="saving || refreshing" @click="pursueGoal"><span>{{ progress.missing ? `Faltam ${coins(progress.missing)} moedas` : 'Escolher terreno' }}</span><Icon :name="progress.missing ? 'tasks' : 'arrow'" :size="16" /></button>
+    <aside v-if="!scenic && progress.goal && !loading" class="next-build panel" :class="{ collapsed: !goalOpen }" aria-label="Próxima construção">
+      <div class="goal-topline"><span class="eyebrow">SUA PRÓXIMA CONSTRUÇÃO</span><span class="goal-ready" v-if="!progress.missing">Pode construir</span><span v-else>{{ Math.round(progress.goalPercent) }}%</span><button class="icon-button goal-collapse" :aria-label="goalOpen ? 'Recolher próxima construção' : 'Expandir próxima construção'" :aria-expanded="goalOpen" @click="toggleGoal"><Icon name="down" :size="15" /></button></div>
+      <strong v-if="!goalOpen" class="goal-mini">{{ progress.goal.label }}</strong>
+      <div v-if="goalOpen" class="goal-main"><img :src="thumbnail(progress.goal)" alt="" /><div><label class="goal-picker"><span class="sr-only">Escolher próxima construção</span><select :value="progress.goal.id" aria-label="Escolher próxima construção" @change="setGoal($event.target.value)"><option v-for="item in availableCatalog" :key="item.id" :value="item.id">{{ item.label }}</option></select><Icon name="down" :size="14" /></label><span class="goal-cost">{{ coins(Math.min(state.credits, progress.goal.cost)) }} <span>/ {{ coins(progress.goal.cost) }} moedas</span></span></div></div>
+      <div v-if="goalOpen" class="goal-track" role="progressbar" :aria-label="`Moedas para ${progress.goal.label}`" :aria-valuenow="Math.min(state.credits, progress.goal.cost)" :aria-valuemin="0" :aria-valuemax="progress.goal.cost"><i :style="{ transform: `scaleX(${progress.goalPercent / 100})` }" /></div>
+      <button v-if="goalOpen" class="goal-action" :disabled="saving || refreshing" @click="pursueGoal"><span>{{ progress.missing ? `Faltam ${coins(progress.missing)} moedas` : 'Escolher terreno' }}</span><Icon :name="progress.missing ? 'tasks' : 'arrow'" :size="16" /></button>
     </aside>
 
     <aside class="missions panel" :class="{ collapsed: !tasksOpen }" aria-label="Missões da sua cidade">
@@ -625,6 +639,7 @@ onUnmounted(() => {
 
     <div v-if="helpOpen" class="help-popover panel"><button class="icon-button" aria-label="Fechar ajuda" @click="helpOpen = false"><Icon name="close" :size="16" /></button><h2>Cuide da vida.<br />Construa sua cidade.</h2><p>Você começa com 50 moedas. Tarefas concluídas valem 10; hábitos, 5. A cada 10 recompensas, seu nível sobe e a cidade ganha mais espaço.</p><dl><div><dt>Explorar</dt><dd>Arraste a cidade</dd></div><div><dt>Aproximar</dt><dd>Role o mouse</dd></div><div><dt>Girar construção</dt><dd><kbd>R</kbd></dd></div><div><dt>Cancelar</dt><dd><kbd>Esc</kbd></dd></div></dl><p class="help-footnote">Seu progresso fica salvo no servidor.</p></div>
 
+    <Transition name="city-cover"><div v-if="!sceneReady && !sceneError && !bootError" class="city-cover" aria-hidden="true"><span class="city-cover-mark">c<span>.</span></span><span class="loading-line" /></div></Transition>
     <div v-if="loading || bootError || sceneError" class="city-notice panel" role="status"><span class="notice-mark">c.</span><strong>{{ sceneError ? 'Não foi possível abrir a vista 3D' : bootError ? 'A cidade está desconectada' : 'Sua cidade está chegando…' }}</strong><p v-if="bootError || sceneError">{{ sceneError || bootError }}</p><span v-else class="loading-line" /><button v-if="bootError || sceneError" class="primary-button" @click="reloadPage">Tentar novamente</button></div>
 
     <Transition name="reward"><div v-if="celebration" :key="celebration.key" class="reward-burst" role="status"><span v-for="index in 8" :key="index" class="reward-spark" :style="{ '--n': index }" aria-hidden="true" /><span class="reward-medal"><Icon :name="celebration.levelUp ? 'expand' : 'check'" :size="29" /></span><strong>{{ celebration.levelUp ? `Nível ${state.level}!` : `+${coins(celebration.amount)} moedas` }}</strong><span>{{ celebration.levelUp ? 'Mais terrenos para suas ideias.' : 'Seu progresso ganhou espaço.' }}</span></div></Transition>

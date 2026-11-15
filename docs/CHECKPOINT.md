@@ -7,7 +7,7 @@ Atualizado em 13/11/2026. Para continuar em outra IA ou com outro dev: `node too
 - **Diagramas:** `docs/diagrams/cityou-mvp.drawio` (roteiro, arquitetura, fluxos de conta e ameaças), com o estado de 15/11/2026. Atualize junto com este arquivo.
 - **Objetivo:** entregar a primeira versão utilizável do Cityou, com painel pessoal e cidade 3D ligados aos dados do próprio app, sem depender do Fifones.
 - **O que falta:** as etapas 2 a 5 estão no código e na `main` (PRs #34, #37, #38 e #40 para a etapa 5) e as etapas 2 a 4 foram conferidas no navegador num Worker local com contas (13/11/2026). Faltam segurança e corte do legado (6), o resto da ambientação (7b), a Fita do Tempo (8) e o portão para abrir contas (10, proposta). A latência da prévia ainda passa do alvo de 60 ms no servidor (piso de ~130 ms, ver a etapa 5). Falta validar contas numa prévia publicada e medir em celular físico.
-- **Próximo passo:** (1) **etapa 6** (segurança e corte do legado): CSP em `Report-Only` primeiro, pronta quando `npm test`, `npm run test:worker` e `npm run test:session` passam e o cabeçalho novo estiver em `Report-Only`; (2) decisão do dono sobre a latência (cache de leitura já está; falta escolher entre escrita otimista generalizada e Smart Placement).
+- **Próximo passo:** (1) **etapa 6** (segurança e corte do legado): revisar o corte do legado da etapa 6B após o deploy de transição do #55; observar a CSP em `Report-Only` antes do bloqueio; (2) decisão do dono sobre a latência (cache de leitura já está; falta escolher entre escrita otimista generalizada e Smart Placement).
 
 ## Em andamento por branch
 
@@ -15,8 +15,8 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 
 | Branch | O que está fazendo | Desde |
 |---|---|---|
-| `claude/treino-sugerido` | Fitness: treino de musculação sugerido (meta da base calórica + dias por semana), registro de carga e repetições, volume, 1RM estimado e próxima carga; regras com fonte no pacote de artigos do dono e triagem de esforço (sem PR ainda) | 15/11/2026 |
-| `claude/ecstatic-gauss-q22jcx` | Painel pessoal com visual de dashboard: pílula no menu, "Ir para…", cartões de métrica, gráfico de área e barra por área no Seu dia (sem PR ainda) | 15/11/2026 |
+| `claude/treino-sugerido` | Fitness: treino de musculação sugerido (meta da base calórica + dias por semana), registro de carga e repetições, volume, 1RM estimado, próxima carga, aquecimento e aeróbio; regras com fonte no pacote de artigos do dono e triagem de esforço; PR #53 | 15/11/2026 |
+| `claude/ecstatic-gauss-q22jcx` | Paleta Horizonte Dourado na landing (seções do kit, oito destinos, faixa de números fora do topo) e no painel (cores de marca trocadas); sem PR ainda | 15/11/2026 |
 | `claude/alimentacao-calculo` | Alimentação: base calórica completa (cálculo, rotas no Durable Object, cartão na aba, testes), PR #45 | 14/11/2026 |
 | `claude/etapa-4-painel-sem-iframe` | Etapa 4: painel sem iframe do Fifones, aba Conta, Salvo/Salvando…/Sem conexão, "Em breve" (Agenda, Projetos, Fitness, Biblioteca, Estudos), Sair em todas as páginas, `next` do login validado | 13/11/2026 |
 | `claude/etapa-4-painel-sem-iframe` (inclui a etapa 5) | Etapa 5: Agenda, Projetos e Peso reais, juntada à etapa 4 | 13/11/2026 |
@@ -56,6 +56,7 @@ Testes (13/11/2026, branch `claude/etapa-2-sessao-vencida` sobre a `main` `c93d8
 6. Ocupar todo o terreno do Rio com **rua automática** (etapa 9).
 "Esqueci a senha" fica fora até haver e-mail com domínio.
 7. **Pacote conservador do PORTAR-KIT** (decisão do dono, 13/11/2026; respostas A, B, C, D, F e G): 6 domínios do Cityou, economia atual, prédio sobe sem exigir tarefas, beta por convite, sem assistente de IA, uma organização.
+8. **Paleta Horizonte Dourado** (decisão do dono, 15/11/2026, escolhida entre a paleta atual e esta): landing e painel passam a usar a paleta; a landing segue em Vue/Vite, sem Next.js nem React. Tons derivados e contrastes em `docs/DESIGN-SYSTEM.md`. A cópia "Design system Cityou" no Claude Docs ainda não foi atualizada.
 
 ## Estado das etapas (ordem: 1 ✔ → 7a ✔ → 9 ✔ → 2 ✔ → 3 ✔ → 4 ✔ → 5 e 6 → 7b → 8)
 | Etapa | Estado |
@@ -67,7 +68,7 @@ Testes (13/11/2026, branch `claude/etapa-2-sessao-vencida` sobre a `main` `c93d8
 | 3 Catálogo e migração | Feita no código (#37); teste de migração verde e agora na CI. Falta conferir no navegador uma cidade guardada com peças antigas |
 | 4 Painel sem iframe | Feita no código (#38). Conferidos: "Em breve" em Agenda, Projetos, Biblioteca e Fitness; volta à aba depois de entrar (`/app#/cidade`, `/app#/mundo`). Falta: 390 px e as miniaturas da ilha |
 | 5 Agenda, Projetos e Peso reais | Feita em três commits (13/11/2026, falta só ela entrar na `main`). **1 Agenda feita** (`worker/agenda.js`, `worker/records.js`, `tests/worker-agenda.test.mjs`, aba Agenda do painel); **2 Projetos feita** (`worker/projects.js`, `tests/worker-projects.test.mjs`, aba Projetos, `/api/workspace/projects` virou apelido); **3 Peso feito** (`worker/weights.js`, `tests/worker-weights.test.mjs`, aba Fitness com gráfico da média de 7 dias). Fica de fora: latência comparada com a base da etapa 1 e Biblioteca e Memórias (`sources`, etapa 4) |
-| 6 Segurança e corte do legado | Correções de contas e dependências adiantadas. **CSP em `Report-Only` feito** (`worker/csp.js`, endpoint `/api/csp-report`, cabeçalhos básicos em páginas e API; `tools/csp-probe.mjs`). Achado: o decodificador de meshopt usa WASM e viola a política sem `'wasm-unsafe-eval'`. **Decisão do dono (13/11/2026): `script-src` aceita `'wasm-unsafe-eval'`** (só WASM, JS eval segue bloqueado), para o meshopt dos GLB. Falta: a semana sem violação, `X-Cityou-Request`, o corte do legado (`backend/`, pytest, scripts Python) e o proxy do Vite |
+| 6 Segurança e corte do legado | Correções de contas e dependências adiantadas. **CSP em `Report-Only` feito** (`worker/csp.js`, endpoint `/api/csp-report`, cabeçalhos básicos em páginas e API; `tools/csp-probe.mjs`). Achado: o decodificador de meshopt usa WASM e viola a política sem `'wasm-unsafe-eval'`. **Decisão do dono (13/11/2026): `script-src` aceita `'wasm-unsafe-eval'`** (só WASM, JS eval segue bloqueado), para o meshopt dos GLB. A transição do #55 está publicada. Corte do legado preparado na etapa 6B. Falta validar a semana de CSP e revisar o próximo deploy. |
 | 7b Resto da ambientação | Não começada |
 | 8 Fita do Tempo e transições | Não começada |
 | 10 Portão para abrir contas (proposta) | Não começada; ver "Itens sem dono no plano" |
@@ -99,7 +100,11 @@ Tipos `event`, `project`, `weight` na tabela `records` do Durable Object; `GET /
 ### Etapa 6: segurança e corte do legado
 Já adiantado: Vite 6.4 com dependências auditadas, adoção e isolamento do Durable Object, limite de corpo e reserva de tentativas de login, e esquema gerido por migrações. Antes de habilitar D1, siga [CONTAS](CONTAS.md) e valide um banco existente caso ele tenha sido inicializado pelo Worker antigo.
 
-CSP e cabeçalhos pelo Worker, primeiro em `Report-Only` (`connect-src` com `blob:` e `data:`; sem `'wasm-unsafe-eval'`); `X-Cityou-Request` aceito junto do antigo e, um deploy depois, só ele (`tools/pilot-*.mjs` enviam o antigo); apagar `backend/`, pytest e scripts Python; proxy do Vite na 8787; atualizar a seção "Backend" do `CLAUDE.md`. Use a skill `owasp-security`.
+CSP em `Report-Only` na main (#42–43), com `'wasm-unsafe-eval'` para os modelos meshopt. Sondagem pontual em 15/11 na prévia do #52: oito navegações a 390 px, nove GLB recebidos, nenhuma violação observada; a prévia estava sem D1. Use `node tools/csp-probe.mjs <url>` para repetir. A semana de observação continua pendente.
+
+O PR #55 foi integrado e a publicação de transição aceitou os dois cabeçalhos. Esta branch da etapa 6B exige `X-Cityou-Request` e remove as rotas de compatibilidade e o FastAPI local. O Vite usa o Worker na 8787. Os geradores Python de alimentos continuam. A ativação da CSP tem sua própria janela de observação.
+
+Verificação local da 6B em 15/11: 120 testes JS, 110 Worker, build, mapa e 32/32 conferências de sessão. O proxy do Vite confirmou cadastro e persistência com a origem local e recusou origens inválidas. O probe observou oito navegações, nove GLB e zero violações; o teste de navegador do globo confirmou ida e volta para Ilha e Rio. O roteiro completo dos pilotos ainda procura a ferramenta de rua na Ilha, onde ela não é exibida.
 
 ### Etapa 7b: resto da ambientação
 Entrada animada dos prédios na carga inicial e terreno entrando com a névoa abrindo (ficaram da 7a); desenho sob demanda (`invalidate`); GLB legados reduzidos e com hash; vegetação em volta dos prédios; unificar a `toLambert` duplicada em `SpaceMarker.js`; `constrainCamera` na cidade.

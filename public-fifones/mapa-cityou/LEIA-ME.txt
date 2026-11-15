@@ -1,7 +1,7 @@
 Cityou — Baía do Amanhã / estudo de mapa v1
 
 Abra index.html no navegador para explorar. A planta funciona localmente, com dados e fonte incluídos.
-Ou visite http://127.0.0.1:8766/mapa-cityou/ com o servidor do Cityou aberto.
+Ou visite http://127.0.0.1:8787/mapa-cityou/ com o servidor do Cityou aberto.
 
 conceito.png = atmosfera visual gerada por IA; contagem de lotes ilustrativa.
 planta-tecnica.png e planta.svg = planta exata dos 64 lotes.

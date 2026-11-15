@@ -422,16 +422,16 @@ legend{font-size:12px;color:#c9cbe0;padding:0 6px;line-height:1.6}
 .nb-form .nb-choice,.nb-choice{flex-direction:row;align-items:flex-start;gap:10px;font-size:12px;color:#d6d8e6;line-height:1.5}
 .nb-choice input{margin-top:2px;accent-color:var(--accent)}
 .nb-choice strong{font-weight:600;margin-right:4px}
-.nb-question legend{color:#e2e3ef}
+.nb-question legend{color:#EFEBE2}
 .nb-question{flex-direction:row;flex-wrap:wrap;gap:18px}
 .nb-question legend{width:100%}
-.nb-intro{display:flex;flex-direction:column;gap:12px;max-width:640px;border:1px solid #a1ddc522;background:linear-gradient(120deg,#a1ddc50d,#bcafff0a);border-radius:14px;padding:22px}
+.nb-intro{display:flex;flex-direction:column;gap:12px;max-width:640px;border:1px solid #7FD1C722;background:linear-gradient(120deg,#7FD1C70d,#FFB6270a);border-radius:14px;padding:22px}
 .nb-intro h3{font-size:18px}
 .nb-intro>p{font-size:13px;line-height:1.75;color:#c9cbe0}
 .nb-intro-points{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
 .nb-intro-points li{font-size:12px;line-height:1.7;color:#aeb2c6;padding-left:16px;position:relative}
 .nb-intro-points li::before{content:'';position:absolute;left:0;top:.62em;width:6px;height:6px;border-radius:50%;background:var(--mint)}
-.nb-intro-points strong{color:#e2e3ef;font-weight:600}
+.nb-intro-points strong{color:#EFEBE2;font-weight:600}
 .nb-invalid input,.nb-invalid textarea{border-color:#ff8a8a}
 fieldset.nb-invalid,li.nb-invalid{border-color:#ff8a8a66}
 .nb-invalid small,.nb-invalid>span{color:#ffb0b0}
@@ -448,7 +448,7 @@ small{font-size:11px;line-height:1.5}
 .nb-figure strong{font-size:34px;font-weight:500;letter-spacing:-1px;color:var(--mint)}
 .nb-figure>span:last-child{font-size:11px;color:#9399ae}
 .nb-suggestion{font-size:13px;line-height:1.75;color:#d6d8e6;max-width:640px}
-.nb-note{font-size:12px;line-height:1.7;color:#f1d3b8;background:#e8b5a012;border:1px solid #e8b5a033;border-radius:10px;padding:10px 12px;max-width:640px}
+.nb-note{font-size:12px;line-height:1.7;color:#FFD9C9;background:#FF9C7A12;border:1px solid #FF9C7A33;border-radius:10px;padding:10px 12px;max-width:640px}
 .nb-details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0}
 .nb-details div{border:1px solid #ffffff0d;border-radius:10px;padding:12px}
 .nb-details dt{font-size:10px;color:#9399ae;letter-spacing:.3px}

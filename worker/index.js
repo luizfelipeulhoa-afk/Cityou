@@ -26,7 +26,7 @@ async function cspReport(request) {
 /** Escritas precisam vir do próprio site: cabeçalho que um formulário de outro site não envia + mesma origem. */
 function guardWrite(request, url) {
   if (!WRITE_METHODS.has(request.method)) return
-  if (request.headers.get('X-Fifones-City') !== '1') throw new HttpError(403, 'A ação exige X-Fifones-City: 1.')
+  if (request.headers.get('X-Cityou-Request') !== '1') throw new HttpError(403, 'A ação exige X-Cityou-Request: 1.')
   const origin = request.headers.get('Origin')
   let sameOrigin = false
   try { sameOrigin = Boolean(origin) && new URL(origin).origin === url.origin } catch { sameOrigin = false }

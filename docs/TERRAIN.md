@@ -42,6 +42,47 @@ para um worker continuam como próximo passo, para essa parte também cair.
 
 Custo na cidade, com renderização por software, alternando as versões: de 23.065 para 64.302 triângulos e de cerca de 11 para cerca de 10 quadros/s; CPU por quadro igual (1,0 a 1,2 ms). Os arquivos carregados na abertura de cada página não mudam. Não medido em aparelho real.
 
+## Pão de Açúcar atrás dos patamares da direita (16/11/2026)
+
+Pedido do dono: atrás dos patamares do morro da comunidade da direita (x 12 a 24 da cidade) havia uma vala, uma área
+baixa quase no nível do mar entre o morro do Cristo e a montanha da direita. O Pão de Açúcar foi para lá. Os patamares
+também cavavam o chão em volta, porque o chão dos lotes era forçado a y = 0. Agora:
+
+- `region.transplant` (`terrainData.js`): copia um bloco do relevo real de um lugar para outro. Em `rio-cidade.js`, o
+  Pão de Açúcar (raio 4,6 + 3 de borda, amostrado onde ele fica de verdade, que o corte tira) vai para `SUGARLOAF`, logo
+  depois do fundo da grade, com o Morro da Urca colado à direita dele (como no Rio), fechando a vala até a montanha da direita. O bloco só soma onde é mais alto que o que já está lá, então os outros morros ficam iguais, e
+  o corte (`crop`) não vale sobre ele (teste em `tests/terrain.test.mjs`).
+- `region.lotHeight(lote)`: altura do chão de um lote livre. Os lotes do morro da comunidade sobem com o patamar (um tico
+  abaixo do topo que `communityHill` desenha), e o relevo em volta se mistura até essa altura, não até 0: os patamares
+  da direita ficam no pé da pedra. Os muros de arrimo ficaram no cinza do granito.
+
+- Com o Pão no lugar, sobrava um buraco baixo entre os patamares da direita, a Urca e a montanha da frente à direita:
+  um morro de `relief` (`GAP_HILL` em `rio-cidade.js`, 6,5 de altura) o tapa, com um círculo em `crop.keep` para o corte
+  não apagá-lo.
+
+## Morro da comunidade como montanha e cidade sem Cristo (16/11/2026)
+
+- `communityHill` (`src/fifones/sceneEnvironment.js`) desenha cada patamar com topo de grama plano (onde o prédio assenta)
+  e, onde o vizinho é mais baixo, uma encosta de pedra facetada em três faixas (mato, pedra, pé) que se abre para fora;
+  as quinas convexas abrem nas duas direções e dividem os vértices, sem fresta. `HILL_STEP` passou de 0,7 para 1,2.
+- O Cristo foi para o pico da montanha grande à esquerda da grade (`CRISTO_SITE`), com a base cravada no ponto mais baixo
+  do topo. O bondinho (`src/terrain/cableCar.js`) liga a Urca ao Pão de Açúcar: cada estação fica no ponto mais alto do
+  chão debaixo dela, sobre um afloramento de pedra que desce até abaixo do ponto mais baixo, e as cabines andam no
+  relógio da espuma (`CityWorld.foams`). A cidade cobre a tela até o terreno real entrar
+  (`CityWorld.sceneReady`, `.city-cover` em `CityApp.vue`).
+
+## Montanhas de trás rebaixadas (16/11/2026)
+
+Pedido do dono: as montanhas atrás da grade escondiam o Cristo. `region.soften` (`terrainData.js`) vale atrás de uma
+linha (`edge`, com `blend` de mistura) e achata o que passa de `knee` numa curva suave (`tanh`) até no máximo `cap`, sem
+virar mesa. Ficam de fora os círculos de `keep` (a montanha do Cristo) e os blocos transplantados (Pão e Urca). Em
+`rio-cidade.js`: linha em z −11 da cena, `knee` 1,6 e `cap` 3, perto do topo dos patamares. O teste do corte do maciço
+(`crop.keep`) roda sem o rebaixamento, porque agora o maciço fica baixo de propósito.
+
+Depois (mesmo dia), a montanha do Cristo e o Pão de Açúcar também baixaram: `region.squash` (círculos com `knee` e
+`cap`, mesma curva suave) achata a montanha do Cristo até 6,5, e cada bloco de `transplant` aceita `scale` (Pão 0,55, Urca
+0,6). O Cristo e as estações do bondinho se assentam nos topos novos sozinhos.
+
 ## Onde ver e como conferir
 
 - **Página de teste:** `/terrain.html` (no `npm run dev` e no site publicado; sem link no app, `noindex`). Tem as vistas dos marcos, a sobreposição das zonas bloqueadas e o toque num lote para assentar um prédio.

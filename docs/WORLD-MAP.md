@@ -18,7 +18,7 @@ O [índice de dossiês](research/regioes/README.md) reúne a pesquisa dos oito d
 
 Execute `npm ci` e `npm run dev:worker`. Abra `http://127.0.0.1:8787/world.html`. O comando `npm run test:worker` cobre viagens, persistência e carteira no simulador local.
 
-O protótipo anterior continua disponível com Vite (`npm run dev`) ou FastAPI (`python -m backend`). Nele, o globo demonstra a progressão sequencial e o modo debug abre com **D** ou `?debug=1`.
+Para usar o Vite com HMR, execute `npm run dev` após abrir o Worker local em `http://127.0.0.1:8787/` para receber o cookie. O modo regional também usa o Worker via proxy. O modo debug abre com **D** ou `?debug=1`.
 
 ## Arquivos
 
@@ -35,7 +35,7 @@ O protótipo anterior continua disponível com Vite (`npm run dev`) ou FastAPI (
 | `src/world/monuments.js` | Os 8 monumentos low poly construídos em código (caixas, cilindros, cones), nítidos, de 300 a 2.500 triângulos e poucos KB. |
 | `src/world/progress.js` | Progresso em `localStorage` (`unlock`, `complete`, `reset`, mais funções puras de fusão). |
 | `src/world/progressSync.js` | Sincronização local-first com o backend. |
-| `backend/world.py` | `GET` e `PUT /api/world/progress` (SQLite). |
+| `worker/demo.js` | Progresso regional e viagens persistidos por sessão no Durable Object. |
 | `src/components/WorldMap.vue` | Componente: monta a cena, recebe o progresso por props, emite eventos e tem o painel de debug. |
 | `src/components/WorldMapHud.vue` | Ajudas de navegação por cima do canvas: etiqueta do destino, seta de borda, controles da câmera e aviso de carga dos modelos. Chega num pacote à parte, depois que o globo está pronto. |
 | `src/WorldApp.vue`, `world.html` | Página que conecta o globo às cidades no Worker e mantém a simulação no protótipo local. |
@@ -164,32 +164,30 @@ O build copia cada GLB para `dist/models/world/v/<id>.<hash>.glb`, com o hash do
 
 | Caminho | Cache | Quem serve |
 |---|---|---|
-| `/models/world/v/*` | um ano, `immutable` | Cloudflare (`public-fifones/_headers`) e FastAPI (`backend/app.py`) |
-| `/models/world/models.json`, `manifest.json` | `no-cache` | os dois |
-| `/models/world/<id>.glb` | como antes (uma hora no Cloudflare) | os dois; a cidade (`CityWorld.js`) usa este caminho |
+| `/models/world/v/*` | um ano, `immutable` | Cloudflare Worker |
+| `/models/world/models.json`, `manifest.json` | `no-cache` | Worker e Vite |
+| `/models/world/<id>.glb` | como antes (uma hora no Cloudflare) | Worker; a cidade (`CityWorld.js`) usa este caminho |
 
 Numa visita repetida, nenhum modelo gera requisição. Um modelo trocado muda de nome no build seguinte, então não há espera pelo cache vencer. No `npm run dev`, o Vite responde `models.json` apontando para os arquivos de origem. Se `models.json` faltar (build antigo), o globo usa `manifest.json` e o caminho de sempre.
 
 ## Progresso e sincronização
 
-- O progresso vive no `localStorage` e a tela nunca espera a rede.
-- Quando a página roda em endereço local (o backend só aceita acesso local), `src/world/progressSync.js` envia o progresso ao FastAPI em segundo plano: `PUT /api/world/progress` junta o que o navegador mandou ao que está guardado e devolve o resultado. O progresso só avança.
-- `epoca` conta os resets. Entre épocas diferentes vence a mais nova, então um reset num navegador vale no servidor e nos outros navegadores.
-- No site publicado não há sincronização nem requisições à API.
+- Em modo regional, produção e Vite consultam o estado do Worker. O servidor valida desbloqueios, viagens e construções. O PUT antigo de progresso não altera o estado regional.
+- O protótipo sequencial em `localStorage` é um caminho de compatibilidade para ambientes sem o contrato regional. Ele não libera cidades no Worker.
 
 ## Testes e ferramentas
 
 | Comando | O que faz |
 |---|---|
 | `npm test` | progresso, fusão, sincronização, lat/lon, terra/mar, geometria |
-| `pytest tests -q` | backend, incluindo `tests/test_world.py` |
-| `npm run test:world` | ponta a ponta com o backend real, dois navegadores e uma tela de celular |
+| `npm run test:worker` | rotas do Worker, incluindo viagens, progresso e isolamento de sessão |
+| `npm run test:world` | navegação do globo às cidades da Ilha e do Rio e retorno, com Worker local em modo de teste |
 | `npm run perf:world` | mede a abertura num celular médio simulado (`docs/WORLD-PERF.md`) |
 | `npm run perf:world-frame` | mede o custo por quadro com a cena montada: quadros por segundo por software, CPU do tick, draws e triângulos |
 | `node tools/check-world-models.mjs` | orçamento de triângulos, tamanho e textura dos GLB |
 | `node tools/optimize-world-models.mjs <glb> <id>` | compacta um GLB e o grava na pasta pública |
 
-`npm run test:world`, `npm run perf:world` e `npm run perf:world-frame` pedem `npm run build` antes. Em sessão na nuvem, prefixe com `CITYOU_CHROME=/opt/pw-browsers/chromium`.
+`npm run perf:world` e `npm run perf:world-frame` pedem `npm run build` antes. Para o teste dos pilotos, inicie um Worker com `npx wrangler dev --port 8883 --var CITYOU_TEST_OPEN_REGIONS:1`. Em sessão na nuvem, prefixe com `CITYOU_CHROME=/opt/pw-browsers/chromium`.
 
 Os prompts do Tripo para os 8 modelos estão em `docs/TRIPO-PROMPTS.md`.
 

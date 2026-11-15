@@ -1,7 +1,9 @@
-// Página de apresentação: animações de entrada, demonstração do ciclo do jogo e a janela de entrar / criar conta.
+// Página de apresentação: palavra que gira, rabiscos que se desenham, diagrama vivo, demonstração do ciclo do jogo,
+// abas das áreas e a janela de entrar / criar conta.
 // Sem framework e sem biblioteca de animação: CSS, IntersectionObserver e um pouco de estado.
 import './landing.css'
-import { clearCache, safeNext, topWindow } from '../fifones/api.js'
+import './loop.css'
+import { ACCOUNTS_INACTIVE_NOTICE, clearCache, safeNext, topWindow } from '../fifones/api.js'
 
 // Sessão vencida com a cidade ou o mapa abertos no painel: o `pageGate` manda o quadro para cá. A entrada abre na
 // janela principal e volta depois para a aba do painel em que a pessoa estava (`next` validado por `safeNext`).
@@ -33,29 +35,71 @@ for (const group of new Set($$('[data-reveal]').map(element => element.parentEle
   })
 }
 
-// --- Abertura: a moldura e as etiquetas acompanham o ponteiro ---
-const stage = $('[data-tilt]')
-if (stage && !reduced && matchMedia('(hover: hover) and (pointer: fine)').matches) {
-  const frame = $('.hero-frame', stage), chips = $$('.chip', stage)
-  let pending = 0
-  stage.addEventListener('pointermove', (event) => {
-    cancelAnimationFrame(pending)
-    pending = requestAnimationFrame(() => {
-      const box = stage.getBoundingClientRect()
-      const x = (event.clientX - box.left) / box.width - 0.5, y = (event.clientY - box.top) / box.height - 0.5
-      frame.style.setProperty('--tilt-x', `${(-y * 5).toFixed(2)}deg`)
-      frame.style.setProperty('--tilt-y', `${(x * 7).toFixed(2)}deg`)
-      for (const chip of chips) {
-        const depth = Number(chip.dataset.depth)
-        chip.style.setProperty('--px', `${(x * depth).toFixed(1)}px`)
-        chip.style.setProperty('--py', `${(y * depth).toFixed(1)}px`)
-      }
+// --- Rabiscos: o sublinhado do topo se desenha logo; os outros, quando o título entra na tela (uma vez só) ---
+const drawn = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    if (!entry.isIntersecting) continue
+    entry.target.classList.add('is-drawn')
+    drawn.unobserve(entry.target)
+  }
+}, { rootMargin: '0px 0px -25% 0px' })
+for (const scribble of $$('.scribble')) {
+  if (scribble.closest('.hero')) setTimeout(() => scribble.classList.add('is-drawn'), reduced ? 0 : 900)
+  else drawn.observe(scribble)
+}
+
+// --- Diagrama vivo: cada cartão anda com o ponteiro na sua profundidade (eixos trocados, como na referência) ---
+const diagram = $('[data-diagram]')
+if (diagram) {
+  for (const node of $$('[data-depth]', diagram)) node.style.setProperty('--d', `${node.dataset.depth}px`)
+  if (!reduced && matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    const hero = $('[data-hero]')
+    let pending = 0
+    hero.addEventListener('pointermove', (event) => {
+      cancelAnimationFrame(pending)
+      pending = requestAnimationFrame(() => {
+        diagram.style.setProperty('--mx', ((event.clientX / innerWidth) - 0.5).toFixed(3))
+        diagram.style.setProperty('--my', ((event.clientY / innerHeight) - 0.5).toFixed(3))
+      })
+    })
+    hero.addEventListener('pointerleave', () => { diagram.style.setProperty('--mx', 0); diagram.style.setProperty('--my', 0) })
+  }
+  // Vinheta em laço (src/landing/loop.js, com o GSAP): concluir → moeda voa → saldo sobe → prédio pousa no lote. Carrega
+  // depois da página pronta e da entrada dos cartões, num pacote à parte, só em tela larga e sem movimento reduzido;
+  // sem ela, o diagrama mostra o estado final (caixinhas marcadas, 60 moedas, o Art Déco no lote 1).
+  if (!reduced && matchMedia('(min-width: 901px)').matches) {
+    const begin = () => setTimeout(() => {
+      import('./loop.js').then(({ startLoop }) => startLoop(diagram, { toggle: $('[data-loop-toggle]') })).catch(() => {})
+    }, 2900)
+    if (document.readyState === 'complete') begin()
+    else addEventListener('load', begin, { once: true })
+  }
+}
+
+// --- Abas das áreas da vida (setas do teclado mudam de aba) ---
+const tabs = $('[data-tabs]')
+if (tabs) {
+  const buttons = $$('[role="tab"]', tabs)
+  const select = (button, focus) => {
+    for (const other of buttons) {
+      const on = other === button
+      other.setAttribute('aria-selected', String(on))
+      other.tabIndex = on ? 0 : -1
+      document.getElementById(other.getAttribute('aria-controls')).hidden = !on
+    }
+    if (focus) button.focus()
+  }
+  buttons.forEach((button, index) => {
+    button.addEventListener('click', () => select(button))
+    button.addEventListener('keydown', (event) => {
+      const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key]
+      if (step) { event.preventDefault(); select(buttons[(index + step + buttons.length) % buttons.length], true) }
     })
   })
-  stage.addEventListener('pointerleave', () => {
-    for (const element of [frame, ...chips]) for (const name of ['--tilt-x', '--tilt-y', '--px', '--py']) element.style.removeProperty(name)
-  })
 }
+
+const year = $('[data-year]')
+if (year) year.textContent = new Date().getFullYear()
 
 // --- Faixa dos prédios: a lista é duplicada para o movimento não ter emenda ---
 const track = $('.marquee-track')
@@ -195,7 +239,7 @@ form.addEventListener('submit', async (event) => {
   submit.textContent = copy[mode].busy
   try {
     const response = await fetch(`/api/auth/${mode}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1' }, body: JSON.stringify(data),
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Cityou-Request': '1' }, body: JSON.stringify(data),
     })
     const result = await response.json().catch(() => ({}))
     if (response.ok) { clearCache(); location.assign(nextPath); return }
@@ -225,7 +269,8 @@ function applyStatus(status) {
   if (accounts) { if (params.has('entrar')) openAuth('login'); return }
   $$('[data-auth="signup"]').forEach((button) => { button.textContent = status.user ? 'Abrir meu Cityou' : 'Abrir a demonstração' })
   $$('[data-auth="login"]').forEach((button) => { button.hidden = true })
-  if (!status.user) $('.hero-note').textContent = 'As contas ainda não estão ativas: por enquanto o que você fizer fica guardado neste navegador.'
+  // O aviso não fica mais no topo da página: vai no modal e no topo da demonstração (/app), com o mesmo texto.
+  if (!status.user) { const notice = $('[data-accounts-notice]'); notice.textContent = ACCOUNTS_INACTIVE_NOTICE; notice.hidden = false }
 }
 fetch('/api/auth/status', { headers: { Accept: 'application/json' } })
   .then(response => (response.ok ? response.json() : {}))

@@ -4,7 +4,7 @@ import { DOMAINS, RULES } from '../shared/game/rules.js'
 import { ProofError, parseProof, sha256Hex } from '../shared/game/proof.js'
 import { buildSummary } from '../shared/game/summary.js'
 import { kindForDomain, stageFor } from '../shared/game/buildings.js'
-import { newCity, newTown, withoutHeadquarters, withoutRetired, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
+import { newCity, newTown, withoutStarterBuildings, withoutRetired, snapshot, normalizeAction, applyCityAction, recordChange, validRequestId, countsForTravel } from './city.js'
 import { HttpError, json, errorResponse, readJsonObject } from './http.js'
 import { dateFormatter, isDate, capOf, capMessage } from './records.js'
 import { agendaMethods } from './agenda.js'
@@ -75,10 +75,6 @@ const routes = [
   [/^\/api\/personal\/tasks$/, { GET: 'tasks', POST: 'addTask' }],
   [/^\/api\/personal\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/personal\/proofs\/([a-f0-9-]{36})\/(\d{4}-\d{2}-\d{2})\/photo$/, { GET: 'proofPhoto' }],
-  // Apelidos de /api/personal/tasks* por um deploy, para abas abertas com o bundle antigo (etapa 2). Saem na etapa 6.
-  [/^\/api\/workspace\/projects$/, { GET: 'projectsList' }],
-  [/^\/api\/workspace\/tasks$/, { GET: 'tasks' }],
-  [/^\/api\/workspace\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/city$/, { GET: 'city' }],
   [/^\/api\/city\/actions$/, { POST: 'cityAction' }],
   [/^\/api\/rewards\/sync$/, { POST: 'syncRewards' }],
@@ -145,11 +141,6 @@ async function reservedAccount(db, key) {
 }
 
 export async function demoApi(request, env, url, user = null, timing = null) {
-  // Apelido para abas abertas com o bundle antigo da cidade, que ainda pedem os sinais de atividade do Fifones.
-  // A cidade nova não pede mais (etapa 2). Sai na etapa 6.
-  if (url.pathname === '/api/workspace/activity' && request.method === 'GET') {
-    return json({ activity: null })
-  }
   const route = routes.find(([pattern]) => pattern.test(url.pathname))
   if (!route) throw new HttpError(404, 'Rota não encontrada.')
   if (!Object.hasOwn(route[1], request.method)) throw new HttpError(405, 'Método não permitido.')
@@ -508,7 +499,7 @@ export class DemoSession {
   regionalCity(location, home) {
     if (location === START) return home
     const { credits, earned, reward_count, history } = home
-    const region = withoutHeadquarters(this.read('regional-city', location) ?? newTown(location), location)
+    const region = withoutStarterBuildings(this.read('regional-city', location) ?? newTown(location))
     return { ...region, credits, earned, reward_count, history }
   }
 

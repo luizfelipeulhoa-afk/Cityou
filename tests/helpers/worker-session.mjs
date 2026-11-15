@@ -1,5 +1,5 @@
 // Ajudante dos testes do Worker (padrão de tests/worker-tasks.test.mjs): D1 local do harness, migrações aplicadas e
-// uma "sessão" por cookie, com Origin e X-Fifones-City nas escritas e conferência do status.
+// uma "sessão" por cookie, com Origin e X-Cityou-Request nas escritas e conferência do status.
 import { before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -31,7 +31,7 @@ export function session(target = harness) {
   const cookie = sessionCookie(new URL(ORIGIN)).split(';')[0]
   return async (path, { method = 'GET', body, status = 200 } = {}) => {
     const headers = { Cookie: cookie }
-    if (method !== 'GET') Object.assign(headers, { Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' })
+    if (method !== 'GET') Object.assign(headers, { Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json' })
     const response = await target.fetch(ORIGIN + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
     const result = await response.json()
     assert.equal(response.status, status, `${method} ${path}: ${JSON.stringify(result)}`)

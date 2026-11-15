@@ -9,14 +9,16 @@ test('cidade: construção usa o catálogo e respeita ocupação, terreno e sald
   const build = (kind, x, y) => applyCityAction(city, normalizeAction({
     type: 'build', kind, x, y, request_id: crypto.randomUUID(), expected_revision: city.revision,
   }))
-  assert.throws(() => build('home', 8, 8), { status: 409 })
+  // Sem praça desde 16/11/2026: a ocupação se confere numa rua de entrada.
+  const seed = city.placements.find(item => item.id.startsWith('seed-road-'))
+  assert.throws(() => build('home', seed.x, seed.y), { status: 409 })
   assert.throws(() => build('tasks', 16, 16), { status: 422 }) // 2x2 passaria da borda do terreno
   build('home', 5, 5)
   assert.equal(city.credits, 30)
   assert.equal(city.revision, 1)
   assert.throws(() => build('stunt', 6, 5), { status: 422 })
   assert.equal(city.credits, 30)
-  assert.equal(city.placements.length, 8)
+  assert.equal(city.placements.length, 6) // 5 ruas de entrada + a casa (sem Sede nem praça desde 16/11/2026)
 })
 
 test('nível: XP acumulado bate com a tabela de docs/GAME-DESIGN.md', () => {
@@ -231,16 +233,22 @@ test('automatic roads reject routes beyond 30 tiles and leave the island roadles
   assert.deepEqual(quote.road, { tiles: [], cost: 0 })
 })
 
-import { newTown, withoutHeadquarters } from '../worker/city.js'
+import { newTown, withoutStarterBuildings } from '../worker/city.js'
 
-test('Rio sem a Sede Fifones: cidade nova sem sede e cidade salva antes perde a sede na leitura', () => {
+test('cidade sem prédio inicial (16/11/2026): nem Sede nem praça na cidade nova, e a salva perde os dois na leitura', () => {
+  for (const location of ['cristo-redentor', 'petra']) {
+    const town = newTown(location)
+    assert.equal(town.placements.some(item => ['headquarters', 'plaza'].includes(item.kind)), false, location)
+    assert.ok(town.placements.some(item => item.id.startsWith('seed-road-')), `${location} segue com as ruas de entrada`)
+  }
   const rio = newTown('cristo-redentor')
-  assert.equal(rio.placements.some(item => item.kind === 'headquarters'), false)
-  assert.ok(rio.placements.some(item => item.kind === 'plaza'))
-  const saved = { ...rio, placements: [...rio.placements, { id: 'core-headquarters', kind: 'headquarters', x: 8, y: 7, rotation: 0, level: 1 }] }
-  assert.equal(withoutHeadquarters(saved, 'cristo-redentor').placements.some(item => item.kind === 'headquarters'), false)
-  // Cidades antigas (não piloto) mantêm a sede.
-  assert.ok(newTown('petra').placements.some(item => item.kind === 'headquarters'))
+  const saved = { ...rio, placements: [...rio.placements,
+    { id: 'core-headquarters', kind: 'headquarters', x: 8, y: 7, rotation: 0, level: 1 },
+    { id: 'core-plaza', kind: 'plaza', x: 8, y: 8, rotation: 0, level: 1 }] }
+  const cleaned = withoutStarterBuildings(saved)
+  assert.equal(cleaned.placements.some(item => ['headquarters', 'plaza'].includes(item.kind)), false)
+  assert.equal(cleaned.placements.length, rio.placements.length)
+  assert.equal(withoutStarterBuildings(rio), rio, 'sem prédio inicial, a cidade volta igual')
 })
 
 import { HILL_STEP, hillLevelAt, previewRoadPath, roadPath, startingPromenade, tileHeight, usesAutoRoad } from '../shared/game/city-layout.js'

@@ -22,6 +22,9 @@ export function topWindow() {
   return window
 }
 
+/** Aviso de quando as contas ainda não estão ativas: o mesmo texto no modal da landing e no topo da demonstração (/app). */
+export const ACCOUNTS_INACTIVE_NOTICE = 'As contas ainda não estão ativas: por enquanto o que você fizer fica guardado neste navegador.'
+
 /** Abre uma aba do painel, na página avulsa ou dentro do painel. Devolve false se a aba não existe. */
 export function goToPanel(tab) {
   if (!PANEL_TABS.includes(tab)) return false
@@ -58,7 +61,7 @@ export function clearCache() {
 export async function signOut() {
   let response
   try {
-    response = await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1' }, body: '{}' })
+    response = await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Cityou-Request': '1' }, body: '{}' })
   } catch { throw new ApiError('Sem conexão. Você continua dentro da conta.', 0) }
   if (!response.ok) throw new ApiError('Não foi possível sair agora. Tente de novo.', response.status)
   clearCache()
@@ -101,7 +104,7 @@ export async function api(path, method = 'GET', body, { retry = false, keepalive
         signal: controller.signal,
         cache: 'no-store',
         keepalive,
-        headers: { Accept: 'application/json', ...(method !== 'GET' ? { 'Content-Type': 'application/json', 'X-Fifones-City': '1' } : {}) },
+        headers: { Accept: 'application/json', ...(method !== 'GET' ? { 'Content-Type': 'application/json', 'X-Cityou-Request': '1' } : {}) },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       })
       const data = await response.json().catch(() => null)

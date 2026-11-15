@@ -4,7 +4,8 @@ import { devices } from 'playwright'
 import { chromium, browserOptions } from './runtime.mjs'
 import plans from '../shared/game/city-reference-plans.json' with { type: 'json' }
 
-const base = new URL(process.argv[2] || 'http://127.0.0.1:8883')
+const base = new URL(process.argv.slice(2).find(arg => !arg.startsWith('--')) || 'http://127.0.0.1:8883')
+const navigationOnly = process.argv.includes('--navigation-only')
 const browser = await chromium.launch({
   ...browserOptions,
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
@@ -15,7 +16,7 @@ async function api(page, path, input) {
   const response = await page.evaluate(async ({ path, input }) => {
     const response = await fetch(path, input ? {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Fifones-City': '1' },
+      headers: { 'Content-Type': 'application/json', 'X-Cityou-Request': '1' },
       body: JSON.stringify(input),
     } : undefined)
     return { ok: response.ok, status: response.status, data: await response.json() }
@@ -72,6 +73,17 @@ try {
       }
       const initial = await api(page, '/api/city?local=' + region)
       assert.deepEqual([initial.grid_min, initial.grid_max, initial.credits], [-8, 24, 5000])
+      async function returnToGlobe() {
+        await page.getByRole('link', { name: 'Voltar ao globo' }).click()
+        await page.waitForURL(url => /\/world(?:\.html)?$/.test(url.pathname) && url.searchParams.get('de') === region)
+        assert.deepEqual(errors, [])
+      }
+      if (navigationOnly) {
+        await returnToGlobe()
+        console.log(JSON.stringify({ region, mobile, opened: true, returned: true }))
+        continue
+      }
+
       let revision = initial.revision
       const action = async input => {
         const city = await api(page, '/api/city/actions?local=' + region, {
@@ -133,9 +145,7 @@ try {
         return { p75FrameMs: Math.round(gaps[44]), ...engine.stats() }
       })
       await page.screenshot({ path: '.verification/' + region + '-full.png' })
-      await page.getByRole('link', { name: 'Voltar ao globo' }).click()
-      await page.waitForURL(/world.*de=/)
-      assert.deepEqual(errors, [])
+      await returnToGlobe()
       console.log(JSON.stringify({ region, buildings: newBuildings.length, credits: state.credits, interiorMs: interiorTimes,
         p75FrameMs: render.p75FrameMs, drawCalls: render.drawCalls, triangles: render.triangles }))
     } finally { await context.close() }
