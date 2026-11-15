@@ -37,14 +37,13 @@ test('sem base calórica não há plano; com ela, o plano segue a meta e os dias
   }
 })
 
-test('triagem de esforço com algum sim: sem plano automático, mas registra treino', async () => {
+test('triagem de esforço com algum sim: o plano sai igual, com o aviso de procurar um médico', async () => {
   const send = session()
   await ready(send)
   const view = await send('/api/personal/training/setup', { method: 'PUT', body: { ...SETUP, readiness: { ...OK, exertion_symptoms: true } } })
-  assert.deepEqual([view.gate.state, view.plan], ['see_professional', null])
-  await send('/api/personal/training/sessions', { method: 'POST', body: workout(), status: 201 })
+  assert.deepEqual([view.gate.state, view.gate.caution, view.plan.days.length], ['ok', true, 3])
   const back = await send('/api/personal/training/setup', { method: 'PUT', body: SETUP })
-  assert.equal(back.gate.state, 'ok')
+  assert.equal(back.gate.caution, false)
 })
 
 test('menor de 18 e gestante não recebem plano; sinal de risco troca perda por manutenção e pede cuidado', async () => {

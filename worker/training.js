@@ -23,7 +23,7 @@ export const MAX_REPS = 300 // a prancha anota segundos como repetições
 /**
  * Para quem o plano pode ser sugerido, a partir da base calórica (a triagem e a meta ficam lá, sem segunda fonte):
  * profile (falta preencher a Alimentação) | not_available (menor de 18, acima de 80, gestante: procurar um profissional) | ok.
- * Depois, `trainingView` troca ok por see_professional quando a triagem de esforço do setup tem algum "sim".
+ * Depois, `trainingView` acrescenta `caution` quando a triagem de esforço do setup tem algum "sim" (o plano sai igual).
  * Com sinal de risco na triagem, a meta de perda vira manutenção, como na base calórica, e `care` pede um aviso na tela.
  */
 export function trainingGate(nutrition) {
@@ -146,8 +146,8 @@ export const trainingMethods = {
     const today = todayInSaoPaulo()
     const setup = this.read(SETUP, 'setup')
     let gate = trainingGate(this.nutritionView())
-    // Triagem de esforço com algum "sim": sem treino automático, indica avaliação (o registro de treinos continua).
-    if (gate.state === 'ok' && setup && Object.values(setup.readiness ?? {}).some(Boolean)) gate = { ...gate, state: 'see_professional' }
+    // Triagem de esforço com algum "sim": o plano sai igual, com o aviso para procurar um médico antes (decisão do dono).
+    gate = { ...gate, caution: Boolean(setup && Object.values(setup.readiness ?? {}).some(Boolean)) }
     const plan = gate.state === 'ok' && setup
       ? suggestPlan({ days: setup.days_per_week, experience: setup.experience, equipment: setup.equipment, goal: gate.goal })
       : null

@@ -3,12 +3,13 @@
 //
 // É SUGESTÃO, não prescrição. Cada regra cita a fonte em SOURCES (artigos do pacote "Cityou - Evidências científicas
 // de musculação", 15/11/2026, guardado no projeto do claude.ai "CityouApp", pasta treino/). O que é escolha de produto e
-// não vem de estudo está marcado como tal: o passo de 2,5% na carga, os modelos de divisão e a escolha dos exercícios.
+// não vem de estudo está marcado como tal: a escolha dos exercícios de cada dia (o catálogo).
 
 export const EVIDENCE_PENDING = false
 export const SOURCES = {
   iversen2021: { ref: 'Iversen VM et al., 2021. No Time to Lift? Designing Time-Efficient Training Programs for Strength and Hypertrophy. Sports Med 51:2079-95 (PMC8449772).', note: 'mínimo de 4 séries semanais por grupo muscular, faixa de 6 a 15 RM; diretrizes: 2 a 4 séries por grupo, 2 a 3 vezes por semana (4 a 12 séries semanais) para quem não treina ou treina há pouco' },
-  iusca2021: { ref: 'Schoenfeld BJ et al., 2021. Resistance Training Recommendations to Maximize Muscle Hypertrophy in an Athletic Population: Position Stand of the IUSCA. Int J Strength Cond 1(1).', note: 'cerca de 10 séries por músculo por semana como mínimo geral para otimizar a hipertrofia em quem treina; até ~10 por sessão; hipertrofia parecida numa faixa ampla de cargas; uma vez por semana basta em volume baixo a moderado' },
+  iusca2021: { ref: 'Schoenfeld BJ et al., 2021. Resistance Training Recommendations to Maximize Muscle Hypertrophy in an Athletic Population: Position Stand of the IUSCA. Int J Strength Cond 1(1).', note: 'cerca de 10 séries por músculo por semana como mínimo geral para otimizar a hipertrofia em quem treina; até ~10 por sessão; hipertrofia parecida numa faixa ampla de cargas; uma vez por semana basta em volume baixo a moderado; descanso de pelo menos 2 min nos multiarticulares e de 60 a 90 s nos uniarticulares' },
+  acsm2009: { ref: 'Ratamess NA et al., 2009. American College of Sports Medicine position stand. Progression models in resistance training for healthy adults. Med Sci Sports Exerc 41:687-708.', note: 'subir a carga de 2% a 10% quando a pessoa passa uma ou duas repetições do alvo' },
   refalo2022: { ref: 'Refalo MC et al., 2022. Influence of Resistance Training Proximity-to-Failure on Skeletal Muscle Hypertrophy. Sports Med 53:649-65 (PMC9935748).', note: 'treinar até a falha teve vantagem trivial sobre não ir à falha: parar com repetições sobrando é aceitável' },
   singer2024: { ref: 'Singer A et al., 2024. Give it a rest: inter-set rest interval duration and muscle hypertrophy. Front Sports Act Living 6:1429789 (PMC11349676).', note: 'pequeno benefício com descanso acima de 60 s; sem diferença perceptível acima de 90 s' },
   plotkin2022: { ref: 'Plotkin D et al., 2022. Progressive overload without progressing load? PeerJ 10:e14142 (PMC9528903).', note: 'progredir por repetições ou por carga são estratégias viáveis (dupla progressão)' },
@@ -72,8 +73,8 @@ export const EXERCISES = [
 ]
 export const EXERCISE_BY_ID = Object.fromEntries(EXERCISES.map(exercise => [exercise.id, exercise]))
 
-// Divisão por dias na semana (escolha de produto; evangelista2021 e iusca2021: com o mesmo volume semanal, a frequência
-// muda pouco): 1 a 3 dias, corpo inteiro; 4, superior e inferior duas vezes; 5, superior, inferior, empurrar, puxar,
+// Divisão por dias na semana (evangelista2021 e iusca2021: com o mesmo volume semanal, a frequência muda pouco, então
+// a divisão acompanha os dias disponíveis e o teto de ~10 séries por músculo por sessão): 1 a 3 dias, corpo inteiro; 4, superior e inferior duas vezes; 5, superior, inferior, empurrar, puxar,
 // pernas; 6, empurrar, puxar e pernas duas vezes. Com 1 dia, a tela lembra que a OMS recomenda 2 ou mais (who2020).
 const DAY_TEMPLATES = {
   fullA: ['Corpo inteiro A', ['squat', 'h_push', 'v_pull', 'hinge', 'lateral', 'core']],
@@ -97,7 +98,7 @@ export const SPLITS = {
 // para perder gordura (na perda, ele preserva a massa livre de gordura: deficit); quem muda é a alimentação.
 // Séries por exercício (iversen2021, iusca2021): quem começa fica perto do mínimo de 4 séries semanais por grupo; quem já
 // treina sobe em direção às ~10 do IUSCA, conforme os dias. Repetições dentro dos 6 a 15 RM (iversen2021, iusca2021).
-// Descanso acima de 60 s, sem ganho perceptível depois de 90 s (singer2024); o composto descansa mais pelo esforço.
+// Descanso: 2 min nos multiarticulares e 90 s nos uniarticulares (iusca2021; singer2024: acima de 90 s, pouca diferença).
 // Parar com 1 a 3 repetições sobrando (refalo2022).
 const SETS = { beginner: [2, 3], intermediate: [3, 4], advanced: [3, 4] } // piso e teto de séries por exercício
 const REPS = { compound: [6, 12], isolation: [10, 15] }
@@ -169,7 +170,7 @@ export function topSet(sets) {
 
 /**
  * Próxima carga sugerida (dupla progressão: plotkin2022, repetições e carga são caminhos viáveis): se todas as séries
- * chegaram ao topo da faixa, sobe cerca de 2,5% (escolha de produto, arredondado a 0,5 kg, no mínimo 0,5 kg); se alguma
+ * chegaram ao topo da faixa, sobe cerca de 2,5% (o passo menor da faixa de 2% a 10% do acsm2009, arredondado a 0,5 kg, no mínimo 0,5 kg); se alguma
  * ficou abaixo do piso, mantém; senão mantém e busca mais repetições. Sem carga (exercício com o corpo), mais repetições.
  */
 export function nextLoad(sets, [low, high]) {
@@ -194,10 +195,13 @@ export function weeklySetsByGroup(plan) {
   return totals
 }
 
-// Triagem de esforço antes de sugerir treino (guia do pacote de evidências, seção 1: dor no peito no esforço, desmaio ou
-// falta de ar fora do comum pedem avaliação, sem treino automático). Texto a revisar pelo dono antes de publicar.
+// Triagem de esforço antes de sugerir treino (guia do pacote de evidências, seção 1). Decisão do dono (15/11/2026): o
+// plano sai mesmo com "sim", junto com o aviso para procurar um médico antes de começar. Texto a revisar pelo dono.
 export const READINESS_QUESTIONS = {
   exertion_symptoms: 'Ao fazer esforço, você sente dor ou aperto no peito, tontura forte, desmaio ou falta de ar fora do comum?',
   medical_restriction: 'Algum médico já disse para você não fazer exercício ou só fazer com acompanhamento?',
   recent_injury: 'Você tem uma lesão recente ou uma dor que piora quando faz exercício?',
 }
+
+// Aviso fixo da tela (decisão do dono, 15/11/2026).
+export const DISCLAIMER = 'Tudo aqui é sugestão com base em estudos científicos, não orientação profissional. Antes de começar, o ideal é passar por um médico; se sentir dor, pare.'

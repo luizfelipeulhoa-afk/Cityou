@@ -4,7 +4,7 @@
 // que o sugerido); o servidor calcula o volume total, a melhor série, o 1RM estimado e a próxima carga sugerida.
 import { computed, onMounted, reactive, ref } from 'vue'
 import { addWorkout, editWorkout, loadTraining, removeWorkout, saveTrainingSetup } from '../fifones/api.js'
-import { EXERCISES, EXERCISE_BY_ID, READINESS_QUESTIONS, SOURCES } from '../../shared/game/training.js'
+import { DISCLAIMER, EXERCISES, EXERCISE_BY_ID, READINESS_QUESTIONS, SOURCES } from '../../shared/game/training.js'
 
 const GOAL_NAMES = { maintain: 'manter o peso', fat_loss: 'perder gordura', lean_preserve: 'perder gordura mantendo músculo', muscle_gain: 'ganhar massa' }
 const EXPERIENCE = { beginner: 'Começando agora (menos de 6 meses)', intermediate: 'Treino há 6 meses a 2 anos', advanced: 'Treino há mais de 2 anos' }
@@ -132,8 +132,7 @@ onMounted(() => run(loadTraining))
       <p v-else-if="gate.state === 'not_available'" class="tp-muted">{{ NOT_AVAILABLE[gate.reason] }} Você ainda pode registrar os seus treinos aqui.</p>
       <template v-else>
         <p v-if="gate.care" class="tp-note">O treino é para fazer bem, não para compensar o que você comeu. Se ele estiver virando obrigação ou castigo, vale conversar com um profissional de saúde.</p>
-        <div v-if="gate.state === 'see_professional' && !editingSetup" class="tp-note">Pelas suas respostas, o app não monta um treino automático: antes, vale conversar com um médico ou um profissional de educação física. Você pode continuar registrando os seus treinos aqui. <button class="tp-link" @click="editingSetup = true">Rever respostas</button></div>
-        <form v-else-if="!view.setup || editingSetup" class="tp-form" @submit.prevent="saveSetup">
+        <form v-if="!view.setup || editingSetup" class="tp-form" @submit.prevent="saveSetup">
           <p class="tp-muted">Sua meta na Alimentação é <strong>{{ GOAL_NAMES[gate.goal] }}</strong>. Conte como você treina:</p>
           <div class="tp-columns">
             <label>Dias de treino por semana<select v-model.number="setupForm.days_per_week"><option v-for="d in 6" :key="d" :value="d">{{ d }} {{ d === 1 ? 'dia' : 'dias' }}</option></select></label>
@@ -154,7 +153,9 @@ onMounted(() => run(loadTraining))
         </form>
         <template v-else-if="plan">
           <p class="tp-muted">{{ view.setup.days_per_week }} {{ view.setup.days_per_week === 1 ? 'dia' : 'dias' }} por semana · {{ EQUIPMENT[view.setup.equipment] }} · meta: {{ GOAL_NAMES[plan.goal] }}. Pare cada série com {{ plan.rir[0] }} a {{ plan.rir[1] }} repetições ainda sobrando. <button class="tp-link" @click="editingSetup = true">Mudar</button></p>
-          <p class="tp-note">{{ GOAL_NOTES[plan.goal] }}<template v-if="view.setup.days_per_week === 1"> A recomendação da OMS é fortalecer os músculos em 2 ou mais dias por semana: se der, acrescente um dia.</template> É uma sugestão baseada em estudos, não uma prescrição; se sentir dor, pare e procure um profissional.</p>
+          <p v-if="gate.caution" class="tp-caution" role="note"><strong>Procure um médico antes de começar.</strong> Pelas suas respostas sobre esforço e saúde, vale uma avaliação antes de seguir este treino. <button class="tp-link" @click="editingSetup = true">Rever respostas</button></p>
+          <p class="tp-note">{{ DISCLAIMER }}</p>
+          <p class="tp-note">{{ GOAL_NOTES[plan.goal] }}<template v-if="view.setup.days_per_week === 1"> A recomendação da OMS é fortalecer os músculos em 2 ou mais dias por semana: se der, acrescente um dia.</template></p>
           <p class="tp-muted">Séries por semana: <span v-for="(sets, group, i) in view.weekly_sets" :key="group">{{ i ? ' · ' : '' }}{{ group }} {{ sets }}</span></p>
           <div class="tp-days">
             <article v-for="day in plan.days" :key="day.index" class="tp-day">
@@ -265,6 +266,7 @@ onMounted(() => run(loadTraining))
 .tp-total{font-size:13px}
 .tp-total strong{color:var(--peach);font-weight:500}
 .tp-total small{color:#9399ae;font-size:11px}
+.tp-caution{font-size:12px;line-height:1.6;color:#f1d3b8;background:#e8b5a012;border:1px solid #e8b5a033;border-radius:10px;padding:10px 12px;max-width:720px}
 .tp-ready{border:1px solid #ffffff12;border-radius:12px;padding:10px 14px;margin:0;display:flex;flex-direction:column;gap:10px}
 .tp-ready legend{font-size:12px;padding:0 6px}
 .tp-question{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;font-size:12px}

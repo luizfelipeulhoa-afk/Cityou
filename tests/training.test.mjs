@@ -78,7 +78,7 @@ test('próxima carga: sobe quando todas as séries chegam ao topo, mantém abaix
 })
 
 test('toda regra cita uma fonte', () => {
-  for (const key of ['iversen2021', 'iusca2021', 'refalo2022', 'singer2024', 'plotkin2022', 'evangelista2021', 'who2020', 'deficit', 'epley']) {
+  for (const key of ['iversen2021', 'iusca2021', 'refalo2022', 'singer2024', 'plotkin2022', 'evangelista2021', 'who2020', 'deficit', 'acsm2009', 'epley']) {
     assert.ok(SOURCES[key]?.ref && SOURCES[key]?.note, key)
   }
 })
