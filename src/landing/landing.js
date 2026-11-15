@@ -2,7 +2,8 @@
 // abas das áreas e a janela de entrar / criar conta.
 // Sem framework e sem biblioteca de animação: CSS, IntersectionObserver e um pouco de estado.
 import './landing.css'
-import { clearCache, safeNext, topWindow } from '../fifones/api.js'
+import './loop.css'
+import { ACCOUNTS_INACTIVE_NOTICE, clearCache, safeNext, topWindow } from '../fifones/api.js'
 
 // Sessão vencida com a cidade ou o mapa abertos no painel: o `pageGate` manda o quadro para cá. A entrada abre na
 // janela principal e volta depois para a aba do painel em que a pessoa estava (`next` validado por `safeNext`).
@@ -77,14 +78,15 @@ if (diagram) {
     })
     hero.addEventListener('pointerleave', () => { diagram.style.setProperty('--mx', 0); diagram.style.setProperty('--my', 0) })
   }
-  // A carteira do centro sobe a cada pulso que chega (50 a 90, em laço), como moedas caindo.
-  const wallet = $('[data-wallet]', diagram)
-  if (wallet && !reduced) {
-    let coins = 50
-    setTimeout(() => setInterval(() => {
-      coins = coins >= 90 ? 50 : coins + [10, 5, 25][Math.floor(Math.random() * 3)]
-      wallet.textContent = Math.min(coins, 95)
-    }, 1400), 3200)
+  // Vinheta em laço (src/landing/loop.js, com o GSAP): concluir → moeda voa → saldo sobe → prédio pousa no lote. Carrega
+  // depois da página pronta e da entrada dos cartões, num pacote à parte, só em tela larga e sem movimento reduzido;
+  // sem ela, o diagrama mostra o estado final (caixinhas marcadas, 60 moedas, o Art Déco no lote 1).
+  if (!reduced && matchMedia('(min-width: 901px)').matches) {
+    const begin = () => setTimeout(() => {
+      import('./loop.js').then(({ startLoop }) => startLoop(diagram, { toggle: $('[data-loop-toggle]') })).catch(() => {})
+    }, 2900)
+    if (document.readyState === 'complete') begin()
+    else addEventListener('load', begin, { once: true })
   }
 }
 
@@ -281,7 +283,8 @@ function applyStatus(status) {
   if (accounts) { if (params.has('entrar')) openAuth('login'); return }
   $$('[data-auth="signup"]').forEach((button) => { button.textContent = status.user ? 'Abrir meu Cityou' : 'Abrir a demonstração' })
   $$('[data-auth="login"]').forEach((button) => { button.hidden = true })
-  if (!status.user) $('.hero-note').textContent = 'As contas ainda não estão ativas: por enquanto o que você fizer fica guardado neste navegador.'
+  // O aviso não fica mais no topo da página: vai no modal e no topo da demonstração (/app), com o mesmo texto.
+  if (!status.user) { const notice = $('[data-accounts-notice]'); notice.textContent = ACCOUNTS_INACTIVE_NOTICE; notice.hidden = false }
 }
 fetch('/api/auth/status', { headers: { Accept: 'application/json' } })
   .then(response => (response.ok ? response.json() : {}))

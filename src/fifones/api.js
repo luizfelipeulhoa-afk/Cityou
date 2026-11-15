@@ -22,6 +22,9 @@ export function topWindow() {
   return window
 }
 
+/** Aviso de quando as contas ainda não estão ativas: o mesmo texto no modal da landing e no topo da demonstração (/app). */
+export const ACCOUNTS_INACTIVE_NOTICE = 'As contas ainda não estão ativas: por enquanto o que você fizer fica guardado neste navegador.'
+
 /** Abre uma aba do painel, na página avulsa ou dentro do painel. Devolve false se a aba não existe. */
 export function goToPanel(tab) {
   if (!PANEL_TABS.includes(tab)) return false

@@ -126,3 +126,6 @@ body{background:var(--bg)}
   .in-city .nav-pill{--pill-round:12px;background:#1b7778}
 }
 @media(max-width:650px){.in-city .sidebar{display:none}}
+
+/* Aviso da demonstração (contas ainda não ativas): mesmo texto do modal da landing (ACCOUNTS_INACTIVE_NOTICE). */
+.demo-notice{margin:14px clamp(16px,3vw,40px) 0;padding:10px 14px;border-radius:12px;border:1px solid #a9cecc33;background:#a9cecc14;color:#cfe6e4;font-size:12px}

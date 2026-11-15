@@ -1,0 +1,47 @@
+/* Vinheta em laço do diagrama do topo (src/landing/loop.js). Só transform e opacity animam; tudo tem tamanho fixo
+   (o render tem proporção fixa e os lotes são absolutos), então nada empurra o layout. */
+
+/* Render com os lotes por cima. */
+.core-render { position: relative; aspect-ratio: 16 / 10; border-radius: 15px; overflow: hidden; }
+.core-render > img { width: 100%; height: 100%; object-fit: cover; border-radius: 0; }
+.lot { position: absolute; left: var(--lx); top: var(--ly); width: 15%; transform: translate(-50%, -100%); pointer-events: none; }
+.lot img { position: relative; width: 100%; height: auto; border-radius: 0; aspect-ratio: 320 / 288; object-fit: contain; opacity: 0; transform-origin: 50% 100%; }
+.lot-shadow { position: absolute; left: 6%; right: 6%; bottom: -6%; width: 88%; height: auto; opacity: 0; transform-origin: 50% 50%; }
+.lot-shadow ellipse { fill: rgb(40 30 10 / 0.28); }
+.lot.is-built img, .lot.is-built .lot-shadow { opacity: 1; }
+.lot-outline { position: absolute; left: -6%; right: -6%; bottom: -10%; height: 44%; border: 1.5px dashed rgb(255 255 255 / 0.95); border-radius: 50%; opacity: 0; display: grid; place-items: center; }
+.lot-outline span { position: absolute; top: 108%; white-space: nowrap; padding: 2px 7px; border-radius: 99px; background: rgb(255 255 255 / 0.92); color: var(--primary-dark); font-size: 10px; font-weight: 600; }
+.day-chip { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); padding: 5px 12px; border-radius: 99px; background: var(--white); color: var(--black); font-size: 13px; font-weight: 600; box-shadow: var(--shadow-ui); opacity: 0; visibility: hidden; }
+
+/* Moeda em SVG (um símbolo só, #coin em index.html). */
+svg.coin { display: inline-block; width: 20px; height: 20px; flex: none; }
+.core-wallet .coin { transform-origin: 50% 50%; }
+
+/* Caixinha da esquerda: armado o laço, o tique original some e o preenchimento roxo (com tique branco) assume. */
+.node-icon { position: relative; overflow: hidden; }
+.loop-armed .node-icon::after { opacity: 0; }
+.check-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--primary); display: grid; place-items: center; opacity: 0; visibility: hidden; }
+.check-fill::after { content: ''; width: 14px; height: 8px; border: solid var(--white); border-width: 0 0 2.5px 2.5px; transform: rotate(-45deg) translate(1px, -1px); }
+.loop-label { position: relative; display: inline-block; }
+.strike { position: absolute; left: 0; right: 0; top: 55%; height: 2px; border-radius: 2px; background: var(--primary); transform: scaleX(0); transform-origin: 0 50%; }
+
+/* Cartões dos prédios: anel roxo e selo "construído ✓" (opacidade, nada de box-shadow animado). */
+.loop-ring { position: absolute; inset: -3px; border-radius: 21px; border: 2.5px solid var(--primary); opacity: 0; visibility: hidden; pointer-events: none; }
+.built-chip { position: absolute; right: 10px; top: -11px; padding: 2px 9px; border-radius: 99px; background: var(--primary); color: var(--white); font-size: 11px; font-weight: 600; opacity: 0; visibility: hidden; }
+.node-out small { display: inline-block; }
+
+/* Itens que voam. */
+.loop-layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.fly-chip { position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px 4px 5px; border-radius: 99px; background: var(--white); color: var(--primary-dark); font-size: 13px; font-weight: 700; box-shadow: var(--shadow-ui); opacity: 0; visibility: hidden; }
+.fly-chip .coin { width: 16px; height: 16px; }
+.fly-pulse { position: absolute; left: 0; top: 0; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(var(--primary), rgb(130 71 255 / 0)); opacity: 0; visibility: hidden; }
+.fly-building { position: absolute; left: 0; top: 0; width: 64px; height: auto; opacity: 0; visibility: hidden; }
+
+/* Botão discreto de pausar (acessibilidade e bateria). */
+.loop-toggle { visibility: hidden; display: block; margin: 10px auto 0; padding: 6px 12px; border-radius: 99px; font-size: 13px; color: var(--grey); }
+.loop-toggle:hover { color: var(--black); background: var(--pale); }
+
+@media (max-width: 900px) {
+  .loop-layer, .loop-toggle { display: none; }
+}
+.loop-toggle.is-ready { visibility: visible; }
