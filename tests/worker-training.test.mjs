@@ -32,7 +32,7 @@ test('sem base calórica não há plano; com ela, o plano segue a meta e os dias
   const four = await send('/api/personal/training/setup', { method: 'PUT', body: { ...SETUP, days_per_week: 4, equipment: 'bodyweight' } })
   assert.deepEqual(four.plan.days.map(day => day.label), ['Superior A', 'Inferior A', 'Superior B', 'Inferior B'])
 
-  for (const body of [{ ...SETUP, days_per_week: 7 }, { ...SETUP, experience: 'pro' }, { ...SETUP, equipment: 'rua' }, { ...SETUP, xp: 1 }, { ...SETUP, readiness: undefined }, { ...SETUP, readiness: { ...OK, recent_injury: 'sim' } }, { ...SETUP, readiness: { ...OK, extra: false } }]) {
+  for (const body of [{ ...SETUP, days_per_week: 7 }, { ...SETUP, experience: 'pro' }, { ...SETUP, equipment: 'rua' }, { ...SETUP, xp: 1 }, { ...SETUP, readiness: undefined }, { ...SETUP, readiness: { ...OK, recent_injury: 'sim' } }, { ...SETUP, readiness: { ...OK, extra: false } }, { ...SETUP, extras: ['halteres'] }, { ...SETUP, extras: 'bench' }]) {
     await send('/api/personal/training/setup', { method: 'PUT', body, status: 422 })
   }
 })
@@ -68,11 +68,35 @@ test('registra a sessão com o que a pessoa fez de verdade e o servidor calcula 
 
   const edited = await send(`/api/personal/training/sessions/${item.id}`, { method: 'PUT', body: { exercises: [bench([12, 12], 62.5)] } })
   assert.equal(edited.sessions[0].volume_kg, 1500)
-  assert.deepEqual(edited.stats.exercises[0].next, { action: 'increase', weight_grams: 64_000 })
+  assert.deepEqual(edited.stats.exercises[0].next, { action: 'increase', weight_grams: 64_500 })
   await send(`/api/personal/training/sessions/${item.id}`, { method: 'PUT', body: {}, status: 422 })
   assert.deepEqual((await send(`/api/personal/training/sessions/${item.id}`, { method: 'DELETE' })).sessions, [])
   await send(`/api/personal/training/sessions/${item.id}`, { method: 'DELETE', status: 404 })
   await send(`/api/personal/training/sessions/${GHOST_ID}`, { method: 'PUT', body: { note: 'x' }, status: 404 })
+})
+
+test('equipamento de casa: só entra o que a pessoa marcou', async () => {
+  const send = session()
+  await ready(send)
+  const bare = await send('/api/personal/training/setup', { method: 'PUT', body: { ...SETUP, equipment: 'bodyweight', days_per_week: 4 } })
+  const ids = bare.plan.days.flatMap(day => day.exercises.map(item => item.exercise_id))
+  assert.ok(!ids.includes('barra-fixa') && !ids.includes('mergulho-banco'))
+  assert.deepEqual(bare.setup.extras, [])
+  const kit = await send('/api/personal/training/setup', { method: 'PUT', body: { ...SETUP, equipment: 'bodyweight', days_per_week: 4, extras: ['bench', 'pullup_bar'] } })
+  assert.deepEqual(kit.setup.extras, ['pullup_bar', 'bench'])
+  assert.ok(kit.plan.days.flatMap(day => day.exercises.map(item => item.exercise_id)).includes('barra-fixa'))
+})
+
+test('dor anotada pausa a progressão; duas sessões no mesmo dia seguem a ordem de registro', async () => {
+  const send = session()
+  const day = dayFromToday(-1)
+  await send('/api/personal/training/sessions', { method: 'POST', body: workout({ day, exercises: [bench([12, 12], 60)] }), status: 201 })
+  const second = await send('/api/personal/training/sessions', { method: 'POST', body: workout({ day, exercises: [bench([7, 5], 60)] }), status: 201 })
+  assert.deepEqual(second.stats.exercises[0].next, { action: 'hold', weight_grams: 60_000 }) // vale a mais nova
+  assert.equal(second.sessions[0].id, second.created_id)
+  const sore = await send('/api/personal/training/sessions', { method: 'POST', body: workout({ day, exercises: [{ ...bench([12, 12], 60), pain: true }] }), status: 201 })
+  assert.equal(sore.stats.exercises[0].next.action, 'pain')
+  await send('/api/personal/training/sessions', { method: 'POST', body: workout({ exercises: [{ ...bench(), pain: 'sim' }] }), status: 422 })
 })
 
 test('recusa o que não está na lista e números vindos do navegador', async () => {

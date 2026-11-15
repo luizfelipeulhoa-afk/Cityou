@@ -31,8 +31,8 @@ export const EQUIPMENT = ['gym', 'dumbbells', 'bodyweight']
 // cuja origem é desconhecida). `pattern` é o movimento que o plano pede (os sem uso nos modelos de dia servem para trocar
 // e para o registro livre); `setups` diz onde o exercício cabe; `compound` (multiarticular) muda a faixa de repetições e
 // o descanso; `bodyweight` diz que a carga anotada é a extra (colete, mochila), e pode ser 0; `tip` é a dica da tela.
-const E = (id, name, group, pattern, setups, tip, { compound = false, bodyweight = false } = {}) =>
-  ({ id, name, group, pattern, setups, tip, compound, bodyweight })
+const E = (id, name, group, pattern, setups, tip, { compound = false, bodyweight = false, needs = [] } = {}) =>
+  ({ id, name, group, pattern, setups, tip, compound, bodyweight, needs })
 const ALL = ['gym', 'dumbbells', 'bodyweight']
 const GYM = ['gym']
 const DB = ['gym', 'dumbbells']
@@ -41,6 +41,9 @@ const BW = ['bodyweight']
 const C = { compound: true }
 const CB = { compound: true, bodyweight: true }
 const B = { bodyweight: true }
+// Itens que nem toda casa tem (a academia tem todos). Fora da academia, o exercício só entra se a pessoa marcou o item.
+export const EXTRAS = { pullup_bar: 'Barra fixa', bench: 'Banco ou cadeira firme', low_bar: 'Barra baixa ou mesa firme para remada' }
+const needs = (opts, ...items) => ({ ...opts, needs: items })
 
 export const EXERCISES = [
   // Os 35 primeiros: a ordem decide o que o plano escolhe primeiro em cada movimento. Novos entram no fim.
@@ -53,37 +56,37 @@ export const EXERCISES = [
   E('ponte-gluteo', 'Ponte de glúteo', 'Glúteos', 'hinge', BW, 'Deitado, pés no chão perto do quadril; suba o quadril até alinhar com os joelhos e segure um instante.', CB),
   E('afundo-halteres', 'Afundo com halteres', 'Quadríceps e glúteos', 'lunge', DB, 'Um passo à frente, desça o joelho de trás em direção ao chão; o joelho da frente acompanha o pé.', C),
   E('afundo-corpo', 'Afundo (peso do corpo)', 'Quadríceps e glúteos', 'lunge', BW, 'Passo à frente, tronco reto, desça até quase encostar o joelho de trás no chão.', CB),
-  E('bulgaro', 'Agachamento búlgaro', 'Quadríceps e glúteos', 'lunge', ALL, 'Pé de trás apoiado num banco; desça na perna da frente com o tronco levemente inclinado.', CB),
+  E('bulgaro', 'Agachamento búlgaro', 'Quadríceps e glúteos', 'lunge', ALL, 'Pé de trás apoiado num banco; desça na perna da frente com o tronco levemente inclinado.', needs(CB, 'bench')),
   E('cadeira-extensora', 'Cadeira extensora', 'Quadríceps', 'knee_ext', GYM, 'Joelho alinhado ao eixo da máquina; estenda a perna sem tirar o quadril do banco e desça devagar.'),
   E('mesa-flexora', 'Mesa flexora', 'Posterior de coxa', 'knee_flex', GYM, 'Quadril colado no banco; puxe o rolo em direção ao glúteo e volte controlando.'),
   E('stiff-unilateral', 'Stiff unilateral com halter', 'Posterior de coxa', 'knee_flex', ['dumbbells'], 'Apoio numa perna, a outra vai para trás enquanto o tronco desce; costas retas, quadril nivelado.'),
   E('ponte-unilateral', 'Ponte de glúteo unilateral', 'Posterior de coxa e glúteos', 'knee_flex', BW, 'Como a ponte, com uma perna estendida no ar; suba sem girar o quadril.', B),
   E('panturrilha-pe', 'Panturrilha em pé', 'Panturrilha', 'calf', ALL, 'Ponta dos pés num degrau; desça o calcanhar abaixo do degrau e suba o mais alto que der.', B),
   E('supino-reto', 'Supino reto com barra', 'Peito', 'h_push', GYM, 'Escápulas juntas e pés firmes; desça a barra até o meio do peito e empurre de volta.', C),
-  E('supino-halteres', 'Supino reto com halteres', 'Peito', 'h_push', ['dumbbells'], 'Halteres na linha do peito, cotovelos a cerca de 45° do corpo; empurre aproximando os halteres.', C),
+  E('supino-halteres', 'Supino reto com halteres', 'Peito', 'h_push', ['dumbbells'], 'Halteres na linha do peito, cotovelos a cerca de 45° do corpo; empurre aproximando os halteres.', needs(C, 'bench')),
   E('flexao', 'Flexão de braço', 'Peito', 'h_push', BW, 'Corpo em linha reta da cabeça aos pés; desça o peito perto do chão. Fica pesado? Apoie os joelhos.', CB),
-  E('supino-inclinado-halteres', 'Supino inclinado com halteres', 'Peito', 'incline_push', DB, 'Banco a 30° a 45°; desça os halteres ao lado da parte de cima do peito.', C),
-  E('flexao-pes-elevados', 'Flexão com pés elevados', 'Peito', 'incline_push', BW, 'Pés num banco ou cadeira; mantenha o abdômen firme e desça o peito.', CB),
+  E('supino-inclinado-halteres', 'Supino inclinado com halteres', 'Peito', 'incline_push', DB, 'Banco a 30° a 45°; desça os halteres ao lado da parte de cima do peito.', needs(C, 'bench')),
+  E('flexao-pes-elevados', 'Flexão com pés elevados', 'Peito', 'incline_push', HOME, 'Pés num banco ou cadeira; mantenha o abdômen firme e desça o peito.', needs(CB, 'bench')),
   E('desenvolvimento-halteres', 'Desenvolvimento com halteres', 'Ombros', 'v_push', DB, 'Sentado ou em pé, halteres na altura das orelhas; empurre para cima sem arquear a lombar.', C),
   E('flexao-pike', 'Flexão pike', 'Ombros', 'v_push', BW, 'Quadril alto, corpo em V invertido; desça a cabeça entre as mãos.', CB),
   E('puxada-frontal', 'Puxada frontal', 'Costas', 'v_pull', GYM, 'Peito aberto, puxe a barra até a parte de cima do peito levando os cotovelos para baixo.', C),
-  E('barra-fixa', 'Barra fixa (ou só a descida, devagar)', 'Costas', 'v_pull', HOME, 'Pegada um pouco mais larga que os ombros; suba o queixo acima da barra. Se não subir, faça só a descida em 3 a 5 s.', CB),
+  E('barra-fixa', 'Barra fixa (ou só a descida, devagar)', 'Costas', 'v_pull', HOME, 'Pegada um pouco mais larga que os ombros; suba o queixo acima da barra. Se não subir, faça só a descida em 3 a 5 s.', needs(CB, 'pullup_bar')),
   E('remada-curvada', 'Remada curvada com barra', 'Costas', 'h_pull', GYM, 'Tronco inclinado e costas retas; puxe a barra até a barriga juntando as escápulas.', C),
-  E('remada-unilateral', 'Remada unilateral com halter', 'Costas', 'h_pull', DB, 'Mão e joelho apoiados no banco; puxe o halter em direção ao quadril.', C),
-  E('remada-invertida', 'Remada invertida (na mesa ou barra baixa)', 'Costas', 'h_pull', BW, 'Deitado sob uma mesa firme ou barra baixa; puxe o peito até ela com o corpo reto.', CB),
+  E('remada-unilateral', 'Remada unilateral com halter', 'Costas', 'h_pull', DB, 'Mão e joelho apoiados no banco; puxe o halter em direção ao quadril.', needs(C, 'bench')),
+  E('remada-invertida', 'Remada invertida (na mesa ou barra baixa)', 'Costas', 'h_pull', BW, 'Deitado sob uma mesa firme ou barra baixa; puxe o peito até ela com o corpo reto.', needs(CB, 'low_bar')),
   E('elevacao-lateral', 'Elevação lateral com halteres', 'Ombros', 'lateral', DB, 'Cotovelos levemente dobrados; suba os braços para o lado até a altura dos ombros.'),
   E('rosca-direta', 'Rosca direta', 'Bíceps', 'biceps', DB, 'Cotovelos colados ao corpo; suba o peso sem balançar o tronco.'),
-  E('barra-supinada', 'Barra fixa com pegada supinada', 'Bíceps e costas', 'biceps', BW, 'Palmas viradas para você, mãos na largura dos ombros; suba o queixo acima da barra.', CB),
+  E('barra-supinada', 'Barra fixa com pegada supinada', 'Bíceps e costas', 'biceps', BW, 'Palmas viradas para você, mãos na largura dos ombros; suba o queixo acima da barra.', needs(CB, 'pullup_bar')),
   E('triceps-polia', 'Tríceps na polia', 'Tríceps', 'triceps', GYM, 'Cotovelos parados junto ao corpo; estenda os braços até o fim e volte devagar.'),
   E('triceps-frances', 'Tríceps francês com halter', 'Tríceps', 'triceps', ['dumbbells'], 'Halter atrás da cabeça com as duas mãos; estenda os braços apontando os cotovelos para cima.'),
-  E('mergulho-banco', 'Mergulho no banco', 'Tríceps', 'triceps', BW, 'Mãos na borda de um banco ou cadeira firme; desça dobrando os cotovelos para trás.', B),
+  E('mergulho-banco', 'Mergulho no banco', 'Tríceps', 'triceps', BW, 'Mãos na borda de um banco ou cadeira firme; desça dobrando os cotovelos para trás.', needs(B, 'bench')),
   E('prancha', 'Prancha (anote segundos como repetições)', 'Abdômen', 'core', ALL, 'Antebraços no chão, corpo em linha reta; aperte o abdômen e o glúteo sem deixar o quadril cair.', B),
 
   // Peito
   E('supino-inclinado-barra', 'Supino inclinado com barra', 'Peito', 'incline_push', GYM, 'Banco a 30° a 45°; desça a barra até a parte de cima do peito.', C),
   E('supino-declinado', 'Supino declinado com barra', 'Peito', 'h_push', GYM, 'Pernas presas no apoio; desça a barra até a parte de baixo do peito.', C),
   E('supino-maquina', 'Supino na máquina', 'Peito', 'h_push', GYM, 'Pegadores na linha do meio do peito; empurre sem tirar as costas do encosto.', C),
-  E('crucifixo-halteres', 'Crucifixo com halteres', 'Peito', 'chest_fly', DB, 'Cotovelos levemente dobrados e fixos; abra os braços até sentir o peito alongar e feche como num abraço.'),
+  E('crucifixo-halteres', 'Crucifixo com halteres', 'Peito', 'chest_fly', DB, 'Cotovelos levemente dobrados e fixos; abra os braços até sentir o peito alongar e feche como num abraço.', needs({}, 'bench')),
   E('voador', 'Voador (crucifixo na máquina)', 'Peito', 'chest_fly', GYM, 'Cotovelos na altura dos ombros; feche os braços à frente do peito e volte devagar.'),
   E('crossover', 'Crossover na polia', 'Peito', 'chest_fly', GYM, 'Um passo à frente entre as polias; traga as mãos para baixo e à frente do corpo, cruzando de leve.'),
   E('paralelas', 'Mergulho nas paralelas', 'Peito', 'h_push', GYM, 'Tronco levemente inclinado à frente; desça até os ombros ficarem na altura dos cotovelos.', CB),
@@ -97,7 +100,7 @@ export const EXERCISES = [
   E('remada-cavalinho', 'Remada cavalinho (barra T)', 'Costas', 'h_pull', GYM, 'Tronco inclinado, costas retas; puxe a barra até o peito.', C),
   E('remada-curvada-halteres', 'Remada curvada com halteres', 'Costas', 'h_pull', DB, 'Tronco inclinado, um halter em cada mão; puxe os dois em direção ao quadril.', C),
   E('pulldown-braco-reto', 'Pulldown com braços estendidos', 'Costas', 'lat_iso', GYM, 'Braços quase retos; leve a barra da polia da altura da cabeça até as coxas.'),
-  E('pullover-halter', 'Pullover com halter', 'Costas', 'lat_iso', DB, 'Deitado no banco, halter acima do peito; leve-o para trás da cabeça com os braços quase retos e volte.'),
+  E('pullover-halter', 'Pullover com halter', 'Costas', 'lat_iso', DB, 'Deitado no banco, halter acima do peito; leve-o para trás da cabeça com os braços quase retos e volte.', needs({}, 'bench')),
   E('hiperextensao', 'Hiperextensão lombar (banco romano)', 'Lombar', 'back_ext', GYM, 'Quadril no apoio; desça o tronco e suba até alinhar com as pernas, sem passar disso.'),
   E('superman', 'Superman (extensão no chão)', 'Lombar', 'back_ext', BW, 'De bruços, levante braços e pernas juntos alguns centímetros e segure um instante.', B),
   E('good-morning', 'Bom-dia com barra', 'Posterior de coxa e glúteos', 'hinge', GYM, 'Barra nas costas, joelhos levemente dobrados; incline o tronco à frente levando o quadril para trás.', C),
@@ -120,7 +123,7 @@ export const EXERCISES = [
   E('rosca-alternada', 'Rosca alternada com halteres', 'Bíceps', 'biceps', DB, 'Um braço de cada vez, girando a palma para cima ao subir.'),
   E('rosca-scott', 'Rosca Scott', 'Bíceps', 'biceps', GYM, 'Braços apoiados no banco Scott; suba o peso e desça até quase estender.'),
   E('rosca-polia', 'Rosca na polia', 'Bíceps', 'biceps', GYM, 'De frente para a polia baixa; suba a barra com os cotovelos fixos.'),
-  E('rosca-concentrada', 'Rosca concentrada', 'Bíceps', 'biceps', ['dumbbells'], 'Sentado, cotovelo apoiado na parte de dentro da coxa; suba o halter devagar.'),
+  E('rosca-concentrada', 'Rosca concentrada', 'Bíceps', 'biceps', ['dumbbells'], 'Sentado, cotovelo apoiado na parte de dentro da coxa; suba o halter devagar.', needs({}, 'bench')),
   E('rosca-punho', 'Rosca de punho', 'Antebraço', 'forearm', DB, 'Antebraço apoiado na coxa, palma para cima; mexa só o punho.'),
   // Tríceps
   E('triceps-testa', 'Tríceps testa', 'Tríceps', 'triceps', GYM, 'Deitado, barra acima do peito; dobre só os cotovelos levando a barra até perto da testa.'),
@@ -134,9 +137,9 @@ export const EXERCISES = [
   E('agachamento-sumo', 'Agachamento sumô com halter', 'Quadríceps e glúteos', 'squat', DB, 'Pés afastados e virados para fora, halter entre as pernas; desça com o peito aberto.', C),
   E('avanco', 'Avanço caminhando com halteres', 'Quadríceps e glúteos', 'lunge', DB, 'Passos à frente alternando as pernas, descendo o joelho de trás perto do chão a cada passo.', C),
   E('afundo-reverso', 'Afundo reverso', 'Quadríceps e glúteos', 'lunge', ALL, 'Passo para trás em vez de para a frente; costuma ser mais fácil para os joelhos.', CB),
-  E('subida-banco', 'Subida no banco (step-up)', 'Quadríceps e glúteos', 'lunge', ALL, 'Suba num banco firme com uma perna, empurrando pelo calcanhar, e desça devagar.', CB),
+  E('subida-banco', 'Subida no banco (step-up)', 'Quadríceps e glúteos', 'lunge', ALL, 'Suba num banco firme com uma perna, empurrando pelo calcanhar, e desça devagar.', needs(CB, 'bench')),
   E('elevacao-pelvica', 'Elevação pélvica com barra', 'Glúteos', 'glute', GYM, 'Costas apoiadas num banco, barra no quadril; suba até o tronco ficar paralelo ao chão.', C),
-  E('elevacao-pelvica-halter', 'Elevação pélvica com halter', 'Glúteos', 'glute', ['dumbbells'], 'Costas apoiadas num banco ou sofá firme, halter no quadril; suba apertando o glúteo.', C),
+  E('elevacao-pelvica-halter', 'Elevação pélvica com halter', 'Glúteos', 'glute', ['dumbbells'], 'Costas apoiadas num banco ou sofá firme, halter no quadril; suba apertando o glúteo.', needs(C, 'bench')),
   E('coice-polia', 'Coice de glúteo na polia', 'Glúteos', 'glute', GYM, 'Tornozeleira na polia baixa; leve a perna para trás sem arquear a lombar.'),
   E('cadeira-adutora', 'Cadeira adutora', 'Adutores', 'adductor', GYM, 'Feche as pernas contra as almofadas e abra devagar.'),
   E('cadeira-abdutora', 'Cadeira abdutora', 'Abdutores e glúteos', 'abductor', GYM, 'Abra as pernas contra as almofadas com o tronco firme e volte devagar.'),
@@ -152,9 +155,13 @@ export const EXERCISES = [
   E('dead-bug', 'Dead bug', 'Abdômen', 'core', ALL, 'Deitado, braços e pernas para cima; estenda braço e perna opostos com a lombar colada no chão.', B),
   E('abdominal-bicicleta', 'Abdominal bicicleta', 'Abdômen', 'core', ALL, 'Leve o cotovelo em direção ao joelho oposto, alternando, sem puxar o pescoço.', B),
   E('abdominal-polia', 'Abdominal na polia', 'Abdômen', 'core', GYM, 'Ajoelhado, corda junto à cabeça; enrole o tronco para baixo contraindo o abdômen.'),
-  E('elevacao-joelhos-barra', 'Elevação de joelhos na barra', 'Abdômen', 'core', ['gym', 'dumbbells', 'bodyweight'], 'Pendurado na barra; suba os joelhos em direção ao peito sem balançar.', B),
+  E('elevacao-joelhos-barra', 'Elevação de joelhos na barra', 'Abdômen', 'core', ['gym', 'dumbbells', 'bodyweight'], 'Pendurado na barra; suba os joelhos em direção ao peito sem balançar.', needs(B, 'pullup_bar')),
   E('roda-abdominal', 'Roda abdominal', 'Abdômen', 'core', GYM, 'Ajoelhado, role a roda à frente até onde mantiver a lombar firme e volte.', B),
   E('russian-twist', 'Giro russo', 'Abdômen', 'core', ALL, 'Sentado, tronco inclinado para trás; gire o tronco de um lado para o outro.', B),
+  // Sem banco nem barra: alternativas para casa.
+  E('supino-chao', 'Supino no chão com halteres', 'Peito', 'h_push', ['dumbbells'], 'Deitado no chão, joelhos dobrados; empurre os halteres para cima e desça até os cotovelos tocarem o chão.', C),
+  E('remada-mochila', 'Remada curvada com mochila', 'Costas', 'h_pull', BW, 'Mochila com peso (livros, garrafas) nas mãos; tronco inclinado e costas retas, puxe até a barriga. Anote o peso da mochila.', C),
+  E('rosca-mochila', 'Rosca com mochila', 'Bíceps', 'biceps', BW, 'Segure a alça da mochila com peso; suba com os cotovelos colados ao corpo. Anote o peso da mochila.'),
   E('escalador', 'Escalador (mountain climber)', 'Abdômen', 'core', ALL, 'Em posição de flexão, traga os joelhos ao peito alternando, com o quadril baixo.', B),
 ]
 export const EXERCISE_BY_ID = Object.fromEntries(EXERCISES.map(exercise => [exercise.id, exercise]))
@@ -186,16 +193,20 @@ export const SPLITS = {
 // treina sobe em direção às ~10 do IUSCA, conforme os dias. Repetições dentro dos 6 a 15 RM (iversen2021, iusca2021).
 // Descanso: 2 min nos multiarticulares e 90 s nos uniarticulares (iusca2021; singer2024: acima de 90 s, pouca diferença).
 // Parar com 1 a 3 repetições sobrando (refalo2022).
-const SETS = { beginner: [2, 3], intermediate: [3, 4], advanced: [3, 4] } // piso e teto de séries por exercício
+const MAX_SETS_PER_EXERCISE = { beginner: 3, intermediate: 4, advanced: 4 }
 const REPS = { compound: [6, 12], isolation: [10, 15] }
 const REST_SECONDS = { compound: 120, isolation: 90 }
 export const RIR = [1, 3] // repetições que ainda daria para fazer ao fim da série
 // Séries semanais por grupo que o plano mira (iversen2021 para quem começa; iusca2021 para quem já treina).
+export const SMALL_GROUPS = ['Bíceps', 'Tríceps', 'Panturrilha', 'Abdômen', 'Quadríceps', 'Posterior de coxa', 'Antebraço', 'Trapézio']
 export const WEEKLY_SETS_TARGET = { beginner: 4, intermediate: 10, advanced: 10 }
 
-function pick(pattern, equipment, used) {
-  const options = EXERCISES.filter(exercise => exercise.pattern === pattern && exercise.setups.includes(equipment))
-  return options.find(exercise => !used.has(exercise.id)) ?? null
+/** O exercício cabe no lugar e nos itens que a pessoa tem (na academia, tudo). */
+export const available = (exercise, equipment, extras = []) =>
+  exercise.setups.includes(equipment) && (equipment === 'gym' || exercise.needs.every(item => extras.includes(item)))
+
+function pick(pattern, equipment, extras, used) {
+  return EXERCISES.find(exercise => exercise.pattern === pattern && available(exercise, equipment, extras) && !used.has(exercise.id)) ?? null
 }
 
 /**
@@ -203,7 +214,7 @@ function pick(pattern, equipment, used) {
  * de cada exercício saem do alvo semanal do grupo dividido pelas vezes que ele aparece na semana, entre o piso e o teto
  * da experiência (quem começa: 2 a 3; quem já treina: 3 a 4).
  */
-export function suggestPlan({ days, experience, equipment, goal }) {
+export function suggestPlan({ days, experience, equipment, goal, extras = [] }) {
   if (!Number.isInteger(days) || days < DAYS_RANGE[0] || days > DAYS_RANGE[1]) throw new RangeError('days')
   if (!EXPERIENCE.includes(experience) || !EQUIPMENT.includes(equipment)) throw new RangeError('setup')
   const chosen = SPLITS[days].map(key => {
@@ -211,27 +222,41 @@ export function suggestPlan({ days, experience, equipment, goal }) {
     const used = new Set()
     const exercises = []
     for (const pattern of patterns) {
-      const exercise = pick(pattern, equipment, used)
-      if (!exercise) continue // sem opção para esse equipamento (por exemplo, elevação lateral só com o corpo)
+      const exercise = pick(pattern, equipment, extras, used)
+      if (!exercise) continue // sem opção para esse equipamento (por exemplo, puxada sem barra fixa)
       used.add(exercise.id)
       exercises.push(exercise)
     }
     return { label, exercises }
   })
+  // Dose semanal por grupo (iversen2021, iusca2021): cada grupo tem um orçamento de séries na semana, repartido entre as
+  // vezes em que aparece, com pelo menos 1 série e no máximo o teto por exercício. Grupo que já gastou o orçamento sai
+  // dos dias seguintes, salvo se o dia ficaria com menos de 3 exercícios. Assim mais dias espalham a dose, não a aumentam.
+  const high = MAX_SETS_PER_EXERCISE[experience]
+  const target = WEEKLY_SETS_TARGET[experience]
   const times = {}
   for (const day of chosen) for (const exercise of day.exercises) times[exercise.group] = (times[exercise.group] ?? 0) + 1
-  const [low, high] = SETS[experience]
-  const target = WEEKLY_SETS_TARGET[experience]
+  // Grupos que já trabalham nos multiarticulares (braços, panturrilha, abdômen, coxa isolada) recebem metade do orçamento
+  // (escolha do Cityou a validar; evita que mais dias inflem os exercícios pequenos).
+  const left = Object.fromEntries(Object.keys(times).map(group => [group, SMALL_GROUPS.includes(group) ? Math.ceil(target / 2) : target]))
+  const seen = {}
   return {
     goal, provisional: EVIDENCE_PENDING, rir: RIR, weekly_sets_target: target,
-    days: chosen.map(({ label, exercises }, index) => ({
-      index: index + 1, label,
-      exercises: exercises.map(exercise => {
+    days: chosen.map(({ label, exercises }, index) => {
+      const items = []
+      exercises.forEach((exercise, position) => {
+        const group = exercise.group
+        const remaining = times[group] - (seen[group] ?? 0)
+        seen[group] = (seen[group] ?? 0) + 1
+        const stillNeeded = exercises.length - position - 1
+        if (left[group] <= 0 && items.length + stillNeeded >= 3) return
+        const sets = Math.min(high, Math.max(1, Math.ceil(left[group] / remaining)))
+        left[group] -= sets
         const kind = exercise.compound ? 'compound' : 'isolation'
-        const sets = Math.min(high, Math.max(low, Math.ceil(target / times[exercise.group])))
-        return { exercise_id: exercise.id, name: exercise.name, group: exercise.group, sets, reps: REPS[kind], rest_s: REST_SECONDS[kind] }
-      }),
-    })),
+        items.push({ exercise_id: exercise.id, name: exercise.name, group, sets, reps: REPS[kind], rest_s: REST_SECONDS[kind] })
+      })
+      return { index: index + 1, label, exercises: items }
+    }),
   }
 }
 
@@ -254,20 +279,43 @@ export function topSet(sets) {
     (set.weight_grams === best.weight_grams && set.reps > best.reps) ? set : best), null)
 }
 
+/** Menor aumento que dá para montar: halter e mochila de 1 kg em 1 kg; barra, 2 kg (um disco de 1 kg de cada lado);
+ * máquina e polia, 2,5 kg. Escolha de produto, para a sugestão caber no equipamento. */
+export function loadStep(exercise) {
+  if (exercise.bodyweight || exercise.setups.includes('dumbbells') || exercise.setups.includes('bodyweight')) return 1000
+  if (/barra(?! fixa)|Smith|terra|Bom-dia|testa|fechado/i.test(exercise.name)) return 2000
+  return 2500
+}
+
 /**
- * Próxima carga sugerida (dupla progressão: plotkin2022, repetições e carga são caminhos viáveis): se todas as séries
- * chegaram ao topo da faixa, sobe cerca de 2,5% (o passo menor da faixa de 2% a 10% do acsm2009, arredondado a 0,5 kg, no mínimo 0,5 kg); se alguma
- * ficou abaixo do piso, mantém; senão mantém e busca mais repetições. Sem carga (exercício com o corpo), mais repetições.
+ * Próxima carga sugerida pelo histórico do exercício (sessões da mais antiga para a mais nova, cada uma com `sets` e
+ * `pain`). Dupla progressão (plotkin2022): sobe só quando TODAS as séries da última sessão foram com a mesma carga e
+ * chegaram ao topo da faixa; o aumento é ~2,5% arredondado para cima ao passo do equipamento e não passa de 10%
+ * (acsm2009: 2% a 10%); acima disso, o certo é ganhar repetições antes. Abaixo do piso, mantém; abaixo do piso em duas
+ * sessões seguidas com a mesma carga, sugere reduzir ~10% (ou menos séries ou uma variação mais fácil). Dor anotada
+ * no exercício pausa a progressão dele. As regras de redução e de dor são escolhas do Cityou a validar.
  */
-export function nextLoad(sets, [low, high]) {
-  const top = topSet(sets)
+export function nextLoad(history, [low, high], exercise) {
+  const last = history.at(-1)
+  const top = last && topSet(last.sets)
   if (!top) return null
+  if (last.pain) return { action: 'pain', weight_grams: top.weight_grams }
   if (!top.weight_grams) return { action: 'reps', weight_grams: 0 }
-  if (sets.every(set => set.reps >= high)) {
-    const step = Math.max(500, Math.round(top.weight_grams * 0.025 / 500) * 500)
-    return { action: 'increase', weight_grams: top.weight_grams + step }
+  const working = last.sets.filter(set => set.weight_grams === top.weight_grams)
+  if (working.some(set => set.reps < low)) {
+    const before = history.at(-2)
+    const missedBefore = before && !before.pain && before.sets.some(set => set.weight_grams === top.weight_grams && set.reps < low)
+    if (!missedBefore) return { action: 'hold', weight_grams: top.weight_grams }
+    const step = loadStep(exercise)
+    const lower = Math.max(0, Math.floor(top.weight_grams * 0.9 / step) * step)
+    return { action: 'reduce', weight_grams: lower }
   }
-  if (sets.some(set => set.reps < low)) return { action: 'hold', weight_grams: top.weight_grams }
+  if (last.sets.every(set => set.weight_grams === top.weight_grams && set.reps >= high)) {
+    const step = loadStep(exercise)
+    const increase = Math.max(step, Math.ceil(top.weight_grams * 0.025 / step) * step)
+    if (increase > top.weight_grams * 0.1) return { action: 'reps', weight_grams: top.weight_grams, reason: 'small_load' }
+    return { action: 'increase', weight_grams: top.weight_grams + increase }
+  }
   return { action: 'reps', weight_grams: top.weight_grams }
 }
 

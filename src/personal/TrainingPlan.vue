@@ -4,7 +4,7 @@
 // que o sugerido); o servidor calcula o volume total, a melhor série, o 1RM estimado e a próxima carga sugerida.
 import { computed, onMounted, reactive, ref } from 'vue'
 import { addWorkout, editWorkout, loadTraining, removeWorkout, saveTrainingSetup } from '../fifones/api.js'
-import { DISCLAIMER, EXERCISES, EXERCISE_BY_ID, READINESS_QUESTIONS, SOURCES } from '../../shared/game/training.js'
+import { DISCLAIMER, EXERCISES, EXERCISE_BY_ID, EXTRAS, READINESS_QUESTIONS, SOURCES, available } from '../../shared/game/training.js'
 
 const GOAL_NAMES = { maintain: 'manter o peso', fat_loss: 'perder gordura', lean_preserve: 'perder gordura mantendo músculo', muscle_gain: 'ganhar massa' }
 const EXPERIENCE = { beginner: 'Começando agora (menos de 6 meses)', intermediate: 'Treino há 6 meses a 2 anos', advanced: 'Treino há mais de 2 anos' }
@@ -25,7 +25,7 @@ const view = ref(null)
 const busy = ref(false)
 const message = ref('')
 const editingSetup = ref(false)
-const setupForm = reactive({ days_per_week: 3, experience: 'beginner', equipment: 'gym', readiness: { exertion_symptoms: null, medical_restriction: null, recent_injury: null } })
+const setupForm = reactive({ days_per_week: 3, experience: 'beginner', equipment: 'gym', extras: [], readiness: { exertion_symptoms: null, medical_restriction: null, recent_injury: null } })
 const GOAL_NOTES = {
   fat_loss: 'Na perda de gordura, manter a musculação ajuda a preservar a massa magra enquanto a alimentação faz o déficit.',
   lean_preserve: 'Na perda de gordura, manter a musculação ajuda a preservar a massa magra enquanto a alimentação faz o déficit.',
@@ -49,9 +49,10 @@ const byGroup = computed(() => {
 })
 const swapOptions = id => {
   const current = EXERCISE_BY_ID[id]
-  const where = view.value?.setup?.equipment
+  const where = view.value?.setup?.equipment ?? 'gym'
+  const extras = view.value?.setup?.extras ?? []
   return EXERCISES.filter(item => item.pattern === current.pattern && item.id !== id)
-    .sort((a, b) => Number(b.setups.includes(where)) - Number(a.setups.includes(where)))
+    .sort((a, b) => Number(available(b, where, extras)) - Number(available(a, where, extras)))
 }
 function swap(exercise, id) {
   if (!id) return
@@ -65,7 +66,7 @@ const preview = computed(() => !log.value ? 0 : log.value.exercises.reduce((sum,
 
 function apply(next) {
   view.value = next
-  if (next.setup) Object.assign(setupForm, { ...next.setup, readiness: { ...next.setup.readiness } })
+  if (next.setup) Object.assign(setupForm, { ...next.setup, extras: [...(next.setup.extras ?? [])], readiness: { ...next.setup.readiness } })
 }
 const readinessDone = computed(() => Object.values(setupForm.readiness).every(value => typeof value === 'boolean'))
 
@@ -81,14 +82,18 @@ async function run(action) {
 async function saveSetup() {
   if (!readinessDone.value) { message.value = 'Responda às três perguntas sobre esforço e saúde.'; return }
   const { days_per_week, experience, equipment, readiness } = setupForm
-  if (await run(() => saveTrainingSetup({ days_per_week, experience, equipment, readiness: { ...readiness } }))) editingSetup.value = false
+  const extras = equipment === 'gym' ? [] : [...setupForm.extras]
+  if (await run(() => saveTrainingSetup({ days_per_week, experience, equipment, extras, readiness: { ...readiness } }))) editingSetup.value = false
 }
 
 function nextText(item) {
   const next = item.next
   if (!next) return ''
+  if (next.action === 'pain') return 'Pausado: você anotou dor. Troque por uma variação ou procure um profissional'
   if (next.action === 'increase') return `Subir para ${kg(next.weight_grams)} kg`
+  if (next.action === 'reduce') return `Reduzir para ${kg(next.weight_grams)} kg, ou fazer menos séries, ou uma variação mais fácil`
   if (next.action === 'hold') return `Manter ${kg(next.weight_grams)} kg`
+  if (next.reason === 'small_load') return `${kg(next.weight_grams)} kg: mais repetições antes de subir (o próximo peso seria um salto grande)`
   return next.weight_grams ? `${kg(next.weight_grams)} kg, buscar mais repetições` : 'Buscar mais repetições'
 }
 
@@ -97,26 +102,26 @@ const blankSet = id => ({ kg: nextOf(id)?.next?.weight_grams ? kg(nextOf(id).nex
 function startLog(day = null) {
   log.value = {
     id: null, day: today(), plan_day: day?.index ?? null, note: '',
-    exercises: (day?.exercises ?? []).map(item => ({ exercise_id: item.exercise_id, reps: item.reps, sets: Array.from({ length: item.sets }, () => blankSet(item.exercise_id)) })),
+    exercises: (day?.exercises ?? []).map(item => ({ exercise_id: item.exercise_id, reps: item.reps, pain: false, sets: Array.from({ length: item.sets }, () => blankSet(item.exercise_id)) })),
   }
 }
 
 function editLog(session) {
   log.value = {
     id: session.id, day: session.day, plan_day: session.plan_day, note: session.note,
-    exercises: session.exercises.map(item => ({ exercise_id: item.exercise_id, reps: null, sets: item.sets.map(set => ({ kg: kg(set.weight_grams), reps: String(set.reps) })) })),
+    exercises: session.exercises.map(item => ({ exercise_id: item.exercise_id, reps: null, pain: Boolean(item.pain), sets: item.sets.map(set => ({ kg: kg(set.weight_grams), reps: String(set.reps) })) })),
   }
 }
 
 function addExercise() {
   if (!addPick.value) return
-  log.value.exercises.push({ exercise_id: addPick.value, reps: null, sets: [blankSet(addPick.value)] })
+  log.value.exercises.push({ exercise_id: addPick.value, reps: null, pain: false, sets: [blankSet(addPick.value)] })
   addPick.value = ''
 }
 
 async function saveLog() {
   const exercises = log.value.exercises.map(item => ({
-    exercise_id: item.exercise_id,
+    exercise_id: item.exercise_id, pain: item.pain,
     sets: item.sets.filter(set => String(set.reps).trim() !== '')
       .map(set => ({ weight_grams: Math.round((num(set.kg) || 0) * 1000), reps: Number(set.reps) })),
   })).filter(item => item.sets.length)
@@ -156,6 +161,9 @@ onMounted(() => run(loadTraining))
             <label>Experiência<select v-model="setupForm.experience"><option v-for="(name, id) in EXPERIENCE" :key="id" :value="id">{{ name }}</option></select></label>
             <label>Onde você treina<select v-model="setupForm.equipment"><option v-for="(name, id) in EQUIPMENT" :key="id" :value="id">{{ name }}</option></select></label>
           </div>
+          <fieldset v-if="setupForm.equipment !== 'gym'" class="tp-ready"><legend>O que você tem em casa? (o treino só usa o que estiver marcado)</legend>
+            <label v-for="(name, id) in EXTRAS" :key="id" class="tp-check"><input v-model="setupForm.extras" type="checkbox" :value="id" />{{ name }}</label>
+          </fieldset>
           <fieldset class="tp-ready"><legend>Antes de montar, três perguntas rápidas</legend>
             <div v-for="(question, key) in READINESS_QUESTIONS" :key="key" class="tp-question" role="radiogroup" :aria-label="question">
               <span>{{ question }}</span>
@@ -224,6 +232,7 @@ onMounted(() => run(loadTraining))
         </div>
         <div class="tp-row-actions">
           <button type="button" class="tp-link" :disabled="exercise.sets.length >= 12" @click="exercise.sets.push({ ...exercise.sets.at(-1) ?? blankSet(exercise.exercise_id), reps: '' })">+ Série</button>
+          <label class="tp-check"><input v-model="exercise.pain" type="checkbox" />Senti dor neste exercício</label>
           <button type="button" class="tp-link" @click="log.exercises.splice(e, 1)">Tirar exercício</button>
           <select v-if="swapOptions(exercise.exercise_id).length" class="tp-swap" :aria-label="`Trocar ${EXERCISE_BY_ID[exercise.exercise_id].name} por outro do mesmo movimento`" value="" @change="swap(exercise, $event.target.value); $event.target.value = ''"><option value="">Trocar por…</option><option v-for="item in swapOptions(exercise.exercise_id)" :key="item.id" :value="item.id">{{ item.name }}</option></select>
         </div>
@@ -286,6 +295,7 @@ onMounted(() => run(loadTraining))
 .tp-total strong{color:var(--peach);font-weight:500}
 .tp-total small{color:#9399ae;font-size:11px}
 .tp-caution{font-size:12px;line-height:1.6;color:#f1d3b8;background:#e8b5a012;border:1px solid #e8b5a033;border-radius:10px;padding:10px 12px;max-width:720px}
+.tp-check{flex-direction:row !important;align-items:center;gap:8px !important;font-size:12px !important;color:#d8dbe8 !important}
 .tp-tip{margin:0;font-size:11px;line-height:1.6;color:#9399ae}
 .tp-swap{max-width:260px;font-size:12px}
 .tp-ready{border:1px solid #ffffff12;border-radius:12px;padding:10px 14px;margin:0;display:flex;flex-direction:column;gap:10px}

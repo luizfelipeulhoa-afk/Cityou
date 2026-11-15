@@ -6,7 +6,7 @@ import { HttpError, json } from './http.js'
 import { atLeastOne, dayOf, exact, text, todayInSaoPaulo } from './records.js'
 import { GOALS } from '../shared/game/nutrition.js'
 import {
-  DAYS_RANGE, EQUIPMENT, EVIDENCE_PENDING, EXERCISE_BY_ID, EXPERIENCE, READINESS_QUESTIONS, weeklySetsByGroup, estimatedOneRepMax, exerciseVolumeKg,
+  DAYS_RANGE, EQUIPMENT, EVIDENCE_PENDING, EXERCISE_BY_ID, EXPERIENCE, EXTRAS, READINESS_QUESTIONS, weeklySetsByGroup, estimatedOneRepMax, exerciseVolumeKg,
   nextLoad, repRangeOf, sessionVolumeKg, suggestPlan, topSet, totalReps,
 } from '../shared/game/training.js'
 
@@ -35,7 +35,7 @@ export function trainingGate(nutrition) {
 }
 
 function setupOf(body) {
-  exact(body, ['days_per_week', 'experience', 'equipment', 'readiness'])
+  exact(body, ['days_per_week', 'experience', 'equipment', 'readiness', 'extras'])
   const fields = {}
   const readiness = body.readiness
   const keys = Object.keys(READINESS_QUESTIONS)
@@ -48,10 +48,15 @@ function setupOf(body) {
   }
   if (!EXPERIENCE.includes(body.experience)) fields.experience = 'Escolha a sua experiência.'
   if (!EQUIPMENT.includes(body.equipment)) fields.equipment = 'Escolha onde você treina.'
+  const extras = body.extras ?? []
+  if (!Array.isArray(extras) || extras.some(item => !Object.hasOwn(EXTRAS, item)) || new Set(extras).size !== extras.length) {
+    fields.extras = 'Marque só os itens da lista.'
+  }
   if (Object.keys(fields).length) throw new HttpError(422, 'Confira os campos.', fields)
   return {
     days_per_week: body.days_per_week, experience: body.experience, equipment: body.equipment,
-    readiness: Object.fromEntries(keys.map(key => [key, readiness[key]])), updated_at: new Date().toISOString(),
+    readiness: Object.fromEntries(keys.map(key => [key, readiness[key]])),
+    extras: Object.keys(EXTRAS).filter(item => extras.includes(item)), updated_at: new Date().toISOString(),
   }
 }
 
@@ -73,12 +78,13 @@ function exercisesOf(value) {
   }
   return value.map((item, index) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) throw new HttpError(422, 'Confira os exercícios.')
-    exact(item, ['exercise_id', 'sets'])
+    exact(item, ['exercise_id', 'sets', 'pain'])
+    if (item.pain !== undefined && typeof item.pain !== 'boolean') throw new HttpError(422, 'Confira se sentiu dor.', { exercises: 'Confira se sentiu dor.' })
     if (!EXERCISE_BY_ID[item.exercise_id]) throw new HttpError(422, 'Escolha um exercício da lista.', { exercises: 'Escolha um exercício da lista.' })
     if (!Array.isArray(item.sets) || !item.sets.length || item.sets.length > MAX_SETS) {
       throw new HttpError(422, `Cada exercício tem de 1 a ${MAX_SETS} séries.`, { exercises: `Cada exercício tem de 1 a ${MAX_SETS} séries.` })
     }
-    return { exercise_id: item.exercise_id, sets: item.sets.map((set, s) => setOf(set, `${s + 1} do exercício ${index + 1}`)) }
+    return { exercise_id: item.exercise_id, sets: item.sets.map((set, s) => setOf(set, `${s + 1} do exercício ${index + 1}`)), pain: item.pain === true }
   })
 }
 
@@ -111,14 +117,15 @@ export function trainingStats(sessions, today, plan = null) {
   const weeks = Array.from({ length: 8 }, (_, i) => ({ week: shiftDay(thisWeek, -7 * (7 - i)), volume_kg: 0, sessions: 0 }))
   const byExercise = new Map()
   const planRange = new Map((plan?.days ?? []).flatMap(day => day.exercises.map(item => [item.exercise_id, item.reps])))
-  for (const session of [...sessions].sort((a, b) => a.day.localeCompare(b.day))) {
+  // Do mais antigo para o mais novo; no mesmo dia, pela ordem em que foi registrado (created_at).
+  for (const session of [...sessions].sort((a, b) => a.day.localeCompare(b.day) || (a.created_at ?? '').localeCompare(b.created_at ?? ''))) {
     const week = weeks.find(item => item.week === monday(session.day))
     if (week) { week.volume_kg = Math.round((week.volume_kg + session.volume_kg) * 10) / 10; week.sessions += 1 }
     for (const exercise of session.exercises) {
       const top = topSet(exercise.sets)
       const best = Math.max(0, ...exercise.sets.map(set => estimatedOneRepMax(set.weight_grams, set.reps) ?? 0)) || null
       const list = byExercise.get(exercise.exercise_id) ?? []
-      list.push({ day: session.day, top_weight_grams: top.weight_grams, top_reps: top.reps, e1rm_kg: best, volume_kg: exercise.volume_kg, sets: exercise.sets })
+      list.push({ day: session.day, top_weight_grams: top.weight_grams, top_reps: top.reps, e1rm_kg: best, volume_kg: exercise.volume_kg, pain: Boolean(exercise.pain), sets: exercise.sets })
       byExercise.set(exercise.exercise_id, list)
     }
   }
@@ -130,7 +137,7 @@ export function trainingStats(sessions, today, plan = null) {
       best_e1rm_kg: Math.max(0, ...history.map(item => item.e1rm_kg ?? 0)) || null,
       last: { day: last.day, top_weight_grams: last.top_weight_grams, top_reps: last.top_reps, e1rm_kg: last.e1rm_kg, volume_kg: last.volume_kg },
       history: history.slice(-12).map(({ sets, ...item }) => item),
-      rep_range: range, next: nextLoad(last.sets, range),
+      rep_range: range, next: nextLoad(history, range, EXERCISE_BY_ID[id]),
     }
   }).sort((a, b) => b.last.day.localeCompare(a.last.day) || a.name.localeCompare(b.name))
   return { weeks, exercises }
@@ -149,11 +156,11 @@ export const trainingMethods = {
     // Triagem de esforço com algum "sim": o plano sai igual, com o aviso para procurar um médico antes (decisão do dono).
     gate = { ...gate, caution: Boolean(setup && Object.values(setup.readiness ?? {}).some(Boolean)) }
     const plan = gate.state === 'ok' && setup
-      ? suggestPlan({ days: setup.days_per_week, experience: setup.experience, equipment: setup.equipment, goal: gate.goal })
+      ? suggestPlan({ days: setup.days_per_week, experience: setup.experience, equipment: setup.equipment, extras: setup.extras ?? [], goal: gate.goal })
       : null
     const since = shiftDay(today, -HISTORY_DAYS)
     const sessions = this.allWorkouts().filter(item => item.day >= since).map(withTotals)
-      .sort((a, b) => b.day.localeCompare(a.day) || b.updated_at.localeCompare(a.updated_at))
+      .sort((a, b) => b.day.localeCompare(a.day) || (b.created_at ?? '').localeCompare(a.created_at ?? ''))
     const weeklySets = plan ? weeklySetsByGroup(plan) : null
     return { gate, setup, plan, weekly_sets: weeklySets, provisional: EVIDENCE_PENDING, sessions, stats: trainingStats(sessions, today, plan) }
   },
