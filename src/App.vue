@@ -4,6 +4,7 @@ import Icon from './personal/Icon.vue'
 import NutritionBase from './personal/NutritionBase.vue'
 import FoodDiary from './personal/FoodDiary.vue'
 import BodyComposition from './personal/BodyComposition.vue'
+import TrainingPlan from './personal/TrainingPlan.vue'
 import MetricTile from './personal/MetricTile.vue'
 import AreaChart from './personal/AreaChart.vue'
 import StackBar from './personal/StackBar.vue'
@@ -305,6 +306,7 @@ onUnmounted(()=>{clearInterval(poll);clearTimeout(timer);window.removeEventListe
       </template>
       <template v-else-if="route==='fitness'">
         <section class="surface wt-hero"><span class="area-icon peach"><Icon name="fitness" :size="30" /></span><div><span class="eyebrow">SEU RITMO, SEM META</span><h2>Um número de cada vez.</h2><p>O peso oscila ao longo do dia. A média de 7 dias mostra o ritmo, sem julgamento.</p></div><button class="ag-btn ag-primary" @click="showWeight()"><Icon name="plus" :size="16" />Registrar peso do dia</button></section>
+        <TrainingPlan />
         <div class="finance-stats"><article class="surface"><span>Última pesagem</span><strong>{{ weights.length?`${kg(weights[0].grams)} kg`:'Ainda sem registro' }}</strong></article><article class="surface"><span>Média de 7 dias</span><strong>{{ latestTrend?`${kg(latestTrend.avg_grams)} kg`:'—' }}</strong></article><article class="surface"><span>Pesagens nos últimos 120 dias</span><strong>{{ weights.length }}</strong></article></div>
         <section class="surface wt-chart"><div class="surface-heading"><h2>Sua trajetória</h2></div>
           <p class="wt-trend" role="status">{{ trendText }}</p>
