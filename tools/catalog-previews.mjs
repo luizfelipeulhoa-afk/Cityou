@@ -1,10 +1,9 @@
 // Render catalog artwork from the actual local models. No ledger API writes.
 // Uso: node tools/catalog-previews.mjs [url-base] [prefixo-de-id]
-//   sem argumentos: o FastAPI local (porta 8766). Para os prédios do Rio: node tools/catalog-previews.mjs http://127.0.0.1:8787 rio-
-//   (o Worker local, npm run dev:worker, serve o catálogo regional do Rio).
+//   sem argumentos: o Worker local (porta 8787). Para os prédios do Rio: node tools/catalog-previews.mjs http://127.0.0.1:8787 rio-
 import fs from 'node:fs'
-import { chromium, python, browserOptions } from './runtime.mjs'
-const base = process.argv[2] || 'http://127.0.0.1:8766'
+import { chromium, browserOptions } from './runtime.mjs'
+const base = process.argv[2] || 'http://127.0.0.1:8787'
 const prefix = process.argv[3] || ''
 const browser = await chromium.launch({...browserOptions, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']})
 try {

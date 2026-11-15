@@ -2,13 +2,14 @@ import fs from 'node:fs'
 import {pathToFileURL} from 'node:url'
 import path from 'node:path'
 import assert from 'node:assert/strict'
-import { chromium, python, browserOptions } from './runtime.mjs'
+import { chromium, browserOptions } from './runtime.mjs'
+const BASE = process.env.CITYOU_BASE_URL || 'http://127.0.0.1:5177'
 const browser=await chromium.launch({...browserOptions})
 const results=[]
 try{
  const page=await browser.newPage({viewport:{width:1600,height:1000}})
  const errors=[],requests=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push({method:r.method(),url:r.url()}))
- await page.goto('http://127.0.0.1:8766/mapa-cityou/',{waitUntil:'networkidle'})
+ await page.goto(`${BASE}/mapa-cityou/`,{waitUntil:'networkidle'})
  await page.getByText('64 / 64 lotes na etapa · 0 reservas no rascunho',{exact:true}).waitFor()
  assert.equal(await page.locator('.lot').count(),64);assert.equal(await page.locator('.placement rect').count(),0)
  fs.mkdirSync('.verification',{recursive:true});await page.screenshot({path:'.verification/mapa-cityou-desktop.png',fullPage:true})
@@ -45,6 +46,6 @@ try{
  const offline=await browser.newPage({viewport:{width:1280,height:900}});await offline.goto(pathToFileURL(path.resolve('public-fifones/mapa-cityou/index.html')).href,{waitUntil:'load'});await offline.getByRole('button',{name:'Centro da Vida 12',exact:true}).waitFor();assert.equal(await offline.locator('.lot').count(),64);await offline.getByRole('button',{name:'Começo',exact:true}).click();assert.equal(await offline.locator('.lot:not(.locked)').count(),12);await offline.close();results.push('Portable file opens offline with all 64 lots and working phase controls')
  assert.deepEqual(errors,[]);assert.equal(requests.filter(r=>/\/api\//.test(r.url)||r.method!=='GET').length,0)
  results.push('Mobile at 390px has no horizontal overflow; no API calls or real-city mutations')
- const clean=await browser.newPage({viewport:{width:1600,height:1100}});await clean.setContent('<!doctype html><html><body style="margin:0;width:1600px;height:1100px;overflow:hidden"><img src="http://127.0.0.1:8766/mapa-cityou/planta.svg" width="1600" height="1100" /></body></html>');await clean.waitForFunction(()=>document.querySelector('img').complete&&document.querySelector('img').naturalWidth>0);await clean.screenshot({path:'public-fifones/mapa-cityou/planta-tecnica.png',fullPage:false})
+ const clean=await browser.newPage({viewport:{width:1600,height:1100}});await clean.setContent(`<!doctype html><html><body style="margin:0;width:1600px;height:1100px;overflow:hidden"><img src="${BASE}/mapa-cityou/planta.svg" width="1600" height="1100" /></body></html>`);await clean.waitForFunction(()=>document.querySelector('img').complete&&document.querySelector('img').naturalWidth>0);await clean.screenshot({path:'public-fifones/mapa-cityou/planta-tecnica.png',fullPage:false})
  fs.writeFileSync('public-fifones/mapa-cityou/verificacao.json',JSON.stringify({passed:results,consoleErrors:errors,lotCount:64,realCityWrites:0},null,2));console.log(JSON.stringify({passed:results,consoleErrors:errors},null,2))
 }finally{await browser.close()}
