@@ -56,6 +56,10 @@ também cavavam o chão em volta, porque o chão dos lotes era forçado a y = 0.
   abaixo do topo que `communityHill` desenha), e o relevo em volta se mistura até essa altura, não até 0: os patamares
   da direita ficam no pé da pedra. Os muros de arrimo ficaram no cinza do granito.
 
+- Com o Pão no lugar, sobrava um buraco baixo entre os patamares da direita, a Urca e a montanha da frente à direita:
+  um morro de `relief` (`GAP_HILL` em `rio-cidade.js`, 6,5 de altura) o tapa, com um círculo em `crop.keep` para o corte
+  não apagá-lo.
+
 ## Onde ver e como conferir
 
 - **Página de teste:** `/terrain.html` (no `npm run dev` e no site publicado; sem link no app, `noindex`). Tem as vistas dos marcos, a sobreposição das zonas bloqueadas e o toque num lote para assentar um prédio.

@@ -43,6 +43,8 @@ const sugarloaf = { from: { x: SUGARLOAF_FROM.x - 0.3, z: SUGARLOAF_FROM.z - 0.6
 // O Morro da Urca, colado ao Pão como no Rio de verdade, fecha o resto da vala até a montanha da direita.
 const urca = { from: { x: SUGARLOAF_FROM.x - 5.7, z: SUGARLOAF_FROM.z - 6.1 }, to: { x: 17, z: -26.5 }, radius: 3.6, blend: 3 }
 
+export const GAP_HILL = { x: 20.5, z: -19.5, radiusX: 5.5, radiusZ: 6.5, height: 6.5 }
+
 const peak = { x: CRISTO_PEAK.x, z: CRISTO_PEAK.z - CITY_SHIFT } // no sistema do terreno
 const peakGeo = createFrame(rio).toGeo(peak.x, peak.z)
 const hill = { x: peak.x, z: peak.z, radiusX: 18, radiusZ: 9.5, height: 6.5 }
@@ -60,7 +62,9 @@ export default {
   name: 'Rio de Janeiro · cenário da cidade',
   lots: { x0: gridX0, z0: gridZ0, rows },
   // O morro do Cristo: some ao relevo real atrás da grade (unidades do terreno).
-  relief: [hill],
+  // Morro que tapa a vala entre os patamares da direita, a Urca e a montanha da frente à direita (16/11/2026, pedido do
+  // dono: com o Pão de Açúcar no lugar, sobrava ali um buraco baixo). Fica dentro do `crop.keep` abaixo.
+  relief: [hill, GAP_HILL],
   transplant: [sugarloaf, urca],
   // O chão dos lotes do morro da comunidade sobe com o patamar (um tico abaixo do topo que sceneEnvironment.js desenha),
   // e o relevo em volta se mistura até essa altura, não até 0: sem vala entre os patamares e os morros.
@@ -79,7 +83,7 @@ export default {
     // O maciço real atrás do morro do Cristo (z de −48 para o norte, x de −80 a +10, até 24 de altura) fica de fora do corte:
     // o círculo acima o decapitava (13/11/2026, #28), e a montanha aparecia cortada no meio. O resto (praia e morros
     // distantes a leste) segue removido.
-    keep: [{ x: -32, z: -85, radius: 55, blend: 25 }],
+    keep: [{ x: -32, z: -85, radius: 55, blend: 25 }, { x: GAP_HILL.x, z: GAP_HILL.z, radius: 6, blend: 5 }],
   },
   // A névoa da cidade fecha bem mais perto que a da faixa de Copacabana (13/11/2026, src/terrain/lighting.js:
   // TERRAIN.fog, 80 unidades): com o corte acima, o mar aberto já cobre o resto, então o orçamento de malha da
