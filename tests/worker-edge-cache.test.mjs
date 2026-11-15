@@ -10,7 +10,7 @@ const newSession = () => {
   const cookie = sessionCookie(new URL(ORIGIN)).split(';')[0]
   const get = path => harness.fetch(ORIGIN + path, { headers: { Cookie: cookie } })
   const write = (path, body) => harness.fetch(ORIGIN + path, {
-    method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   })
   return { cookie, get, write }
 }

@@ -137,7 +137,7 @@ test('o navegador não dá poder: nada de credits, xp, level ou unlock, e a agen
 
 test('com login obrigatório, as rotas da agenda sem sessão respondem 401', async () => {
   for (const [method, path] of [['POST', '/api/personal/events'], ['PUT', `/api/personal/events/${GHOST_ID}`], ['DELETE', `/api/personal/events/${GHOST_ID}`]]) {
-    const response = await loginHarness.fetch(ORIGIN + path, { method, headers: { Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' }, body: method === 'DELETE' ? undefined : '{}' })
+    const response = await loginHarness.fetch(ORIGIN + path, { method, headers: { Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json' }, body: method === 'DELETE' ? undefined : '{}' })
     assert.equal(response.status, 401, `${method} ${path}`)
   }
 })

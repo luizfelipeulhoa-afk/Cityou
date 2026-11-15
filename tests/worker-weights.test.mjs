@@ -161,7 +161,7 @@ test('persistência e sem poder do navegador: o mesmo cookie recebe o mesmo esta
 
 test('com login obrigatório, as rotas de peso sem sessão respondem 401', async () => {
   for (const [method, path] of [['GET', '/api/personal/weights'], ['POST', '/api/personal/weights'], ['PUT', `/api/personal/weights/${GHOST_ID}`], ['DELETE', `/api/personal/weights/${GHOST_ID}`]]) {
-    const response = await loginHarness.fetch(ORIGIN + path, { method, headers: { Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' }, body: ['GET', 'DELETE'].includes(method) ? undefined : '{}' })
+    const response = await loginHarness.fetch(ORIGIN + path, { method, headers: { Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json' }, body: ['GET', 'DELETE'].includes(method) ? undefined : '{}' })
     assert.equal(response.status, 401, `${method} ${path}`)
   }
 })

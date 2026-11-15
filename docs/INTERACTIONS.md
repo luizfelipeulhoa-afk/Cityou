@@ -6,7 +6,7 @@ Coluna "Hoje": o que o botão faz no código atual (`src/App.vue`). "Fifones" qu
 
 ## Regras gerais
 
-Escritas do navegador usam `X-Cityou-Request: 1`, inclusive nas telas de conta. O servidor aceita temporariamente o nome anterior para abas antigas. Veja [API](API.md).
+Escritas do navegador usam `X-Cityou-Request: 1`, inclusive nas telas de conta. Abas abertas antes da migração precisam recarregar para adotar o novo cliente. Veja [API](API.md).
 
 1. **Resposta imediata.** A tela muda no toque; o servidor confirma depois. Se a gravação falhar, a tela volta ao estado anterior e o aviso diz o motivo.
 2. **Desfazer, não confirmar.** Apagar, concluir e desmarcar mostram um aviso com "Desfazer" por 5 segundos. Não há caixa de "tem certeza?". A única exceção é apagar a conta.

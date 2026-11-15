@@ -73,22 +73,19 @@ test('rota desconhecida responde 404 em JSON, no formato lido por ApiError', asy
 })
 
 test('método errado numa rota que existe responde 405', async () => {
-  for (const header of ['X-Cityou-Request', 'X-Fifones-City']) {
-    const response = await call('/api/health', { method: 'DELETE', headers: { [header]: '1', Origin: ORIGIN } })
-    assert.equal(response.status, 405, header)
-  }
+  const response = await call('/api/health', { method: 'DELETE', headers: { 'X-Cityou-Request': '1', Origin: ORIGIN } })
+  assert.equal(response.status, 405)
 })
 
-test('escrita sem o cabeçalho, sem origem ou de outra origem é recusada', async () => {
+test('escrita exige o novo cabeçalho e origem do próprio site', async () => {
   const attempts = [
     {},
-    { 'X-Fifones-City': '1' },
-    { 'X-Fifones-City': '1', Origin: 'https://outro-site.example' },
-    { 'X-Fifones-City': '1', Origin: 'não é uma url' },
     { Origin: ORIGIN },
+    { 'X-Fifones-City': '1', Origin: ORIGIN },
     { 'X-Cityou-Request': '0', Origin: ORIGIN },
     { 'X-Cityou-Request': '1' },
     { 'X-Cityou-Request': '1', Origin: 'https://outro-site.example' },
+    { 'X-Cityou-Request': '1', Origin: 'não é uma url' },
   ]
   for (const headers of attempts) {
     const response = await call('/api/health', { method: 'POST', headers })
@@ -121,7 +118,7 @@ function newDemoSession(target = call) {
     const headers = { Cookie: cookie }
     if (body !== undefined) {
       headers.Origin = ORIGIN
-      headers['X-Fifones-City'] = '1'
+      headers['X-Cityou-Request'] = '1'
       headers['Content-Type'] = 'application/json'
     }
     const response = await target(path, { method, headers, body: JSON.stringify(body) })
@@ -231,7 +228,7 @@ test('cidades regionais: construções isoladas, carteira única e reenvio sem c
 
   await travel(session, GREAT_WALL, 'viajar-muralha')
   const task = await session('/api/personal/tasks', { method: 'POST', body: { title: 'Tarefa da carteira' }, status: 201 })
-  await session(`/api/workspace/tasks/${task.id}/complete`, { method: 'POST', body: {} })
+  await session(`/api/personal/tasks/${task.id}/complete`, { method: 'POST', body: {} })
   const [petraNow, wallNow] = await Promise.all([city(session, PETRA), city(session, GREAT_WALL)])
   assert.equal(petraNow.credits, 20)
   assert.equal(wallNow.credits, petraNow.credits)
@@ -386,7 +383,7 @@ test('moedas de teste dos sócios: só com o segredo, uma vez por sessão', asyn
     const session = newDemoSession((path, init) => withToken.fetch(ORIGIN + path, init))
     const grant = (given, cookie = session.cookie) => withToken.fetch(`${ORIGIN}/api/admin/credits`, {
       method: 'POST', body: '{}',
-      headers: { Cookie: cookie, Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json', ...(given && { 'X-Cityou-Admin': given }) },
+      headers: { Cookie: cookie, Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json', ...(given && { 'X-Cityou-Admin': given }) },
     })
     assert.equal((await grant(null)).status, 403)
     assert.equal((await grant('token-errado-token-errado')).status, 403)
@@ -407,7 +404,7 @@ test('moedas de teste dos sócios: só com o segredo, uma vez por sessão', asyn
   const session = newDemoSession()
   const response = await call('/api/admin/credits', {
     method: 'POST', body: '{}',
-    headers: { Cookie: session.cookie, Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json', 'X-Cityou-Admin': 'qualquer-coisa-qualquer' },
+    headers: { Cookie: session.cookie, Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json', 'X-Cityou-Admin': 'qualquer-coisa-qualquer' },
   })
   assert.equal(response.status, 404)
 })
@@ -457,7 +454,7 @@ test('viagens fechadas: ninguém abre destino novo, mas construir na cidade atua
   // O navegador não consegue reabrir as viagens: a sessão lê o estado da configuração do Worker.
   const forged = await closedCall('/api/world/travel', {
     method: 'POST',
-    headers: { Cookie: sessionCookie(new URL(ORIGIN)).split(';')[0], Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json', 'X-Travel-Open': '1' },
+    headers: { Cookie: sessionCookie(new URL(ORIGIN)).split(';')[0], Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json', 'X-Travel-Open': '1' },
     body: JSON.stringify({ local: PETRA, request_id: 'forjada' }),
   })
   assert.equal(forged.status, 409)
@@ -655,7 +652,7 @@ function browser(cookies = {}) {
   const jar = { ...cookies }
   const send = async (path, { method = 'GET', body, redirect = 'manual' } = {}) => {
     const headers = { Cookie: Object.entries(jar).map(([name, value]) => `${name}=${value}`).join('; ') }
-    if (method !== 'GET') Object.assign(headers, { Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' })
+    if (method !== 'GET') Object.assign(headers, { Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json' })
     const response = await call(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), redirect })
     for (const cookie of response.headers.getSetCookie()) {
       const [, name, value] = cookie.match(/^([^=]+)=([^;]*)/)
@@ -814,7 +811,7 @@ test('conta: login retoma a adoção quando o cadastro não conseguiu confirmar 
     method: 'POST',
     headers: {
       Cookie: `cityou_demo=${visitor.jar.cityou_demo}`,
-      Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json',
+      Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json',
     },
     body: JSON.stringify(data),
   }), {
@@ -836,7 +833,7 @@ test('conta: sem banco, as rotas de conta avisam e o app segue como demonstraç�
   const response = await closedHarness.fetch(`${ORIGIN}/api/auth/status`)
   assert.deepEqual(await response.json(), { accounts: false, user: null })
   const signup = await closedHarness.fetch(`${ORIGIN}/api/auth/signup`, {
-    method: 'POST', body: JSON.stringify(account()), headers: { Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' },
+    method: 'POST', body: JSON.stringify(account()), headers: { Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json' },
   })
   assert.equal(signup.status, 503)
   assert.notEqual((await closedHarness.fetch(`${ORIGIN}/city`, { redirect: 'manual' })).status, 302)
@@ -845,7 +842,7 @@ test('conta: sem banco, as rotas de conta avisam e o app segue como demonstraç�
 test('login obrigatório: sem sessão a API de dados responde 401; saúde e contas seguem abertas; com conta tudo funciona', async () => {
   const send = (path, init) => loginHarness.fetch(ORIGIN + path, init)
   await applyMigrations((await loginHarness.getWorker().getEnv()).DB)
-  const headers = { Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' }
+  const headers = { Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json' }
   for (const path of ['/api/city', '/api/personal/summary', '/api/world/progress']) {
     const response = await send(path)
     assert.equal(response.status, 401, path)

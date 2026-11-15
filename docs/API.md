@@ -4,12 +4,12 @@ Rotas do backend em Cloudflare Workers + D1. Tabelas em `DATA-MODEL.md`; quem ch
 
 ## Demonstração em produção (PR #8)
 
-O Worker atende hoje, sem login, as rotas antigas do painel e da cidade. Cada visitante recebe um cookie `cityou_demo` (HttpOnly, 30 dias) ao abrir uma página; o Worker deriva um nome a partir do SHA-256 do cookie e entrega o pedido a um Durable Object com SQLite (`DemoSession`, binding `DEMO_SESSIONS`). Os dados somem 30 dias depois da primeira escrita (alarme). Limites: 100 registros por tipo e corpo de até 24 KB.
+O Worker atende às rotas do painel e da cidade na demonstração sem login. Cada visitante recebe um cookie `cityou_demo` (HttpOnly, 30 dias) ao abrir uma página; o Worker deriva um nome a partir do SHA-256 do cookie e entrega o pedido a um Durable Object com SQLite (`DemoSession`, binding `DEMO_SESSIONS`). Os dados somem 30 dias depois da primeira escrita (alarme). Limites: 100 registros por tipo e corpo de até 24 KB.
 
 | Rota | O que faz hoje |
 |---|---|
 | `GET /api/personal`, `POST /api/personal/entries`, `PUT /api/personal/entries/{id}/checkin`, `POST /api/personal/tasks` | Registros pessoais (hábitos, metas, notas, lançamentos, refeições, tarefas) |
-| `GET /api/personal/tasks`, `POST /api/personal/tasks/{id}/complete` | Tarefas reais (`{ tasks }`, sem `connected`) e conclusão, com recompensa (etapa 2). `GET /api/workspace/tasks` e `POST /api/workspace/tasks/{id}/complete` respondem igual, como apelido por um deploy, e saem na etapa 6 |
+| `GET /api/personal/tasks`, `POST /api/personal/tasks/{id}/complete` | Tarefas reais (`{ tasks }`, sem `connected`) e conclusão, com recompensa (etapa 2) |
 | `POST /api/personal/events`, `PUT` e `DELETE /api/personal/events/{id}` | Agenda real (etapa 5, parte 1): compromissos e dias de respiro no Durable Object. Toda escrita devolve o `GET /api/personal` novo e, na criação (201), `created_id`. `?month=AAAA-MM` escolhe o mês devolvido (padrão: o de hoje). Corpo de `POST`: `kind` (`compromisso` padrão ou `respiro`), `title` 1 a 180 (respiro: fixo "Dia de respiro"), `day` AAAA-MM-DD entre 2000 e 2100, `start_time`/`end_time` `HH:MM` ou `null` (sem horário = dia inteiro; fim exige início e não é menor), `firmness` `firme` ou `leve` ("se der"), `place` até 80, `notes` até 1000. Um respiro por dia, sem horário nem notas; compromisso `firme` em dia de respiro é 422, `leve` é aceito. `PUT` aceita ao menos um campo (sem `kind`). Campo fora da lista, inclusive `credits`, `xp`, `level` e `unlock`, é 422 "Campo não aceito: x". Sem status e sem atraso. Teto de 1.000 por conta (422 "Você chegou ao limite de N registros deste tipo. Apague algum para continuar."). Id de outra sessão é 404 |
 | `GET`, `POST /api/personal/projects`; `PUT`, `DELETE /api/personal/projects/{id}`; `POST /api/personal/projects/{id}/step-done` | Projetos reais (etapa 5, parte 2), mesmo molde da Agenda (devolvem o `GET /api/personal` novo, `created_id` na criação, 422 para campo fora da lista, teto de 100 por conta). Campos: `name` 1 a 120, `description` até 1000, `status` `active` ou `archived` ("Guardar por enquanto", reversível), `next_step` 1 a 180 ou `null` (campo único, sem prazo). `steps_done` e `last_step_at` são só do servidor. `step-done` (corpo `{}`) zera `next_step`, soma 1 em `steps_done` e grava `last_step_at`; 422 sem passo definido ou com o projeto guardado; não paga moedas nem XP |
 | `GET`, `POST /api/personal/weights`; `PUT`, `DELETE /api/personal/weights/{id}` | Peso real (etapa 5, parte 3), mesmo molde (devolvem o `GET /api/personal` novo, `created_id` na criação, 422 para campo fora da lista, teto de 1.500 por conta, cerca de 4 anos). `POST`: `day` (hoje ou passado), `grams` inteiro de 20.000 a 400.000, `note` até 200. Uma pesagem por dia: repetir o dia é 422 "Já existe uma pesagem neste dia; edite-a.". `PUT` aceita só `grams` e `note` (o dia não muda). Sem campo de meta. `GET /api/personal` traz `weights` (últimos 120 dias, mais novas primeiro), `weight_trend` (`[{ day, grams, avg_grams }]`, `avg_grams` é a média das pesagens dos 7 dias que terminam no dia) e `weight_direction` (`estavel`, `subindo`, `descendo` ou `null`; banda morta de ±0,5% da média de agora contra a de 14 dias antes, `null` sem pesagem recente nem referência). `GET /api/personal/weights` devolve o histórico inteiro com a mesma tendência. Nenhuma moeda ou XP |
@@ -30,28 +30,26 @@ O Worker atende hoje, sem login, as rotas antigas do painel e da cidade. Cada vi
 
 **Viagens fechadas.** Com `TRAVEL_OPEN=false`, `POST /api/world/travel` para um destino novo responde 409 e `GET /api/world/progress` traz `viagens_abertas: false` e `viagens_disponiveis: 0`. O Durable Object lê a configuração diretamente do ambiente. Na prévia isolada com `CITYOU_TEST_OPEN_REGIONS=1`, os oito destinos ficam acessíveis para teste.
 
-`GET /api/workspace/projects` é apelido de `GET /api/personal/projects` (`{ projects }`, reais desde a etapa 5) e sai na etapa 6. `GET /api/workspace/activity` responde `{ activity: null }` só para abas abertas com o bundle antigo (a cidade não pede mais desde a etapa 2) e sai na etapa 6. O retrato da cidade não traz mais `source`. O contrato de `POST /api/world/travel` de hoje difere do alvo desta página (sem nível nem passagem em créditos): ver `GAME-DESIGN.md`, seção "O que já está implementado". Para o alvo, esta demonstração vira a fonte de importação: os registros de um visitante podem ser trazidos para a conta dele quando o login existir.
-
-No servidor local (`python -m backend`), `GET /api/personal/tasks` e `POST /api/personal/tasks/{id}/complete` são as mesmas funções de `/api/workspace/tasks*`: as tarefas continuam vindo da fonte Fifones opcional, como descreve o `README.md`.
+As rotas antigas `/api/workspace/*` foram removidas na etapa 6B. O retrato da cidade não traz mais `source`. O contrato de `POST /api/world/travel` de hoje difere do alvo desta página (sem nível nem passagem em créditos): ver `GAME-DESIGN.md`, seção "O que já está implementado". Para o alvo, esta demonstração vira a fonte de importação: os registros de um visitante podem ser trazidos para a conta dele quando o login existir.
 
 ## Arquitetura
 
 Um único Worker serve o site e a API. `wrangler.jsonc` ganha:
 
 - `main`: o código do Worker (`worker/index.js`);
-- `assets.binding` e `assets.run_worker_first: ["/api/*"]`: só `/api/*` passa pelo Worker; o resto continua saindo direto dos arquivos estáticos;
+- `assets.binding` e `assets.run_worker_first`: a API e as páginas HTML principais passam pelo Worker para sessão, redirecionamento e cabeçalhos; os outros assets saem direto dos arquivos estáticos;
 - `d1_databases`: o banco, com o esquema em `migrations/*.sql` (aplicado com `wrangler d1 migrations apply`, `--local` no desenvolvimento e `--remote` na publicação);
 - `ratelimits`: limite aproximado de chamadas às rotas de login.
 
 Escritas que tocam mais de uma tabela (por exemplo, concluir tarefa e gravar o crédito) vão num único `env.DB.batch()`, que roda como uma transação: ou grava tudo, ou nada.
 
-No desenvolvimento, o Vite encaminha `/api` para o `wrangler dev`, no lugar do FastAPI na porta 8766.
+No desenvolvimento, o Vite encaminha `/api` ao Worker local na porta 8787.
 
 ## Convenções
 
 - **Formato:** JSON em UTF-8. Respostas de `/api/*` saem com `Cache-Control: no-store`.
 - **Sessão:** cookie `cityou_session`, `HttpOnly; Secure; SameSite=Lax; Path=/`, válido por 30 dias. O banco guarda só o SHA-256 do token.
-- **Escritas** (`POST`, `PUT`, `PATCH`, `DELETE`) exigem `X-Cityou-Request: 1` e `Origin` igual ao do site. Durante a transição, o Worker também aceita `X-Fifones-City: 1` para clientes antigos. O FastAPI local aceita os dois enquanto for o destino padrão do proxy do Vite. Juntos com `SameSite=Lax`, barram envio forjado por outro site.
+- **Escritas** (`POST`, `PUT`, `PATCH`, `DELETE`) exigem `X-Cityou-Request: 1` e `Origin` igual ao do site. Juntos com `SameSite=Lax`, barram envio forjado por outro site.
 - **Identificadores:** o navegador gera o `id` (UUID) e envia no corpo do `POST`. Repetir o mesmo `POST` devolve o registro já criado, com 200, sem duplicar.
 - **Dono:** toda rota usa o `user_id` da sessão. Registro de outra conta responde 404.
 - **Erros:** `{ "message": "texto para a pessoa", "detail": "o mesmo texto", "fields": { "campo": "motivo" } }`. `ApiError` em `src/fifones/api.js` já lê `message` e `detail`.
@@ -106,7 +104,7 @@ Senha: PBKDF2 pela Web Crypto, sal por usuário, comparação em tempo constante
 }
 ```
 
-Substitui `GET /api/personal`, `GET /api/workspace/tasks` e `GET /api/workspace/projects` (três chamadas viram uma). `events` e `transactions` vêm do mês corrente por padrão; `?month=AAAA-MM` pede outro mês.
+Reúne os dados usados no painel em uma leitura. `events` e `transactions` vêm do mês corrente por padrão; `?month=AAAA-MM` pede outro mês.
 
 ## Recursos
 

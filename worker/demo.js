@@ -69,10 +69,6 @@ const routes = [
   [/^\/api\/personal\/tasks$/, { GET: 'tasks', POST: 'addTask' }],
   [/^\/api\/personal\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/personal\/proofs\/([a-f0-9-]{36})\/(\d{4}-\d{2}-\d{2})\/photo$/, { GET: 'proofPhoto' }],
-  // Apelidos de /api/personal/tasks* por um deploy, para abas abertas com o bundle antigo (etapa 2). Saem na etapa 6.
-  [/^\/api\/workspace\/projects$/, { GET: 'projectsList' }],
-  [/^\/api\/workspace\/tasks$/, { GET: 'tasks' }],
-  [/^\/api\/workspace\/tasks\/([a-f0-9-]{36})\/complete$/, { POST: 'finishTask' }],
   [/^\/api\/city$/, { GET: 'city' }],
   [/^\/api\/city\/actions$/, { POST: 'cityAction' }],
   [/^\/api\/rewards\/sync$/, { POST: 'syncRewards' }],
@@ -139,11 +135,6 @@ async function reservedAccount(db, key) {
 }
 
 export async function demoApi(request, env, url, user = null, timing = null) {
-  // Apelido para abas abertas com o bundle antigo da cidade, que ainda pedem os sinais de atividade do Fifones.
-  // A cidade nova não pede mais (etapa 2). Sai na etapa 6.
-  if (url.pathname === '/api/workspace/activity' && request.method === 'GET') {
-    return json({ activity: null })
-  }
   const route = routes.find(([pattern]) => pattern.test(url.pathname))
   if (!route) throw new HttpError(404, 'Rota não encontrada.')
   if (!Object.hasOwn(route[1], request.method)) throw new HttpError(405, 'Método não permitido.')

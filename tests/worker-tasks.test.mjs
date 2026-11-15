@@ -1,5 +1,4 @@
-// Etapa 2 de docs/PLANO-PROXIMOS-PASSOS.md: tarefas reais no Durable Object, apelidos antigos por um deploy e
-// nada de `connected`/`source` (o Fifones). Rode com: npm run test:worker
+// Tarefas reais no Durable Object e retirada das rotas do Fifones. Rode com: npm run test:worker
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -29,7 +28,7 @@ function session(target = harness) {
   const cookie = sessionCookie(new URL(ORIGIN)).split(';')[0]
   return async (path, { method = 'GET', body, status = 200 } = {}) => {
     const headers = { Cookie: cookie }
-    if (method !== 'GET') Object.assign(headers, { Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' })
+    if (method !== 'GET') Object.assign(headers, { Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json' })
     const response = await target.fetch(ORIGIN + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
     const result = await response.json()
     assert.equal(response.status, status, `${method} ${path}: ${JSON.stringify(result)}`)
@@ -54,20 +53,15 @@ test('tarefas reais: listar, criar e concluir em /api/personal/tasks, sem o camp
   await send('/api/personal/tasks/00000000-0000-0000-0000-000000000000/complete', { method: 'POST', body: {}, status: 404 })
 })
 
-test('apelidos por um deploy: /api/workspace/tasks* responde igual às rotas novas', async () => {
+test('rotas do Fifones foram removidas e não alteram tarefas', async () => {
   const send = session()
-  const task = await send('/api/personal/tasks', { method: 'POST', body: { title: 'Pelo apelido' }, status: 201 })
-  assert.deepEqual(await send('/api/workspace/tasks'), await send('/api/personal/tasks'))
-  const done = await send(`/api/workspace/tasks/${task.id}/complete`, { method: 'POST', body: {} })
-  assert.equal(done.task.status, 'done')
-})
-
-test('sem Fifones: a cidade não tem `source`, projetos chegam vazios e atividade é nula, sem `connected`', async () => {
-  const send = session()
-  const city = await send('/api/city')
-  assert.equal('source' in city, false)
-  assert.deepEqual(await send('/api/workspace/projects'), { projects: [] })
-  assert.deepEqual(await send('/api/workspace/activity'), { activity: null })
+  const task = await send('/api/personal/tasks', { method: 'POST', body: { title: 'Tarefa ativa' }, status: 201 })
+  for (const path of ['/api/workspace/tasks', '/api/workspace/projects', '/api/workspace/activity']) {
+    await send(path, { status: 404 })
+  }
+  await send(`/api/workspace/tasks/${task.id}/complete`, { method: 'POST', body: {}, status: 404 })
+  assert.equal((await send('/api/personal/tasks')).tasks[0].status, 'todo')
+  assert.equal('source' in await send('/api/city'), false)
 })
 
 test('cada sessão só vê e conclui as próprias tarefas', async () => {

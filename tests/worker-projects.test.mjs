@@ -110,20 +110,19 @@ test('teto por conta: o próximo registro é 422 com a mensagem e apagar libera 
   await send('/api/personal/projects', { method: 'POST', body: make(), status: 201 })
 })
 
-test('persistência: o mesmo cookie recebe o mesmo estado e /api/workspace/projects é apelido de /api/personal/projects', async () => {
+test('persistência: o mesmo cookie recebe o mesmo estado', async () => {
   const send = session()
   await send('/api/personal/projects', { method: 'POST', body: make({ next_step: 'Medir' }), status: 201 })
   const first = await send('/api/personal')
   assert.deepEqual((await send('/api/personal')).projects, first.projects)
   const listed = await send('/api/personal/projects')
   assert.deepEqual(listed, { projects: first.projects })
-  assert.deepEqual(await send('/api/workspace/projects'), listed)
-  assert.deepEqual(await session()('/api/workspace/projects'), { projects: [] })
+  assert.deepEqual(await session()('/api/personal/projects'), { projects: [] })
 })
 
 test('com login obrigatório, as rotas de projetos sem sessão respondem 401', async () => {
-  for (const [method, path] of [['GET', '/api/personal/projects'], ['POST', '/api/personal/projects'], ['PUT', `/api/personal/projects/${GHOST_ID}`], ['DELETE', `/api/personal/projects/${GHOST_ID}`], ['POST', `/api/personal/projects/${GHOST_ID}/step-done`], ['GET', '/api/workspace/projects']]) {
-    const response = await loginHarness.fetch(ORIGIN + path, { method, headers: { Origin: ORIGIN, 'X-Fifones-City': '1', 'Content-Type': 'application/json' }, body: ['GET', 'DELETE'].includes(method) ? undefined : '{}' })
+  for (const [method, path] of [['GET', '/api/personal/projects'], ['POST', '/api/personal/projects'], ['PUT', `/api/personal/projects/${GHOST_ID}`], ['DELETE', `/api/personal/projects/${GHOST_ID}`], ['POST', `/api/personal/projects/${GHOST_ID}/step-done`]]) {
+    const response = await loginHarness.fetch(ORIGIN + path, { method, headers: { Origin: ORIGIN, 'X-Cityou-Request': '1', 'Content-Type': 'application/json' }, body: ['GET', 'DELETE'].includes(method) ? undefined : '{}' })
     assert.equal(response.status, 401, `${method} ${path}`)
   }
 })

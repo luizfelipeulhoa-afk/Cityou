@@ -23,10 +23,32 @@ const worldModelsManifest = () => ({
     })
   },
 })
+const devHost = '127.0.0.1'
+const devPort = 5177
+const devOrigin = `http://${devHost}:${devPort}`
+const apiTarget = new URL(process.env.CITYOU_API || 'http://127.0.0.1:8787')
+
 export default defineConfig({
  plugins: [vue(tresTemplateOptions), worldModelsManifest()],
  publicDir: 'public-fifones',
  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
- server: { host: '127.0.0.1', port: 5177, strictPort: true, proxy: { '/api': process.env.CITYOU_API || 'http://127.0.0.1:8766' } },
+ server: {
+   host: devHost,
+   port: devPort,
+   strictPort: true,
+   proxy: {
+     '/api': {
+       target: apiTarget.href,
+       changeOrigin: true,
+       configure(proxy) {
+         proxy.on('proxyReq', (forwarded, incoming) => {
+           // Só a origem do Vite local pode ser traduzida para a origem do Worker.
+           if (incoming.headers.origin === devOrigin) forwarded.setHeader('Origin', apiTarget.origin)
+           else forwarded.removeHeader('Origin')
+         })
+       },
+     },
+   },
+ },
  build: { chunkSizeWarningLimit: 1000, rollupOptions: { input: { app: fileURLToPath(new URL('./app.html', import.meta.url)), city: fileURLToPath(new URL('./city.html', import.meta.url)), world: fileURLToPath(new URL('./world.html', import.meta.url)) } } }
 })
