@@ -6,7 +6,7 @@ import { HttpError, json } from './http.js'
 import { atLeastOne, dayOf, exact, text, todayInSaoPaulo } from './records.js'
 import { GOALS } from '../shared/game/nutrition.js'
 import {
-  DAYS_RANGE, EQUIPMENT, EVIDENCE_PENDING, EXERCISE_BY_ID, EXPERIENCE, estimatedOneRepMax, exerciseVolumeKg,
+  DAYS_RANGE, EQUIPMENT, EVIDENCE_PENDING, EXERCISE_BY_ID, EXPERIENCE, READINESS_QUESTIONS, weeklySetsByGroup, estimatedOneRepMax, exerciseVolumeKg,
   nextLoad, repRangeOf, sessionVolumeKg, suggestPlan, topSet, totalReps,
 } from '../shared/game/training.js'
 
@@ -23,6 +23,7 @@ export const MAX_REPS = 300 // a prancha anota segundos como repetições
 /**
  * Para quem o plano pode ser sugerido, a partir da base calórica (a triagem e a meta ficam lá, sem segunda fonte):
  * profile (falta preencher a Alimentação) | not_available (menor de 18, acima de 80, gestante: procurar um profissional) | ok.
+ * Depois, `trainingView` troca ok por see_professional quando a triagem de esforço do setup tem algum "sim".
  * Com sinal de risco na triagem, a meta de perda vira manutenção, como na base calórica, e `care` pede um aviso na tela.
  */
 export function trainingGate(nutrition) {
@@ -34,15 +35,24 @@ export function trainingGate(nutrition) {
 }
 
 function setupOf(body) {
-  exact(body, ['days_per_week', 'experience', 'equipment'])
+  exact(body, ['days_per_week', 'experience', 'equipment', 'readiness'])
   const fields = {}
+  const readiness = body.readiness
+  const keys = Object.keys(READINESS_QUESTIONS)
+  if (!readiness || typeof readiness !== 'object' || Array.isArray(readiness) ||
+      Object.keys(readiness).length !== keys.length || !keys.every(key => typeof readiness[key] === 'boolean')) {
+    fields.readiness = 'Responda às três perguntas sobre esforço e saúde.'
+  }
   if (!Number.isInteger(body.days_per_week) || body.days_per_week < DAYS_RANGE[0] || body.days_per_week > DAYS_RANGE[1]) {
     fields.days_per_week = `Escolha de ${DAYS_RANGE[0]} a ${DAYS_RANGE[1]} dias.`
   }
   if (!EXPERIENCE.includes(body.experience)) fields.experience = 'Escolha a sua experiência.'
   if (!EQUIPMENT.includes(body.equipment)) fields.equipment = 'Escolha onde você treina.'
   if (Object.keys(fields).length) throw new HttpError(422, 'Confira os campos.', fields)
-  return { days_per_week: body.days_per_week, experience: body.experience, equipment: body.equipment, updated_at: new Date().toISOString() }
+  return {
+    days_per_week: body.days_per_week, experience: body.experience, equipment: body.equipment,
+    readiness: Object.fromEntries(keys.map(key => [key, readiness[key]])), updated_at: new Date().toISOString(),
+  }
 }
 
 function setOf(set, where) {
@@ -134,15 +144,18 @@ export const trainingMethods = {
 
   trainingView() {
     const today = todayInSaoPaulo()
-    const gate = trainingGate(this.nutritionView())
     const setup = this.read(SETUP, 'setup')
+    let gate = trainingGate(this.nutritionView())
+    // Triagem de esforço com algum "sim": sem treino automático, indica avaliação (o registro de treinos continua).
+    if (gate.state === 'ok' && setup && Object.values(setup.readiness ?? {}).some(Boolean)) gate = { ...gate, state: 'see_professional' }
     const plan = gate.state === 'ok' && setup
       ? suggestPlan({ days: setup.days_per_week, experience: setup.experience, equipment: setup.equipment, goal: gate.goal })
       : null
     const since = shiftDay(today, -HISTORY_DAYS)
     const sessions = this.allWorkouts().filter(item => item.day >= since).map(withTotals)
       .sort((a, b) => b.day.localeCompare(a.day) || b.updated_at.localeCompare(a.updated_at))
-    return { gate, setup, plan, provisional: EVIDENCE_PENDING, sessions, stats: trainingStats(sessions, today, plan) }
+    const weeklySets = plan ? weeklySetsByGroup(plan) : null
+    return { gate, setup, plan, weekly_sets: weeklySets, provisional: EVIDENCE_PENDING, sessions, stats: trainingStats(sessions, today, plan) }
   },
 
   training() { return json(this.trainingView()) },

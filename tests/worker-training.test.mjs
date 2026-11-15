@@ -9,7 +9,8 @@ useHarnesses()
 
 const year = Number(dayFromToday().slice(0, 4))
 const profile = (extra = {}) => ({ height_cm: 175, sex: 'm', birth_year: year - 30, activity: 'low', goal: 'fat_loss', resistance_training: true, ...extra })
-const SETUP = { days_per_week: 3, experience: 'beginner', equipment: 'gym' }
+const OK = { exertion_symptoms: false, medical_restriction: false, recent_injury: false }
+const SETUP = { days_per_week: 3, experience: 'beginner', equipment: 'gym', readiness: OK }
 const bench = (reps = [8, 6], kg = 60) => ({ exercise_id: 'supino-reto', sets: reps.map(r => ({ weight_grams: kg * 1000, reps: r })) })
 const workout = (extra = {}) => ({ day: dayFromToday(-1), plan_day: 1, exercises: [bench()], note: '', ...extra })
 async function ready(send, extra = {}, answers = [false, false, false, false, false]) {
@@ -20,19 +21,30 @@ async function ready(send, extra = {}, answers = [false, false, false, false, fa
 test('sem base calórica não há plano; com ela, o plano segue a meta e os dias escolhidos', async () => {
   const send = session()
   const empty = await send('/api/personal/training')
-  assert.deepEqual([empty.gate.state, empty.plan, empty.setup, empty.provisional], ['profile', null, null, true])
+  assert.deepEqual([empty.gate.state, empty.plan, empty.setup, empty.provisional], ['profile', null, null, false])
   await send('/api/personal/training/setup', { method: 'PUT', body: SETUP })
   assert.equal((await send('/api/personal/training')).plan, null)
 
   await ready(send)
   const view = await send('/api/personal/training')
   assert.deepEqual([view.gate.state, view.gate.goal, view.plan.goal, view.plan.days.length], ['ok', 'fat_loss', 'fat_loss', 3])
+  assert.ok(view.weekly_sets.Peito >= 4)
   const four = await send('/api/personal/training/setup', { method: 'PUT', body: { ...SETUP, days_per_week: 4, equipment: 'bodyweight' } })
   assert.deepEqual(four.plan.days.map(day => day.label), ['Superior A', 'Inferior A', 'Superior B', 'Inferior B'])
 
-  for (const body of [{ ...SETUP, days_per_week: 7 }, { ...SETUP, experience: 'pro' }, { ...SETUP, equipment: 'rua' }, { ...SETUP, xp: 1 }]) {
+  for (const body of [{ ...SETUP, days_per_week: 7 }, { ...SETUP, experience: 'pro' }, { ...SETUP, equipment: 'rua' }, { ...SETUP, xp: 1 }, { ...SETUP, readiness: undefined }, { ...SETUP, readiness: { ...OK, recent_injury: 'sim' } }, { ...SETUP, readiness: { ...OK, extra: false } }]) {
     await send('/api/personal/training/setup', { method: 'PUT', body, status: 422 })
   }
+})
+
+test('triagem de esforço com algum sim: sem plano automático, mas registra treino', async () => {
+  const send = session()
+  await ready(send)
+  const view = await send('/api/personal/training/setup', { method: 'PUT', body: { ...SETUP, readiness: { ...OK, exertion_symptoms: true } } })
+  assert.deepEqual([view.gate.state, view.plan], ['see_professional', null])
+  await send('/api/personal/training/sessions', { method: 'POST', body: workout(), status: 201 })
+  const back = await send('/api/personal/training/setup', { method: 'PUT', body: SETUP })
+  assert.equal(back.gate.state, 'ok')
 })
 
 test('menor de 18 e gestante não recebem plano; sinal de risco troca perda por manutenção e pede cuidado', async () => {
@@ -55,8 +67,8 @@ test('registra a sessão com o que a pessoa fez de verdade e o servidor calcula 
   assert.deepEqual([item.volume_kg, item.reps, item.sets, item.exercises[0].name], [840, 14, 2, 'Supino reto com barra'])
   assert.equal(created.stats.exercises[0].best_e1rm_kg, 76)
 
-  const edited = await send(`/api/personal/training/sessions/${item.id}`, { method: 'PUT', body: { exercises: [bench([10, 10], 62.5)] } })
-  assert.equal(edited.sessions[0].volume_kg, 1250)
+  const edited = await send(`/api/personal/training/sessions/${item.id}`, { method: 'PUT', body: { exercises: [bench([12, 12], 62.5)] } })
+  assert.equal(edited.sessions[0].volume_kg, 1500)
   assert.deepEqual(edited.stats.exercises[0].next, { action: 'increase', weight_grams: 64_000 })
   await send(`/api/personal/training/sessions/${item.id}`, { method: 'PUT', body: {}, status: 422 })
   assert.deepEqual((await send(`/api/personal/training/sessions/${item.id}`, { method: 'DELETE' })).sessions, [])
@@ -82,14 +94,14 @@ test('estatísticas: volume por semana e progressão por exercício', () => {
   const today = '2026-11-15' // domingo
   const sessions = [
     { day: '2026-11-10', volume_kg: 480, exercises: [{ exercise_id: 'supino-reto', volume_kg: 480, sets: [{ weight_grams: 60_000, reps: 8 }] }] },
-    { day: '2026-11-13', volume_kg: 650, exercises: [{ exercise_id: 'supino-reto', volume_kg: 650, sets: [{ weight_grams: 65_000, reps: 10 }] }] },
+    { day: '2026-11-13', volume_kg: 780, exercises: [{ exercise_id: 'supino-reto', volume_kg: 780, sets: [{ weight_grams: 65_000, reps: 12 }] }] },
     { day: '2026-11-03', volume_kg: 400, exercises: [{ exercise_id: 'supino-reto', volume_kg: 400, sets: [{ weight_grams: 50_000, reps: 8 }] }] },
   ]
   const stats = trainingStats(sessions, today)
   assert.equal(stats.weeks.length, 8)
-  assert.deepEqual(stats.weeks.at(-1), { week: '2026-11-09', volume_kg: 1130, sessions: 2 })
+  assert.deepEqual(stats.weeks.at(-1), { week: '2026-11-09', volume_kg: 1260, sessions: 2 })
   assert.deepEqual(stats.weeks.at(-2), { week: '2026-11-02', volume_kg: 400, sessions: 1 })
   const bench = stats.exercises[0]
-  assert.deepEqual([bench.sessions, bench.last.day, bench.best_e1rm_kg, bench.history.map(item => item.top_weight_grams)], [3, '2026-11-13', 86.7, [50_000, 60_000, 65_000]])
+  assert.deepEqual([bench.sessions, bench.last.day, bench.best_e1rm_kg, bench.history.map(item => item.top_weight_grams)], [3, '2026-11-13', 91, [50_000, 60_000, 65_000]])
   assert.equal(bench.next.action, 'increase')
 })

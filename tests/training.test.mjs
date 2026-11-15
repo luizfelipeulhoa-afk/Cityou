@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  EQUIPMENT, EXERCISES, EXERCISE_BY_ID, SPLITS, estimatedOneRepMax, nextLoad, sessionVolumeKg, suggestPlan, topSet,
+  EQUIPMENT, EXERCISES, EXERCISE_BY_ID, SOURCES, SPLITS, estimatedOneRepMax, nextLoad, sessionVolumeKg, suggestPlan, topSet, weeklySetsByGroup,
 } from '../shared/game/training.js'
 
 test('o plano tem um treino por dia escolhido, sem exercício repetido no dia e só com o equipamento escolhido', () => {
@@ -27,13 +27,24 @@ test('o plano tem um treino por dia escolhido, sem exercício repetido no dia e 
 test('séries, faixa de repetições e descanso seguem experiência e tipo de exercício', () => {
   const beginner = suggestPlan({ days: 3, experience: 'beginner', equipment: 'gym', goal: 'muscle_gain' }).days[0]
   const advanced = suggestPlan({ days: 3, experience: 'advanced', equipment: 'gym', goal: 'muscle_gain' }).days[0]
-  assert.equal(beginner.exercises[0].sets, 2)
-  assert.equal(advanced.exercises[0].sets, 4) // o primeiro composto ganha uma série
-  assert.equal(advanced.exercises[1].sets, 3)
+  assert.ok(beginner.exercises.every(item => item.sets >= 2 && item.sets <= 3))
+  assert.ok(advanced.exercises.every(item => item.sets >= 3 && item.sets <= 4))
   const squat = beginner.exercises.find(item => item.exercise_id === 'agachamento-livre')
   const lateral = beginner.exercises.find(item => item.exercise_id === 'elevacao-lateral')
-  assert.deepEqual([squat.reps, squat.rest_s], [[6, 10], 120])
-  assert.deepEqual([lateral.reps, lateral.rest_s], [[10, 15], 75])
+  assert.deepEqual([squat.reps, squat.rest_s], [[6, 12], 120])
+  assert.deepEqual([lateral.reps, lateral.rest_s], [[10, 15], 90])
+})
+
+test('séries semanais: quem começa chega a 4 por grupo grande com 2 dias ou mais; quem treina chega a ~8 a 10 com 3 dias ou mais', () => {
+  const big = ['Peito', 'Costas', 'Quadríceps e glúteos', 'Posterior de coxa e glúteos']
+  for (let days = 2; days <= 6; days += 1) {
+    const sets = weeklySetsByGroup(suggestPlan({ days, experience: 'beginner', equipment: 'gym', goal: 'maintain' }))
+    assert.ok(big.every(group => sets[group] >= 4), `iniciante, ${days} dias`)
+  }
+  for (let days = 3; days <= 6; days += 1) {
+    const sets = weeklySetsByGroup(suggestPlan({ days, experience: 'intermediate', equipment: 'gym', goal: 'maintain' }))
+    assert.ok(big.every(group => sets[group] >= 8), `intermediário, ${days} dias`)
+  }
 })
 
 test('catálogo: ids únicos e todo padrão do plano tem opção na academia', () => {
@@ -64,4 +75,10 @@ test('próxima carga: sobe quando todas as séries chegam ao topo, mantém abaix
   assert.deepEqual(nextLoad([{ weight_grams: 60_000, reps: 8 }, { weight_grams: 60_000, reps: 5 }], [6, 10]), { action: 'hold', weight_grams: 60_000 })
   assert.deepEqual(nextLoad([{ weight_grams: 60_000, reps: 8 }], [6, 10]), { action: 'reps', weight_grams: 60_000 })
   assert.deepEqual(nextLoad([{ weight_grams: 0, reps: 20 }], [6, 10]), { action: 'reps', weight_grams: 0 })
+})
+
+test('toda regra cita uma fonte', () => {
+  for (const key of ['iversen2021', 'iusca2021', 'refalo2022', 'singer2024', 'plotkin2022', 'evangelista2021', 'who2020', 'deficit', 'epley']) {
+    assert.ok(SOURCES[key]?.ref && SOURCES[key]?.note, key)
+  }
 })

@@ -4,7 +4,7 @@
 // que o sugerido); o servidor calcula o volume total, a melhor série, o 1RM estimado e a próxima carga sugerida.
 import { computed, onMounted, reactive, ref } from 'vue'
 import { addWorkout, editWorkout, loadTraining, removeWorkout, saveTrainingSetup } from '../fifones/api.js'
-import { EXERCISES, EXERCISE_BY_ID } from '../../shared/game/training.js'
+import { EXERCISES, EXERCISE_BY_ID, READINESS_QUESTIONS, SOURCES } from '../../shared/game/training.js'
 
 const GOAL_NAMES = { maintain: 'manter o peso', fat_loss: 'perder gordura', lean_preserve: 'perder gordura mantendo músculo', muscle_gain: 'ganhar massa' }
 const EXPERIENCE = { beginner: 'Começando agora (menos de 6 meses)', intermediate: 'Treino há 6 meses a 2 anos', advanced: 'Treino há mais de 2 anos' }
@@ -25,7 +25,13 @@ const view = ref(null)
 const busy = ref(false)
 const message = ref('')
 const editingSetup = ref(false)
-const setupForm = reactive({ days_per_week: 3, experience: 'beginner', equipment: 'gym' })
+const setupForm = reactive({ days_per_week: 3, experience: 'beginner', equipment: 'gym', readiness: { exertion_symptoms: null, medical_restriction: null, recent_injury: null } })
+const GOAL_NOTES = {
+  fat_loss: 'Na perda de gordura, manter a musculação ajuda a preservar a massa magra enquanto a alimentação faz o déficit.',
+  lean_preserve: 'Na perda de gordura, manter a musculação ajuda a preservar a massa magra enquanto a alimentação faz o déficit.',
+  muscle_gain: 'Para ganhar massa, o que mais conta é a constância e ir aumentando repetições ou carga aos poucos.',
+  maintain: 'Para manter, o treino segura a força e a massa magra; vá aumentando repetições ou carga quando ficar fácil.',
+}
 const log = ref(null) // { id, day, plan_day, note, exercises: [{ exercise_id, reps, sets: [{ kg, reps }] }] }
 const addPick = ref('')
 const confirmId = ref('')
@@ -42,8 +48,9 @@ const preview = computed(() => !log.value ? 0 : log.value.exercises.reduce((sum,
 
 function apply(next) {
   view.value = next
-  if (next.setup) Object.assign(setupForm, next.setup)
+  if (next.setup) Object.assign(setupForm, { ...next.setup, readiness: { ...next.setup.readiness } })
 }
+const readinessDone = computed(() => Object.values(setupForm.readiness).every(value => typeof value === 'boolean'))
 
 async function run(action) {
   busy.value = true
@@ -55,7 +62,9 @@ async function run(action) {
 }
 
 async function saveSetup() {
-  if (await run(() => saveTrainingSetup({ ...setupForm }))) editingSetup.value = false
+  if (!readinessDone.value) { message.value = 'Responda às três perguntas sobre esforço e saúde.'; return }
+  const { days_per_week, experience, equipment, readiness } = setupForm
+  if (await run(() => saveTrainingSetup({ days_per_week, experience, equipment, readiness: { ...readiness } }))) editingSetup.value = false
 }
 
 function nextText(item) {
@@ -123,13 +132,21 @@ onMounted(() => run(loadTraining))
       <p v-else-if="gate.state === 'not_available'" class="tp-muted">{{ NOT_AVAILABLE[gate.reason] }} Você ainda pode registrar os seus treinos aqui.</p>
       <template v-else>
         <p v-if="gate.care" class="tp-note">O treino é para fazer bem, não para compensar o que você comeu. Se ele estiver virando obrigação ou castigo, vale conversar com um profissional de saúde.</p>
-        <form v-if="!view.setup || editingSetup" class="tp-form" @submit.prevent="saveSetup">
+        <div v-if="gate.state === 'see_professional' && !editingSetup" class="tp-note">Pelas suas respostas, o app não monta um treino automático: antes, vale conversar com um médico ou um profissional de educação física. Você pode continuar registrando os seus treinos aqui. <button class="tp-link" @click="editingSetup = true">Rever respostas</button></div>
+        <form v-else-if="!view.setup || editingSetup" class="tp-form" @submit.prevent="saveSetup">
           <p class="tp-muted">Sua meta na Alimentação é <strong>{{ GOAL_NAMES[gate.goal] }}</strong>. Conte como você treina:</p>
           <div class="tp-columns">
             <label>Dias de treino por semana<select v-model.number="setupForm.days_per_week"><option v-for="d in 6" :key="d" :value="d">{{ d }} {{ d === 1 ? 'dia' : 'dias' }}</option></select></label>
             <label>Experiência<select v-model="setupForm.experience"><option v-for="(name, id) in EXPERIENCE" :key="id" :value="id">{{ name }}</option></select></label>
             <label>Onde você treina<select v-model="setupForm.equipment"><option v-for="(name, id) in EQUIPMENT" :key="id" :value="id">{{ name }}</option></select></label>
           </div>
+          <fieldset class="tp-ready"><legend>Antes de montar, três perguntas rápidas</legend>
+            <div v-for="(question, key) in READINESS_QUESTIONS" :key="key" class="tp-question" role="radiogroup" :aria-label="question">
+              <span>{{ question }}</span>
+              <label><input v-model="setupForm.readiness[key]" type="radio" :value="true" :name="key" />Sim</label>
+              <label><input v-model="setupForm.readiness[key]" type="radio" :value="false" :name="key" />Não</label>
+            </div>
+          </fieldset>
           <footer class="tp-actions">
             <button v-if="view.setup" type="button" class="quiet-button" :disabled="busy" @click="editingSetup = false">Cancelar</button>
             <button class="primary-btn" :disabled="busy">{{ busy ? 'Salvando…' : 'Montar meu treino' }}</button>
@@ -137,7 +154,8 @@ onMounted(() => run(loadTraining))
         </form>
         <template v-else-if="plan">
           <p class="tp-muted">{{ view.setup.days_per_week }} {{ view.setup.days_per_week === 1 ? 'dia' : 'dias' }} por semana · {{ EQUIPMENT[view.setup.equipment] }} · meta: {{ GOAL_NAMES[plan.goal] }}. Pare cada série com {{ plan.rir[0] }} a {{ plan.rir[1] }} repetições ainda sobrando. <button class="tp-link" @click="editingSetup = true">Mudar</button></p>
-          <p v-if="plan.provisional" class="tp-note">Sugestão provisória: as séries, repetições e descansos ainda vão ser conferidos com os estudos. Não é prescrição; se tiver dor ou alguma condição de saúde, fale com um profissional.</p>
+          <p class="tp-note">{{ GOAL_NOTES[plan.goal] }}<template v-if="view.setup.days_per_week === 1"> A recomendação da OMS é fortalecer os músculos em 2 ou mais dias por semana: se der, acrescente um dia.</template> É uma sugestão baseada em estudos, não uma prescrição; se sentir dor, pare e procure um profissional.</p>
+          <p class="tp-muted">Séries por semana: <span v-for="(sets, group, i) in view.weekly_sets" :key="group">{{ i ? ' · ' : '' }}{{ group }} {{ sets }}</span></p>
           <div class="tp-days">
             <article v-for="day in plan.days" :key="day.index" class="tp-day">
               <header><h3>Dia {{ day.index }} · {{ day.label }}</h3><button class="quiet-button" @click="startLog(day)">Registrar</button></header>
@@ -147,6 +165,7 @@ onMounted(() => run(loadTraining))
         </template>
       </template>
 
+      <details class="tp-sources"><summary>De onde vêm esses números</summary><ul><li v-for="(source, key) in SOURCES" :key="key"><strong>{{ source.note }}</strong><small>{{ source.ref }}</small></li></ul></details>
       <template v-if="sessions.length">
         <h3 class="tp-sub">Volume por semana (kg levantados)</h3>
         <div class="tp-weeks" role="img" :aria-label="`Volume das últimas 8 semanas: ${stats.weeks.map(w => n1(w.volume_kg)).join(', ')} kg`">
@@ -246,5 +265,16 @@ onMounted(() => run(loadTraining))
 .tp-total{font-size:13px}
 .tp-total strong{color:var(--peach);font-weight:500}
 .tp-total small{color:#9399ae;font-size:11px}
+.tp-ready{border:1px solid #ffffff12;border-radius:12px;padding:10px 14px;margin:0;display:flex;flex-direction:column;gap:10px}
+.tp-ready legend{font-size:12px;padding:0 6px}
+.tp-question{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;font-size:12px}
+.tp-question > span{flex:1 1 320px;color:#d8dbe8;line-height:1.5}
+.tp-question label{flex-direction:row;align-items:center;gap:6px;font-size:12px;color:#d8dbe8}
+.tp-sources{font-size:12px;color:#9399ae}
+.tp-sources summary{cursor:pointer;color:var(--mint)}
+.tp-sources ul{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.tp-sources li{display:flex;flex-direction:column;gap:2px}
+.tp-sources strong{font-weight:400;color:#d8dbe8}
+.tp-sources small{font-size:11px}
 @media (max-width:640px){.tp-columns{grid-template-columns:1fr}.tp-set{grid-template-columns:1fr 1fr auto}.tp-set > span{grid-column:1 / -1;padding:0}}
 </style>

@@ -1,15 +1,23 @@
 // Treino de musculação sugerido da aba Fitness (pedido do dono, 15/11/2026). Funções puras, sem banco: o Worker
 // (worker/training.js) monta o plano e calcula volume e progressão por aqui, e a tela usa o catálogo para os nomes.
 //
-// É SUGESTÃO, não prescrição. As regras de séries, repetições, descanso e progressão abaixo são PROVISÓRIAS: o dono
-// está reunindo os artigos (hipertrofia, perda de gordura, frequência, volume) e cada número vai ganhar a sua fonte em
-// SOURCES, como em shared/game/nutrition.js. Enquanto EVIDENCE_PENDING for true, a tela avisa que o plano é provisório.
-// Volume da sessão, melhor série e estimativa de 1RM são contas, não recomendação, e não dependem dos artigos.
+// É SUGESTÃO, não prescrição. Cada regra cita a fonte em SOURCES (artigos do pacote "Cityou - Evidências científicas
+// de musculação", 15/11/2026, guardado no projeto do claude.ai "CityouApp", pasta treino/). O que é escolha de produto e
+// não vem de estudo está marcado como tal: o passo de 2,5% na carga, os modelos de divisão e a escolha dos exercícios.
 
-export const EVIDENCE_PENDING = true
-// Preencher com os artigos: { chave: { ref: 'Autor, ano. Título. Revista.', note: 'o que a regra usa daqui' } }.
+export const EVIDENCE_PENDING = false
 export const SOURCES = {
-  epley: { ref: 'Epley B, 1985. Poundage chart. Boyd Epley Workout.', note: 'estimativa de 1RM: carga × (1 + repetições / 30), só até 12 repetições' },
+  iversen2021: { ref: 'Iversen VM et al., 2021. No Time to Lift? Designing Time-Efficient Training Programs for Strength and Hypertrophy. Sports Med 51:2079-95 (PMC8449772).', note: 'mínimo de 4 séries semanais por grupo muscular, faixa de 6 a 15 RM; diretrizes: 2 a 4 séries por grupo, 2 a 3 vezes por semana (4 a 12 séries semanais) para quem não treina ou treina há pouco' },
+  iusca2021: { ref: 'Schoenfeld BJ et al., 2021. Resistance Training Recommendations to Maximize Muscle Hypertrophy in an Athletic Population: Position Stand of the IUSCA. Int J Strength Cond 1(1).', note: 'cerca de 10 séries por músculo por semana como mínimo geral para otimizar a hipertrofia em quem treina; até ~10 por sessão; hipertrofia parecida numa faixa ampla de cargas; uma vez por semana basta em volume baixo a moderado' },
+  refalo2022: { ref: 'Refalo MC et al., 2022. Influence of Resistance Training Proximity-to-Failure on Skeletal Muscle Hypertrophy. Sports Med 53:649-65 (PMC9935748).', note: 'treinar até a falha teve vantagem trivial sobre não ir à falha: parar com repetições sobrando é aceitável' },
+  singer2024: { ref: 'Singer A et al., 2024. Give it a rest: inter-set rest interval duration and muscle hypertrophy. Front Sports Act Living 6:1429789 (PMC11349676).', note: 'pequeno benefício com descanso acima de 60 s; sem diferença perceptível acima de 90 s' },
+  plotkin2022: { ref: 'Plotkin D et al., 2022. Progressive overload without progressing load? PeerJ 10:e14142 (PMC9528903).', note: 'progredir por repetições ou por carga são estratégias viáveis (dupla progressão)' },
+  evangelista2021: { ref: 'Evangelista AL et al., 2021. Split or full-body workout routine: which is best to increase muscle strength and hypertrophy? Einstein (São Paulo) 19:eAO5781 (PMC8372753).', note: 'treinar 2 ou 4 vezes por semana com o mesmo volume semanal dá adaptações parecidas: a divisão pode seguir os dias disponíveis' },
+  who2020: { ref: 'Bull FC et al., 2020. WHO guidelines on physical activity and sedentary behaviour. Br J Sports Med 54:1451-62 (PMC7719906).', note: 'adultos: fortalecimento de todos os grandes grupos musculares em 2 ou mais dias por semana' },
+  equipment: { ref: 'Haugen ME et al., 2023. Free-weight vs. machine-based strength training. BMC Sports Sci Med Rehabil 15:103 (PMC10426227); Ogawa M et al., 2023. Free weight and body mass-based resistance training. Exp Physiol 108:975-85 (PMC10988481).', note: 'peso livre e máquina sem diferença de hipertrofia; treino com o peso do corpo comparável ao peso livre em jovens e adultos de meia-idade' },
+  deficit: { ref: 'Deller M et al., 2026. Effects of Calorie Restriction With and Without Strength, Endurance or Mixed Training on Fat-Free and Skeletal Muscle Mass. Diabetes Obes Metab 28:6810-23 (PMC13341414).', note: 'na restrição calórica, o treino de força e o misto preservaram a massa livre de gordura melhor que só a dieta' },
+  concurrent: { ref: 'Schumann M et al., 2021. Compatibility of Concurrent Aerobic and Strength Training. Sports Med 52:601-12 (PMC8891239).', note: 'aeróbio junto com musculação não compromete a hipertrofia nem a força máxima' },
+  epley: { ref: 'Epley B, 1985. Poundage chart. Boyd Epley Workout.', note: 'estimativa de 1RM: carga × (1 + repetições / 30), só até 12 repetições (fórmula de uso comum, não está no pacote)' },
 }
 
 export const DAYS_RANGE = [1, 6]
@@ -64,8 +72,9 @@ export const EXERCISES = [
 ]
 export const EXERCISE_BY_ID = Object.fromEntries(EXERCISES.map(exercise => [exercise.id, exercise]))
 
-// Divisão por dias na semana (PROVISÓRIO até os artigos de frequência): 1 a 3 dias, corpo inteiro; 4, superior e
-// inferior duas vezes; 5, superior, inferior, empurrar, puxar, pernas; 6, empurrar, puxar e pernas duas vezes.
+// Divisão por dias na semana (escolha de produto; evangelista2021 e iusca2021: com o mesmo volume semanal, a frequência
+// muda pouco): 1 a 3 dias, corpo inteiro; 4, superior e inferior duas vezes; 5, superior, inferior, empurrar, puxar,
+// pernas; 6, empurrar, puxar e pernas duas vezes. Com 1 dia, a tela lembra que a OMS recomenda 2 ou mais (who2020).
 const DAY_TEMPLATES = {
   fullA: ['Corpo inteiro A', ['squat', 'h_push', 'v_pull', 'hinge', 'lateral', 'core']],
   fullB: ['Corpo inteiro B', ['hinge', 'incline_push', 'h_pull', 'lunge', 'biceps', 'triceps']],
@@ -84,39 +93,58 @@ export const SPLITS = {
   6: ['push', 'pull', 'legs', 'push', 'pull', 'legs'],
 }
 
-// Séries, repetições, esforço e descanso (PROVISÓRIO até os artigos de hipertrofia e de perda de gordura). A meta vem da
-// base calórica: o treino de força é o mesmo para ganhar massa e para perder gordura (na perda, ele segura a massa
-// magra); quem muda é a alimentação.
-const SETS = { beginner: 2, intermediate: 3, advanced: 3 }
-const REPS = { compound: [6, 10], isolation: [10, 15] }
-const REST_SECONDS = { compound: 120, isolation: 75 }
+// Séries, repetições, esforço e descanso. A meta vem da base calórica: o treino de força é o mesmo para ganhar massa e
+// para perder gordura (na perda, ele preserva a massa livre de gordura: deficit); quem muda é a alimentação.
+// Séries por exercício (iversen2021, iusca2021): quem começa fica perto do mínimo de 4 séries semanais por grupo; quem já
+// treina sobe em direção às ~10 do IUSCA, conforme os dias. Repetições dentro dos 6 a 15 RM (iversen2021, iusca2021).
+// Descanso acima de 60 s, sem ganho perceptível depois de 90 s (singer2024); o composto descansa mais pelo esforço.
+// Parar com 1 a 3 repetições sobrando (refalo2022).
+const SETS = { beginner: [2, 3], intermediate: [3, 4], advanced: [3, 4] } // piso e teto de séries por exercício
+const REPS = { compound: [6, 12], isolation: [10, 15] }
+const REST_SECONDS = { compound: 120, isolation: 90 }
 export const RIR = [1, 3] // repetições que ainda daria para fazer ao fim da série
+// Séries semanais por grupo que o plano mira (iversen2021 para quem começa; iusca2021 para quem já treina).
+export const WEEKLY_SETS_TARGET = { beginner: 4, intermediate: 10, advanced: 10 }
 
 function pick(pattern, equipment, used) {
   const options = EXERCISES.filter(exercise => exercise.pattern === pattern && exercise.setups.includes(equipment))
   return options.find(exercise => !used.has(exercise.id)) ?? null
 }
 
-/** Plano sugerido: um dia de treino por dia da semana escolhido, cada um com exercícios, séries, faixa de repetições e descanso. */
+/**
+ * Plano sugerido: um treino por dia escolhido, cada um com exercícios, séries, faixa de repetições e descanso. As séries
+ * de cada exercício saem do alvo semanal do grupo dividido pelas vezes que ele aparece na semana, entre o piso e o teto
+ * da experiência (quem começa: 2 a 3; quem já treina: 3 a 4).
+ */
 export function suggestPlan({ days, experience, equipment, goal }) {
   if (!Number.isInteger(days) || days < DAYS_RANGE[0] || days > DAYS_RANGE[1]) throw new RangeError('days')
   if (!EXPERIENCE.includes(experience) || !EQUIPMENT.includes(equipment)) throw new RangeError('setup')
+  const chosen = SPLITS[days].map(key => {
+    const [label, patterns] = DAY_TEMPLATES[key]
+    const used = new Set()
+    const exercises = []
+    for (const pattern of patterns) {
+      const exercise = pick(pattern, equipment, used)
+      if (!exercise) continue // sem opção para esse equipamento (por exemplo, elevação lateral só com o corpo)
+      used.add(exercise.id)
+      exercises.push(exercise)
+    }
+    return { label, exercises }
+  })
+  const times = {}
+  for (const day of chosen) for (const exercise of day.exercises) times[exercise.group] = (times[exercise.group] ?? 0) + 1
+  const [low, high] = SETS[experience]
+  const target = WEEKLY_SETS_TARGET[experience]
   return {
-    goal, provisional: EVIDENCE_PENDING, rir: RIR,
-    days: SPLITS[days].map((key, index) => {
-      const [label, patterns] = DAY_TEMPLATES[key]
-      const used = new Set()
-      const exercises = []
-      for (const pattern of patterns) {
-        const exercise = pick(pattern, equipment, used)
-        if (!exercise) continue // sem opção para esse equipamento (por exemplo, elevação lateral só com o corpo)
-        used.add(exercise.id)
+    goal, provisional: EVIDENCE_PENDING, rir: RIR, weekly_sets_target: target,
+    days: chosen.map(({ label, exercises }, index) => ({
+      index: index + 1, label,
+      exercises: exercises.map(exercise => {
         const kind = exercise.compound ? 'compound' : 'isolation'
-        const sets = SETS[experience] + (experience === 'advanced' && exercises.length === 0 ? 1 : 0)
-        exercises.push({ exercise_id: exercise.id, name: exercise.name, group: exercise.group, sets, reps: REPS[kind], rest_s: REST_SECONDS[kind] })
-      }
-      return { index: index + 1, label, exercises }
-    }),
+        const sets = Math.min(high, Math.max(low, Math.ceil(target / times[exercise.group])))
+        return { exercise_id: exercise.id, name: exercise.name, group: exercise.group, sets, reps: REPS[kind], rest_s: REST_SECONDS[kind] }
+      }),
+    })),
   }
 }
 
@@ -140,9 +168,9 @@ export function topSet(sets) {
 }
 
 /**
- * Próxima carga sugerida (dupla progressão, PROVISÓRIO até os artigos de progressão): se todas as séries chegaram ao
- * topo da faixa, sobe cerca de 2,5% (arredondado a 0,5 kg, no mínimo 0,5 kg); se alguma ficou abaixo do piso, mantém;
- * senão mantém e busca mais repetições. Sem carga (exercício com o corpo), pede mais repetições.
+ * Próxima carga sugerida (dupla progressão: plotkin2022, repetições e carga são caminhos viáveis): se todas as séries
+ * chegaram ao topo da faixa, sobe cerca de 2,5% (escolha de produto, arredondado a 0,5 kg, no mínimo 0,5 kg); se alguma
+ * ficou abaixo do piso, mantém; senão mantém e busca mais repetições. Sem carga (exercício com o corpo), mais repetições.
  */
 export function nextLoad(sets, [low, high]) {
   const top = topSet(sets)
@@ -158,3 +186,18 @@ export function nextLoad(sets, [low, high]) {
 
 /** Faixa de repetições que o plano usa para o exercício (a do plano, se estiver nele; senão pela categoria). */
 export const repRangeOf = exerciseId => REPS[EXERCISE_BY_ID[exerciseId]?.compound ? 'compound' : 'isolation']
+
+/** Séries por semana de cada grupo muscular no plano (para mostrar e para os testes conferirem o alvo). */
+export function weeklySetsByGroup(plan) {
+  const totals = {}
+  for (const day of plan.days) for (const item of day.exercises) totals[item.group] = (totals[item.group] ?? 0) + item.sets
+  return totals
+}
+
+// Triagem de esforço antes de sugerir treino (guia do pacote de evidências, seção 1: dor no peito no esforço, desmaio ou
+// falta de ar fora do comum pedem avaliação, sem treino automático). Texto a revisar pelo dono antes de publicar.
+export const READINESS_QUESTIONS = {
+  exertion_symptoms: 'Ao fazer esforço, você sente dor ou aperto no peito, tontura forte, desmaio ou falta de ar fora do comum?',
+  medical_restriction: 'Algum médico já disse para você não fazer exercício ou só fazer com acompanhamento?',
+  recent_injury: 'Você tem uma lesão recente ou uma dor que piora quando faz exercício?',
+}
