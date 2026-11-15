@@ -35,20 +35,6 @@ for (const group of new Set($$('[data-reveal]').map(element => element.parentEle
   })
 }
 
-// --- Topo: palavra que gira no título (a cada 2,5 s) ---
-const rotator = $('[data-rotator]')
-if (rotator && !reduced) {
-  const words = $$('.rotator-word', rotator)
-  let current = 0
-  setInterval(() => {
-    const leaving = words[current]
-    current = (current + 1) % words.length
-    leaving.classList.remove('is-on'); leaving.classList.add('is-out')
-    words[current].classList.remove('is-out'); words[current].classList.add('is-on')
-    setTimeout(() => leaving.classList.remove('is-out'), 750)
-  }, 2500)
-}
-
 // --- Rabiscos: o sublinhado do topo se desenha logo; os outros, quando o título entra na tela (uma vez só) ---
 const drawn = new IntersectionObserver((entries) => {
   for (const entry of entries) {

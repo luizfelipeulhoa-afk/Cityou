@@ -34,7 +34,7 @@ svg.coin { display: inline-block; width: 20px; height: 20px; flex: none; }
 .loop-layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
 .fly-chip { position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px 4px 5px; border-radius: 99px; background: var(--white); color: var(--primary-dark); font-size: 13px; font-weight: 700; box-shadow: var(--shadow-ui); opacity: 0; visibility: hidden; }
 .fly-chip .coin { width: 16px; height: 16px; }
-.fly-pulse { position: absolute; left: 0; top: 0; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(var(--primary), rgb(130 71 255 / 0)); opacity: 0; visibility: hidden; }
+.fly-pulse { position: absolute; left: 0; top: 0; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(var(--primary), rgb(255 107 53 / 0)); opacity: 0; visibility: hidden; }
 .fly-building { position: absolute; left: 0; top: 0; width: 64px; height: auto; opacity: 0; visibility: hidden; }
 
 /* Botão discreto de pausar (acessibilidade e bateria). */
