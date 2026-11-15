@@ -3,7 +3,7 @@
 // e as regras do servidor não mudam: o terreno só desenha o que fica em volta.
 import rio from './rio.js'
 import { createFrame } from '../frame.js'
-import { getCityLayout, tileKey } from '../../../shared/game/city-layout.js'
+import { getCityLayout, tileHeight, tileKey } from '../../../shared/game/city-layout.js'
 
 // O terreno anda esta distância para +Z (o mar) na cena, para a praia real cair junto à orla da cidade.
 // Na máscara os lotes ficam no sistema do terreno: z do terreno = z da cidade − CITY_SHIFT.
@@ -33,6 +33,18 @@ const kind = (x, y) => {
 const rows = Array.from({ length: size }, (_, row) => Array.from({ length: size }, (_, column) =>
   kind(layout.min + column, layout.min + row)).join(''))
 
+// O Pão de Açúcar (16/11/2026, pedido do dono): o bloco real do mapa de alturas (onde ele fica de verdade, a leste, que o
+// corte abaixo tira) é copiado para a vala atrás dos patamares da direita, entre o morro do Cristo e a montanha da
+// direita, logo depois do fundo da grade. Coordenadas do terreno. O bloco só soma onde é mais alto (terrainData.js,
+// `transplant`, que o corte não apaga), então os outros morros ficam iguais; os patamares da direita ficam no pé da pedra.
+const SUGARLOAF_FROM = createFrame(rio).toWorld(-22.9494, -43.1558)
+export const SUGARLOAF = { x: 10, z: -26 }
+const sugarloaf = { from: { x: SUGARLOAF_FROM.x - 0.3, z: SUGARLOAF_FROM.z - 0.6 }, to: SUGARLOAF, radius: 4.6, blend: 3 }
+// O Morro da Urca, colado ao Pão como no Rio de verdade, fecha o resto da vala até a montanha da direita.
+const urca = { from: { x: SUGARLOAF_FROM.x - 5.7, z: SUGARLOAF_FROM.z - 6.1 }, to: { x: 17, z: -26.5 }, radius: 3.6, blend: 3 }
+
+export const GAP_HILL = { x: 20.5, z: -19.5, radiusX: 5.5, radiusZ: 6.5, height: 6.5 }
+
 const peak = { x: CRISTO_PEAK.x, z: CRISTO_PEAK.z - CITY_SHIFT } // no sistema do terreno
 const peakGeo = createFrame(rio).toGeo(peak.x, peak.z)
 const hill = { x: peak.x, z: peak.z, radiusX: 18, radiusZ: 9.5, height: 6.5 }
@@ -50,8 +62,15 @@ export default {
   name: 'Rio de Janeiro · cenário da cidade',
   lots: { x0: gridX0, z0: gridZ0, rows },
   // O morro do Cristo: some ao relevo real atrás da grade (unidades do terreno).
-  relief: [hill],
-  landmarks: [...rio.landmarks, { id: 'morro-do-cristo', name: 'Morro do Cristo', ...peakGeo, radius: 10 }],
+  // Morro que tapa a vala entre os patamares da direita, a Urca e a montanha da frente à direita (16/11/2026, pedido do
+  // dono: com o Pão de Açúcar no lugar, sobrava ali um buraco baixo). Fica dentro do `crop.keep` abaixo.
+  relief: [hill, GAP_HILL],
+  transplant: [sugarloaf, urca],
+  // O chão dos lotes do morro da comunidade sobe com o patamar (um tico abaixo do topo que sceneEnvironment.js desenha),
+  // e o relevo em volta se mistura até essa altura, não até 0: sem vala entre os patamares e os morros.
+  lotHeight: lot => { const h = tileHeight('cristo-redentor', lot.x + layout.center, lot.z + CITY_SHIFT + layout.center); return h ? h - 0.04 : 0 },
+  landmarks: [...rio.landmarks, { id: 'morro-do-cristo', name: 'Morro do Cristo', ...peakGeo, radius: 10 },
+    { id: 'pao-de-acucar-cidade', name: 'Pão de Açúcar (atrás dos patamares da direita)', ...createFrame(rio).toGeo(SUGARLOAF.x, SUGARLOAF.z), radius: 9 }],
   // Chão dos lotes com o verde da mata do mapa, um tom por lote e a variação por face do relevo.
   plateau: { tint: -0.3, contrast: 0.012, facets: 0.8 },
   // Corte (13/11/2026, src/terrain/terrainData.js): além deste raio (a grade e o morro do Cristo, com folga), o
@@ -64,7 +83,7 @@ export default {
     // O maciço real atrás do morro do Cristo (z de −48 para o norte, x de −80 a +10, até 24 de altura) fica de fora do corte:
     // o círculo acima o decapitava (13/11/2026, #28), e a montanha aparecia cortada no meio. O resto (praia e morros
     // distantes a leste) segue removido.
-    keep: [{ x: -32, z: -85, radius: 55, blend: 25 }],
+    keep: [{ x: -32, z: -85, radius: 55, blend: 25 }, { x: GAP_HILL.x, z: GAP_HILL.z, radius: 6, blend: 5 }],
   },
   // A névoa da cidade fecha bem mais perto que a da faixa de Copacabana (13/11/2026, src/terrain/lighting.js:
   // TERRAIN.fog, 80 unidades): com o corte acima, o mar aberto já cobre o resto, então o orçamento de malha da
