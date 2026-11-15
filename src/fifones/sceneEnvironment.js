@@ -680,9 +680,10 @@ function createPilotEnvironment(group, region, layout) {
     const backdrop = [sea, placeholder].filter(Boolean)
     // O morro da comunidade fica fora do `backdrop`: vale com o terreno real e com a reserva.
     communityHill(group, layout)
-    // Sem o Cristo no morro (16/11/2026, pedido do dono): o morro fica, a estátua não entra.
-    void site
-    return { group, landmark: null, backdrop, tileColor: 0xe9f5d8, animate: () => {}, lamps: [], setDusk() {} }
+    // O Cristo: aqui só a âncora (a capa da cidade cobre a tela até o terreno chegar); CityWorld.loadTerrain a leva ao pico
+    // da montanha da esquerda (CRISTO_SITE em rio-cidade.js).
+    const landmark = addLandmark(group, region, site.x - layout.center, 0, site.y - layout.center)
+    return { group, landmark, backdrop, tileColor: 0xe9f5d8, animate: () => {}, lamps: [], setDusk() {} }
   }
   const water = new Set(layout.waterTiles.map(([x, y]) => tileKey(x, y)))
   const slope = new Set(layout.slopeTiles.map(([x, y]) => tileKey(x, y)))

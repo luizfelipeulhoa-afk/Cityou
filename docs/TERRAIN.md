@@ -65,7 +65,10 @@ também cavavam o chão em volta, porque o chão dos lotes era forçado a y = 0.
 - `communityHill` (`src/fifones/sceneEnvironment.js`) desenha cada patamar com topo de grama plano (onde o prédio assenta)
   e, onde o vizinho é mais baixo, uma encosta de pedra facetada em três faixas (mato, pedra, pé) que se abre para fora;
   as quinas convexas abrem nas duas direções e dividem os vértices, sem fresta. `HILL_STEP` passou de 0,7 para 1,2.
-- O Rio não tem mais a estátua do Cristo no morro (o morro fica). A cidade cobre a tela até o terreno real entrar
+- O Cristo foi para o pico da montanha grande à esquerda da grade (`CRISTO_SITE`), com a base cravada no ponto mais baixo
+  do topo. O bondinho (`src/terrain/cableCar.js`) liga a Urca ao Pão de Açúcar: cada estação fica no ponto mais alto do
+  chão debaixo dela, sobre um afloramento de pedra que desce até abaixo do ponto mais baixo, e as cabines andam no
+  relógio da espuma (`CityWorld.foams`). A cidade cobre a tela até o terreno real entrar
   (`CityWorld.sceneReady`, `.city-cover` em `CityApp.vue`).
 
 ## Onde ver e como conferir
