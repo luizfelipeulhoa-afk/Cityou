@@ -16,7 +16,7 @@ Conclusão: cada viagem ao leste dos EUA custa ~120 ms e não dá para encurtá-
 |---|---|---|---|
 | 1 | Sessão guardada no ponto de presença por 30 s (`CITYOU_SESSION_CACHE_SECONDS`) | com contas: ~310 → ~190 ms por pedido (**−40%**), e a abertura de página também | **feito** (15/11/2026), teste em `tests/worker-access.test.mjs` |
 | 2 | Idas em série no cliente | concluir tarefa na cidade 570 → 190 ms; sincronizar 380 → 190 ms; salvar registro no painel 380 → 190 ms (**−50 a −66%**) | **feito** (15/11/2026) |
-| 3 | Construir pelo painel sem o GET da revisão; cena da cidade começa com a última cidade guardada no navegador | 570 → 190 ms; cena ~190 ms mais cedo | a fazer (PR pequeno) |
+| 3 | Construir pelo painel sem o GET da revisão; cena da cidade começa com a última cidade guardada no navegador | 570 → 190 ms; cena ~190 ms mais cedo | construir pelo painel: **feito** (15/11/2026; relê a cidade só sem revisão guardada ou depois de 409); cena antes da resposta: a fazer |
 | 4 | Escrita otimista na cidade (construir, mover, girar): a peça aparece na hora, a resposta só confirma; erro desfaz e aplica a cidade do servidor | espera percebida 190 → < 50 ms (meta de `docs/API.md`) | a fazer; fora: desfazer/refazer, melhorar e o que depende de moedas do servidor |
 | 5 | Estado inicial no HTML: o Worker pede o estado ao objeto em paralelo com a página e põe um `<script type="application/json" id="cityou-boot">` antes de `</body>` (`HTMLRewriter`); `api()` usa uma vez | abrir tela ~330 → ~200 ms (−40%) | a fazer; exige `private, no-store`, `Vary: Cookie`, escapar `<`, limite de 400 ms e 200 KB, só com sessão, só o mês de hoje, não com `?local=`, chave `BOOT_EMBED` para desligar |
 | 6 | Ampliar o cache de borda de leitura | pouco: o ciclo do painel é 60 s e o cache vale 30 s, então quase nunca acerta | medir antes |
@@ -35,4 +35,5 @@ Deste ambiente de nuvem a rede para `*.workers.dev` é bloqueada, então nada aq
 
 ## Riscos aceitos
 
-- Sessão em cache: depois de sair num ponto de presença, a sessão pode valer em outro por até 30 s; conta apagada idem. Exportar e apagar a conta conferem sempre no banco. "0" desliga.
+- Sessão em cache: depois de sair num ponto de presença, a sessão pode valer em outro por até 30 s; conta apagada idem (apagar tira do cache as sessões de todos os aparelhos da conta, mas só no ponto onde foi pedido). A Cache API não apaga na hora em todo lugar, e um pedido que leu o banco antes do `logout` pode regravar a entrada pela janela. Os dados não voltam: o objeto de uma conta apagada responde 410. Exportar e apagar a conta conferem sempre no banco. "0" desliga.
+- O cache guarda também e-mail e nome (a tela de status mostra), na mesma infraestrutura que já guarda os dados.

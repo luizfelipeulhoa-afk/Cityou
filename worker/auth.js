@@ -58,7 +58,9 @@ const publicUser = row => ({ id: row.id, email: row.email, display_name: row.dis
 // pedido somava uma viagem de ~120 ms antes da ida ao Durable Object. Por até CITYOU_SESSION_CACHE_SECONDS (padrão 30,
 // teto 60; "0" desliga) a conta conferida sai da Cache API do ponto de presença. A chave é o hash do token, nunca o
 // token. Sair apaga a entrada deste ponto; em outro ponto, a sessão encerrada vale no máximo até a entrada vencer.
-// Exportar e apagar a conta sempre conferem no banco (`fresh`). A renovação diária acontece nas leituras do banco.
+// Exportar e apagar a conta sempre conferem no banco (`fresh`), e apagar tira do cache todas as sessões da conta.
+// A renovação diária acontece nas leituras do banco. Riscos aceitos (docs/LATENCIA.md): a Cache API não apaga na hora em
+// todo lugar, e um pedido que leu o banco antes do `logout` pode regravar a entrada por até a janela.
 const SESSION_CACHE = 'https://cityou.cache/sessao/'
 const sessionCacheSeconds = env => {
   const seconds = Number(env.CITYOU_SESSION_CACHE_SECONDS ?? 30)
@@ -67,8 +69,12 @@ const sessionCacheSeconds = env => {
 const sessionCache = env => (sessionCacheSeconds(env) ? globalThis.caches?.default ?? null : null)
 
 export async function forgetSession(env, token) {
+  if (token) await forgetSessionHashes(env, [await hashToken(token)])
+}
+
+async function forgetSessionHashes(env, hashes) {
   const cache = sessionCache(env)
-  if (cache && token) await cache.delete(SESSION_CACHE + await hashToken(token)).catch(() => {})
+  if (cache) await Promise.all(hashes.map(hash => cache.delete(SESSION_CACHE + hash).catch(() => {})))
 }
 
 /** A conta da sessão deste pedido, ou null. Uma leitura no banco por pedido, salvo quando a sessão está no cache. */
@@ -345,13 +351,15 @@ async function deleteAccount({ request, env, url }) {
   const hash = await hashPassword(body.password, row.password_salt, row.password_iterations)
   if (!sameText(hash, row.password_hash)) throw new HttpError(401, 'Senha incorreta.', { password: 'Senha incorreta.' })
   await eraseAccountData(env, user.data_key ?? await accountKey(user.id), user.id)
+  // Todas as sessões da conta saem do cache deste ponto de presença, não só a deste aparelho.
+  const { results: sessions = [] } = await env.DB.prepare('SELECT token_hash FROM sessions WHERE user_id = ?').bind(user.id).all()
   await env.DB.batch([
     env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id),
     env.DB.prepare('DELETE FROM password_resets WHERE user_id = ?').bind(user.id),
     env.DB.prepare('DELETE FROM login_attempts WHERE email = ?').bind(user.email),
     env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id),
   ])
-  await forgetSession(env, sessionTokenOf(request))
+  await forgetSessionHashes(env, sessions.map(row => row.token_hash))
   const response = json({ deleted: true })
   response.headers.append('Set-Cookie', sessionCookie(url, 'x', 0))
   response.headers.append('Set-Cookie', freshDemoCookie(url))

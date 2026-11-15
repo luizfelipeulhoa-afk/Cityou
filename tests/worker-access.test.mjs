@@ -326,5 +326,14 @@ test('sessão no cache do ponto de presença: o banco é lido uma vez, sair vale
     assert.ok(await who(second))
     assert.equal((await send('/api/auth/logout', { method: 'POST', body: {}, cookie: second })).status, 200)
     assert.equal(await who(second), null)
+    // 3. Apagar a conta tira do cache as sessões de todos os aparelhos dela.
+    const phone = await signup()
+    const email = (await who(phone)).email
+    const login = await send('/api/auth/login', { method: 'POST', body: { email, password: 'senha-bem-comprida' } })
+    assert.equal(login.status, 200)
+    const laptop = login.headers.getSetCookie().find(item => item.startsWith('cityou_session=')).split(';')[0]
+    assert.ok(await who(laptop))
+    assert.equal((await send('/api/auth/delete', { method: 'POST', body: { password: 'senha-bem-comprida' }, cookie: phone })).status, 200)
+    assert.equal(await who(laptop), null)
   } finally { await cached.close() }
 })
