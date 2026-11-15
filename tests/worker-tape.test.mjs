@@ -66,6 +66,26 @@ test('fita: desfazer uma demolição tira o reembolso e devolve a peça igual', 
   assert.deepEqual(tree(city, 7, 8), placed)
 })
 
+test('fita: mover e girar voltam ao lugar e à orientação de antes; reenviar o request_id não refaz nada', async () => {
+  const send = session()
+  let city = await build(send, await send('/api/city'), 7, 8, 'fita-m1')
+  const placed = tree(city, 7, 8)
+  const moveBody = { type: 'move', placement_id: placed.id, x: 9, y: 8, expected_revision: city.revision, request_id: 'fita-m2' }
+  city = await send('/api/city/actions', { method: 'POST', body: moveBody })
+  assert.ok(tree(city, 9, 8))
+  city = await send('/api/city/undo', { method: 'POST', body: { action_id: 'fita-m2', expected_revision: city.revision } })
+  assert.deepEqual(tree(city, 7, 8), placed)
+  assert.equal(tree(city, 9, 8), undefined)
+  const credits = city.credits
+  // O mesmo request_id da ação desfeita devolve só a leitura: não move de novo nem cobra.
+  const replay = await send('/api/city/actions', { method: 'POST', body: moveBody })
+  assert.equal(replay.credits, credits)
+  assert.equal(tree(replay, 9, 8), undefined)
+  city = await send('/api/city/actions', { method: 'POST', body: { type: 'rotate', placement_id: placed.id, rotation: 2, expected_revision: replay.revision, request_id: 'fita-m3' } })
+  city = await send('/api/city/undo', { method: 'POST', body: { action_id: 'fita-m3', expected_revision: city.revision } })
+  assert.equal(tree(city, 7, 8).rotation, placed.rotation)
+})
+
 test('fita: passada a janela de 120 s, desfazer é recusado e a ação some da fita', () => {
   const store = new Map()
   const city = { placements: [], credits: 10, revision: 5, history: [] }

@@ -4,7 +4,8 @@ import { previewBuild, previewRoadPath, roadPath, usesAutoRoad } from '../shared
 import { findSpace } from './world/worldSpaces.js'
 import CityWorld from './fifones/CityWorld.js'
 import { progression } from './fifones/progression.js'
-import { PANEL_TABS, cityAction, completeTask, goToPanel, loadAccount, loadCity, loadTasks, signOut, syncRewards } from './fifones/api.js'
+import { PANEL_TABS, cityAction, cityRedo, cityUndo, completeTask, goToPanel, loadAccount, loadCity, loadTasks, signOut, syncRewards } from './fifones/api.js'
+import ActionTape from './components/ActionTape.vue'
 const account = ref(null)
 loadAccount().then(user => { account.value = user })
 async function leave() { try { await signOut() } catch (error) { alert(error.message) } }
@@ -249,11 +250,12 @@ function pickItem(item) {
   rotation.value = 0
   updateTool()
 }
-async function performAction(action, message) {
+// `send` é a chamada ao servidor (padrão: a ação nova). Desfazer e refazer passam `cityUndo` e `cityRedo`, com o mesmo tratamento.
+async function performAction(action, message, send = cityAction) {
   if (saving.value || refreshing.value || !state.value) return false
   saving.value = true
   try {
-    const result = await cityAction({ ...action, expected_revision: state.value.revision })
+    const result = await send({ ...action, expected_revision: state.value.revision })
     applySnapshot(result)
     notify(message)
     return true
@@ -271,6 +273,13 @@ async function performAction(action, message) {
   }
   finally { saving.value = false }
 }
+// Fita do Tempo: mesmos alvos do ActionTape (feito mais novo para desfazer; desfeito mais antigo para refazer).
+// O servidor recusa o que estiver fora da janela de 120 s, com a mensagem de sempre.
+const tape = computed(() => state.value?.tape ?? [])
+const undoTarget = computed(() => tape.value.find(entry => entry.state === 'done')?.action_id ?? null)
+const redoTarget = computed(() => tape.value.findLast(entry => entry.state === 'undone')?.action_id ?? null)
+function undoAction(actionId) { return performAction({ action_id: actionId }, 'Desfeito.', cityUndo) }
+function redoAction(actionId) { return performAction({ action_id: actionId }, 'Refeito.', cityRedo) }
 function setRoadEndpoint(tile) {
   if (!roadStart.value || roadEnd.value) {
     roadStart.value = tile
@@ -432,6 +441,13 @@ function setLighting(value) { lighting.value = value; engine?.setLighting(value)
 function onKeydown(event) {
   const editable = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName) || event.target?.isContentEditable
   if (editable) return
+  // Ctrl/Cmd+Z desfaz o topo da fita; Shift+Ctrl/Cmd+Z refaz. Fora de campos de texto (o `editable` acima), com o diálogo fechado.
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'z' && !confirmation.value) {
+    event.preventDefault()
+    const target = event.shiftKey ? redoTarget.value : undoTarget.value
+    if (target) { if (event.shiftKey) redoAction(target); else undoAction(target) }
+    return
+  }
   if (event.key === 'Escape') {
     if (confirmation.value) confirmation.value = null
     else if (activeInterior.value || interiorPending.value) closeInterior()
@@ -644,6 +660,7 @@ onUnmounted(() => {
 
     <Transition name="reward"><div v-if="celebration" :key="celebration.key" class="reward-burst" role="status"><span v-for="index in 8" :key="index" class="reward-spark" :style="{ '--n': index }" aria-hidden="true" /><span class="reward-medal"><Icon :name="celebration.levelUp ? 'expand' : 'check'" :size="29" /></span><strong>{{ celebration.levelUp ? `Nível ${state.level}!` : `+${coins(celebration.amount)} moedas` }}</strong><span>{{ celebration.levelUp ? 'Mais terrenos para suas ideias.' : 'Seu progresso ganhou espaço.' }}</span></div></Transition>
 
+    <ActionTape :tape="tape" :busy="saving || refreshing" @undo="undoAction" @redo="redoAction" />
     <Transition name="toast"><div v-if="toast" class="toast" :class="toast.kind" role="status"><span class="toast-icon"><Icon :name="toast.kind === 'error' ? 'close' : toast.kind === 'info' ? 'wifi' : 'check'" :size="17" /></span><span>{{ toast.message }}</span><button aria-label="Fechar mensagem" @click="toast = null"><Icon name="close" :size="14" /></button></div></Transition>
 
     <div v-if="confirmation" class="confirmation-backdrop" @click.self="confirmation = null"><section class="confirmation panel" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description"><span class="confirm-icon"><Icon name="demolish" :size="25" /></span><h2 id="confirm-title">Demolir {{ confirmation.label }}?</h2><p id="confirm-description">Você receberá {{ coins(confirmation.refund) }} moedas de volta, metade do custo da construção.</p><div><button class="secondary-button confirm-cancel" :disabled="saving" @click="confirmation = null">Manter construção</button><button class="danger-button" :disabled="saving || refreshing" @click="confirmRemove">{{ saving ? 'Demolindo…' : 'Demolir' }}</button></div></section></div>

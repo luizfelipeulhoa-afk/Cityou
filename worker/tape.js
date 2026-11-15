@@ -68,6 +68,12 @@ export const tapeMethods = {
     if (expected_revision !== city.revision || city.revision !== top.revision) {
       throw new HttpError(409, 'A cidade mudou depois desta ação. Atualize para ver o estado de agora.')
     }
+    // Um prédio de atividade que voltaria à cidade não pode já existir em outra região (uma atividade, um prédio).
+    const putting = undo ? top.removed : top.added
+    const elsewhere = this.buildingActivityIds()
+    if (putting.some(item => item.activity_id && elsewhere.has(item.activity_id))) {
+      throw new HttpError(409, 'Esta atividade já tem um prédio em outra cidade. A ação ficou no histórico.')
+    }
     // Desfazer devolve o custo (amount negativo) ou tira o reembolso (positivo); refazer faz o contrário.
     const change = undo ? -top.amount : top.amount
     if (city.credits + change < 0) throw new HttpError(422, 'Moedas insuficientes para isso agora.')
