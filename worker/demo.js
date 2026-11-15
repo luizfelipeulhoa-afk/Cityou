@@ -598,27 +598,32 @@ export class DemoSession {
     const key = 'reward:goal'
     const dayKey = `reward:goal-day:${day}`
     if (this.read(key, entry.id)) return
-    if (this.list(dayKey, RULES.paidGoalsPerDay).length >= RULES.paidGoalsPerDay) {
-      this.write('reward:goal-pending', entry.id, { id: entry.id, since: day })
-      return
-    }
     const { total } = this.sql.exec(
       "SELECT count(*) AS total FROM records WHERE kind = 'checkin' AND id GLOB ? AND json_extract(value, '$.done') = 1",
       `${entry.id}:*`,
     ).one()
-    if (total < entry.target) return
+    // Só entra na fila a meta cumprida; a que deixou de estar cumprida (marcação desfeita) sai dela.
+    if (total < entry.target) { this.dropPendingGoal(entry.id); return }
+    if (this.list(dayKey, RULES.paidGoalsPerDay).length >= RULES.paidGoalsPerDay) {
+      if (!this.read('reward:goal-pending', entry.id)) this.write('reward:goal-pending', entry.id, { id: entry.id, since: day })
+      return
+    }
     this.grantReward(goalCredits(entry.target), `Meta concluída: ${entry.title}`)
     this.write(key, entry.id, true)
     this.write(dayKey, entry.id, true)
-    this.sql.exec("DELETE FROM records WHERE kind = 'reward:goal-pending' AND id = ?", entry.id)
+    this.dropPendingGoal(entry.id)
   }
 
-  /** Paga as metas da fila que esperam desde um dia anterior, até o teto de hoje. */
+  dropPendingGoal(id) { this.sql.exec("DELETE FROM records WHERE kind = 'reward:goal-pending' AND id = ?", id) }
+
+  /** Paga as metas da fila que esperam desde um dia anterior, da mais antiga para a mais nova, até o teto de hoje. */
   settleGoals(today) {
-    for (const pending of this.list('reward:goal-pending', RULES.paidGoalsPerDay)) {
+    const dayKey = `reward:goal-day:${today}`
+    for (const pending of this.list('reward:goal-pending').reverse()) {
+      if (this.list(dayKey, RULES.paidGoalsPerDay).length >= RULES.paidGoalsPerDay) return
       if (pending.since >= today) continue
       const entry = this.read('entry', pending.id)
-      if (!entry) { this.sql.exec("DELETE FROM records WHERE kind = 'reward:goal-pending' AND id = ?", pending.id); continue }
+      if (!entry) { this.dropPendingGoal(pending.id); continue }
       this.rewardGoal(entry, today)
     }
   }

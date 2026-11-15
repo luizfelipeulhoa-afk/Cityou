@@ -211,7 +211,7 @@ Fita do Tempo (etapa 8, 15/11/2026): `worker/tape.js` guarda as últimas 10 aç�
 
 No Rio, construir um prédio novo usa `previewBuild` no cliente e no Worker. O jogador confirma o total e o servidor grava o prédio e a rua automática em uma ação. Veja `docs/API.md` e `docs/INTERACTIONS.md`.
 
-Regras fixas: o navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência. Meta concluída (15/11/2026): `goalCredits` paga 5 moedas por dia exigido, até 25, e só 3 metas pagam por dia (`paidGoalsPerDay`; a que passa do teto entra na fila `reward:goal-pending` e é paga sozinha num dia seguinte, por `settleGoals` em `worker/demo.js`). Foto de comprovação: o corpo do check-in aceita a foto do tamanho da regra e o servidor tira EXIF, XMP e IPTC (`stripPhotoMetadata` em `shared/game/proof.js`).
+Regras fixas: o navegador nunca envia XP, créditos, nível ou desbloqueio; nenhuma mecânica pune ausência. Meta concluída (15/11/2026): `goalCredits` paga 5 moedas por dia exigido, até 25, e só 3 metas pagam por dia (`paidGoalsPerDay`; a que passa do teto entra na fila `reward:goal-pending` e é paga sozinha num dia seguinte, a mais antiga primeiro, por `settleGoals` em `worker/demo.js`; só meta cumprida entra na fila, e a que deixa de estar cumprida sai). Foto de comprovação: o corpo do check-in aceita a foto do tamanho da regra e o servidor tira EXIF, XMP e IPTC (`stripPhotoMetadata` em `shared/game/proof.js`).
 
 ## Skills do projeto (`.claude/skills/`)
 

@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { createTestHarness } from 'wrangler'
 import { goalCredits, RULES } from '../shared/game/rules.js'
 import { parseProof, stripPhotoMetadata } from '../shared/game/proof.js'
-import { sessionCookie } from '../worker/demo.js'
+import { DemoSession, sessionCookie } from '../worker/demo.js'
 
 const ORIGIN = 'https://cityou.test'
 const TOKEN = 'segredo-de-teste-com-mais-de-16'
@@ -219,4 +219,60 @@ test('conta: exportar devolve tudo o que ela guarda, e apagar some com conta e d
   const fresh = again.headers.getSetCookie().map(item => item.split(';')[0]).join('; ')
   const second = await (await harness.fetch(ORIGIN + '/api/auth/export', { headers: { Cookie: fresh } })).json()
   assert.equal(second.records.some(record => record.kind === 'entry'), false)
+})
+
+// A fila da meta sem o relógio do harness: um objeto falso com os registros em memória (a ordem de inserção faz o papel do rowid).
+function fakeGoals() {
+  const store = new Map(), paid = []
+  const bucket = kind => store.get(kind) ?? store.set(kind, new Map()).get(kind)
+  const fake = Object.assign(Object.create(DemoSession.prototype), {
+    read: (kind, id) => bucket(kind).get(id) ?? null,
+    list: (kind, limit = 5000) => [...bucket(kind).values()].reverse().slice(0, limit),
+    write: (kind, id, value) => { bucket(kind).set(id, value) },
+    grantReward: (amount, label) => paid.push({ amount, label }),
+    sql: {
+      exec(query, id) {
+        if (query.includes('count(*)')) {
+          const prefix = id.slice(0, -2)
+          return { one: () => ({ total: [...bucket('checkin').entries()].filter(([key, value]) => key.startsWith(prefix) && value.done).length }) }
+        }
+        bucket('reward:goal-pending').delete(id)
+      },
+    },
+  })
+  const goal = (id, target = 1, done = target) => {
+    const entry = { id, title: `Meta ${id}`, target, kind: 'goal' }
+    fake.write('entry', id, entry)
+    for (let i = 0; i < done; i++) fake.write('checkin', `${id}:dia-${i}`, { done: true })
+    return entry
+  }
+  return { fake, paid, goal, pending: () => [...bucket('reward:goal-pending').keys()] }
+}
+
+test('meta: a que passa do teto entra na fila e é paga no dia seguinte, a mais antiga primeiro', () => {
+  const { fake, paid, goal, pending } = fakeGoals()
+  for (const id of ['a', 'b', 'c', 'd', 'e']) fake.rewardGoal(goal(id), '2026-11-15')
+  assert.equal(paid.length, 3)
+  assert.deepEqual(pending(), ['d', 'e'])
+  fake.settleGoals('2026-11-15')
+  assert.equal(paid.length, 3, 'no mesmo dia, nada sai da fila')
+  fake.settleGoals('2026-11-16')
+  assert.deepEqual(paid.map(item => item.label), ['Meta a', 'Meta b', 'Meta c', 'Meta d', 'Meta e'].map(title => `Meta concluída: ${title}`))
+  assert.deepEqual(pending(), [])
+  fake.settleGoals('2026-11-17')
+  assert.equal(paid.length, 5, 'cada meta paga uma vez só')
+})
+
+test('meta: só a meta cumprida entra na fila, e a que deixa de estar cumprida sai dela', () => {
+  const { fake, paid, goal, pending } = fakeGoals()
+  for (const id of ['a', 'b', 'c']) fake.rewardGoal(goal(id), '2026-11-15')
+  fake.rewardGoal(goal('longa', 5, 1), '2026-11-15')
+  assert.deepEqual(pending(), [], 'meta de 5 dias com 1 marcado não espera pagamento')
+  const done = goal('d')
+  fake.rewardGoal(done, '2026-11-15')
+  assert.deepEqual(pending(), ['d'])
+  fake.write('checkin', 'd:dia-0', { done: false })
+  fake.settleGoals('2026-11-16')
+  assert.deepEqual(pending(), [])
+  assert.equal(paid.length, 3)
 })

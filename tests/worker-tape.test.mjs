@@ -105,3 +105,43 @@ test('fita: a diferença guarda só as peças que mudaram e se desfaz exatamente
   assert.deepEqual(diff, { removed: [b], added: [moved] })
   assert.deepEqual(applyDiff([a, moved], diff.added, diff.removed), [a, b])
 })
+
+test('fita: desfazer um trecho de rua tira todos os blocos e devolve o total', async () => {
+  const send = session()
+  const start = await send('/api/city')
+  const built = await send('/api/city/actions', {
+    method: 'POST', body: { type: 'road_path', x: 6, y: 9, end_x: 6, end_y: 11, expected_revision: start.revision, request_id: 'fita-rua' },
+  })
+  // O bloco (6, 9) já é rua da cidade nova: o trecho acrescenta os outros dois.
+  const seeded = new Set(start.placements.map(item => item.id))
+  const roads = city => city.placements.filter(item => item.kind === 'road' && !seeded.has(item.id))
+  assert.equal(roads(built).length, 2)
+  assert.equal(built.tape[0].action_id, 'fita-rua')
+  const undone = await send('/api/city/undo', { method: 'POST', body: { action_id: 'fita-rua', expected_revision: built.revision } })
+  assert.equal(roads(undone).length, 0)
+  assert.equal(undone.credits, start.credits)
+  assert.deepEqual(undone.placements, start.placements)
+  const redone = await send('/api/city/redo', { method: 'POST', body: { action_id: 'fita-rua', expected_revision: undone.revision } })
+  assert.deepEqual(roads(redone), roads(built))
+  assert.equal(redone.credits, built.credits)
+})
+
+test('fita: a construção que abre a viagem fica de fora; depois, prédio com rua automática se desfaz por inteiro', async () => {
+  const send = session()
+  let city = await send('/api/city')
+  city = await send('/api/city/actions', {
+    method: 'POST', body: { type: 'build', kind: 'rio-picole', x: 7, y: 8, expected_revision: city.revision, request_id: 'fita-primeira' },
+  })
+  assert.deepEqual(city.tape, [])
+  const before = city
+  const lot = { kind: 'rio-picole', x: 12, y: 17 }
+  city = await send('/api/city/actions', {
+    method: 'POST', body: { type: 'build', ...lot, expected_revision: city.revision, request_id: 'fita-auto-rua' },
+  })
+  const added = city.placements.length - before.placements.length
+  assert.ok(added > 1, 'o prédio veio com a rua automática')
+  assert.equal(city.tape[0].action_id, 'fita-auto-rua')
+  const undone = await send('/api/city/undo', { method: 'POST', body: { action_id: 'fita-auto-rua', expected_revision: city.revision } })
+  assert.deepEqual(undone.placements, before.placements)
+  assert.equal(undone.credits, before.credits)
+})
