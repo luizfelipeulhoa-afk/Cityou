@@ -79,6 +79,10 @@ virar mesa. Ficam de fora os círculos de `keep` (a montanha do Cristo) e os blo
 `rio-cidade.js`: linha em z −11 da cena, `knee` 1,6 e `cap` 3, perto do topo dos patamares. O teste do corte do maciço
 (`crop.keep`) roda sem o rebaixamento, porque agora o maciço fica baixo de propósito.
 
+Depois (mesmo dia), a montanha do Cristo e o Pão de Açúcar também baixaram: `region.squash` (círculos com `knee` e
+`cap`, mesma curva suave) achata a montanha do Cristo até 6,5, e cada bloco de `transplant` aceita `scale` (Pão 0,55, Urca
+0,6). O Cristo e as estações do bondinho se assentam nos topos novos sozinhos.
+
 ## Onde ver e como conferir
 
 - **Página de teste:** `/terrain.html` (no `npm run dev` e no site publicado; sem link no app, `noindex`). Tem as vistas dos marcos, a sobreposição das zonas bloqueadas e o toque num lote para assentar um prédio.

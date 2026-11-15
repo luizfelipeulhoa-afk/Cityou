@@ -45,9 +45,9 @@ const rows = Array.from({ length: size }, (_, row) => Array.from({ length: size 
 // `transplant`, que o corte não apaga), então os outros morros ficam iguais; os patamares da direita ficam no pé da pedra.
 const SUGARLOAF_FROM = createFrame(rio).toWorld(-22.9494, -43.1558)
 export const SUGARLOAF = { x: 10, z: -26 }
-const sugarloaf = { from: { x: SUGARLOAF_FROM.x - 0.3, z: SUGARLOAF_FROM.z - 0.6 }, to: SUGARLOAF, radius: 4.6, blend: 3 }
+const sugarloaf = { from: { x: SUGARLOAF_FROM.x - 0.3, z: SUGARLOAF_FROM.z - 0.6 }, to: SUGARLOAF, radius: 4.6, blend: 3, scale: 0.55 }
 // O Morro da Urca, colado ao Pão como no Rio de verdade, fecha o resto da vala até a montanha da direita.
-const urca = { from: { x: SUGARLOAF_FROM.x - 5.7, z: SUGARLOAF_FROM.z - 6.1 }, to: { x: 17, z: -26.5 }, radius: 3.6, blend: 3 }
+const urca = { from: { x: SUGARLOAF_FROM.x - 5.7, z: SUGARLOAF_FROM.z - 6.1 }, to: { x: 17, z: -26.5 }, radius: 3.6, blend: 3, scale: 0.6 }
 
 export const GAP_HILL = { x: 20.5, z: -19.5, radiusX: 5.5, radiusZ: 6.5, height: 6.5 }
 
@@ -71,7 +71,10 @@ export default {
   // Morro que tapa a vala entre os patamares da direita, a Urca e a montanha da frente à direita (16/11/2026, pedido do
   // dono: com o Pão de Açúcar no lugar, sobrava ali um buraco baixo). Fica dentro do `crop.keep` abaixo.
   relief: [hill, GAP_HILL],
+  // Pão e Urca a cerca de 55% da altura real (`scale`) e a montanha do Cristo achatada até 6,5 (16/11/2026, pedido do
+  // dono: Cristo e bondinho estavam altos demais); o Cristo e as estações do bondinho se assentam nos topos novos.
   transplant: [sugarloaf, urca],
+  squash: [{ x: CRISTO_SITE.x, z: CRISTO_SITE.z - CITY_SHIFT, radius: 7, blend: 4, knee: 3, cap: 6.5 }],
   // As montanhas atrás da grade, rebaixadas até a altura da base de construção (16/11/2026, pedido do dono: eram tão
   // altas que escondiam o Cristo). A linha começa no meio dos patamares (z da cena −11) e vale para trás dela; a
   // montanha do Cristo fica inteira (o círculo em volta de CRISTO_SITE), e o Pão de Açúcar e a Urca também (o

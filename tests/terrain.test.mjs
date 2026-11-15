@@ -287,7 +287,7 @@ test('cidade: plano sob os lotes construíveis, relevo na encosta protegida, cal
   assert.ok(beach >= (layout.max - layout.min + 1) * 2, `${beach} lotes de praia`)
   assert.equal(scenery.lots.playable.length, land + beach)
   // A montanha do Cristo fica bem acima do platô (16/11/2026: o Cristo está no pico da esquerda).
-  assert.ok(scenery.getHeightAt(CRISTO_SITE.x, CRISTO_SITE.z - CITY_SHIFT) > 9)
+  assert.ok(scenery.getHeightAt(CRISTO_SITE.x, CRISTO_SITE.z - CITY_SHIFT) > 5.5)
 })
 
 test('cidade: as montanhas atrás da grade ficam na altura da base de construção, menos Cristo, Pão e Urca (16/11/2026)', () => {
@@ -313,7 +313,7 @@ test('cidade: o Pão de Açúcar e a Urca sobem atrás dos patamares da direita 
   const without = createTerrainData({ ...cidade, transplant: [] }, heights.data)
   const top = scenery.getHeightAt(SUGARLOAF.x, SUGARLOAF.z)
   // 396 m × 1,6 / 50 m por unidade ≈ 12,7 acima do mar (−0,4); a malha simplifica um pouco o topo.
-  assert.ok(top > 9, `topo do Pão de Açúcar: ${top}`)
+  assert.ok(top > 5.5, `topo do Pão de Açúcar: ${top}`)
   assert.ok(top > without.getHeightAt(SUGARLOAF.x, SUGARLOAF.z) + 2, 'é o bloco transplantado que sobe ali')
   // Longe do bloco (raio + borda + mistura do platô), a altura não muda.
   const { size, spacing, originX, originZ } = scenery.grid
@@ -322,7 +322,7 @@ test('cidade: o Pão de Açúcar e a Urca sobem atrás dos patamares da direita 
   let far = 0
   for (let j = 0; j < size; j += 3) for (let i = 0; i < size; i += 3) {
     const x = originX + i * spacing, z = originZ + j * spacing
-    if (cidade.transplant.some(block => Math.hypot(x - block.to.x, z - block.to.z) < block.radius + block.blend + 6) || nearHill(x, z)) continue
+    if (cidade.transplant.some(block => Math.hypot(x - block.to.x, z - block.to.z) < block.radius + block.blend + 6) || cidade.squash.some(c => Math.hypot(x - c.x, z - c.z) < c.radius + c.blend + 1) || nearHill(x, z)) continue
     assert.ok(Math.abs(scenery.grid.heights[j * size + i] - without.grid.heights[j * size + i]) < 1e-5, `(${x}, ${z})`)
     far++
   }

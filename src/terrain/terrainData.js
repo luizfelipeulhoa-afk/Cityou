@@ -116,7 +116,7 @@ export function createTerrainData(region, values) {
       return (at(i, j) * (1 - u) + at(i + 1, j) * u) * (1 - v) + (at(i, j + 1) * (1 - u) + at(i + 1, j + 1) * u) * v
     }
     for (const block of region.transplant) {
-      const { from, to, radius, blend: edge = 3, rotate = 0 } = block
+      const { from, to, radius, blend: edge = 3, rotate = 0, scale = 1 } = block
       const cos = Math.cos(rotate), sin = Math.sin(rotate), reachBlock = radius + edge
       for (let j = 0; j < size; j++) {
         const dz = originZ + j * spacing - to.z
@@ -128,7 +128,7 @@ export function createTerrainData(region, values) {
           const sx = from.x + dx * cos - dz * sin, sz = from.z + dx * sin + dz * cos
           const weight = 1 - smoothstep(radius, reachBlock, distance)
           const index = j * size + i
-          const lifted = seaY + (sample(sx, sz, source) - seaY) * weight
+          const lifted = seaY + (sample(sx, sz, source) - seaY) * weight * scale
           if (lifted > heights[index]) {
             heights[index] = lifted
             if (sample(sx, sz, sourceValues) > 0 && values[index] === 0) values[index] = 1
@@ -159,6 +159,18 @@ export function createTerrainData(region, values) {
         const weight = behind * (1 - kept)
         if (weight > 0) heights[index] = h + (squash(h) - h) * weight
       }
+    }
+  }
+
+  // ---- Morros achatados no lugar (`region.squash`: círculos { x, z, radius, blend, knee, cap }): dentro do círculo o que
+  // passa de `knee` desce numa curva suave até no máximo `cap` (no Rio, a montanha do Cristo, 16/11/2026).
+  for (const hill of region.squash ?? []) {
+    const curve = h => (h <= hill.knee ? h : hill.knee + (hill.cap - hill.knee) * Math.tanh((h - hill.knee) / (hill.cap - hill.knee)))
+    for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+      const index = j * size + i, h = heights[index]
+      if (h <= hill.knee) continue
+      const weight = 1 - smoothstep(hill.radius, hill.radius + (hill.blend ?? 4), Math.hypot(originX + i * spacing - hill.x, originZ + j * spacing - hill.z))
+      if (weight > 0) heights[index] = h + (curve(h) - h) * weight
     }
   }
 
