@@ -2,7 +2,7 @@
 // Uso: node tools/diary-playtest.mjs http://127.0.0.1:8787 (Worker com wrangler.test-session.jsonc; roteiro em docs/CHECKPOINT.md)
 // Confere: escolha de quantas refeições por dia na primeira vez, busca com variantes, medida caseira do IBGE
 // (arroz cozido: colher de sopa cheia, 25 g), número da tela igual ao do servidor, editar, apagar, mudar a quantidade
-// de refeições e o celular (390 px) sem rolagem lateral. Grava imagens em .verification/diary-*.png.
+// de refeições, trocar o alimento na edição e o celular (390 px) sem rolagem lateral. Grava imagens em .verification/diary-*.png.
 import { mkdirSync } from 'node:fs'
 import { chromium, browserOptions } from './runtime.mjs'
 
@@ -81,6 +81,28 @@ try {
   const edited = (await call('/api/personal/diary')).data.entries.find(e => e.food_id === 'taco-3')
   check('editar muda a quantidade (150 g)', edited?.grams === 150 && edited.quantity === 6, JSON.stringify(edited && { quantity: edited.quantity, grams: edited.grams }))
   check('editar não cria registro novo', (await call('/api/personal/diary')).data.entries.filter(e => e.food_id === 'taco-3').length === 1)
+
+  // Trocar o alimento na edição: o ovo vira pão francês (registrou um, era o outro), sem criar registro novo; depois volta.
+  await diary.getByRole('button', { name: 'Editar Ovo, de galinha, inteiro, cozido' }).click()
+  await diary.getByText('Editando um alimento.').waitFor()
+  await diary.getByRole('button', { name: 'Trocar' }).click()
+  await diary.getByPlaceholder('Digite, por exemplo: ovo, arroz, banana').fill('pao frances')
+  await diary.getByRole('option', { name: /Pão, trigo, francês/ }).click()
+  await diary.getByLabel('Unidade').selectOption('g')
+  await diary.getByLabel('Quantidade').fill('50')
+  await diary.getByRole('button', { name: 'Salvar alteração' }).click()
+  await diary.getByText('Editando um alimento.').waitFor({ state: 'detached' })
+  const after = (await call('/api/personal/diary')).data.entries
+  check('editar troca o alimento sem criar registro novo', !after.some(e => e.food_id === 'taco-488') && after.filter(e => /francês/.test(e.food_name) && e.grams === 50).length === 1)
+  await diary.getByRole('button', { name: /^Editar Pão, trigo, francês/ }).click()
+  await diary.getByText('Editando um alimento.').waitFor()
+  await diary.getByRole('button', { name: 'Trocar' }).click()
+  await diary.getByPlaceholder('Digite, por exemplo: ovo, arroz, banana').fill('ovo cozido')
+  await diary.getByRole('option', { name: /Ovo, de galinha, inteiro, cozido/ }).click()
+  await diary.getByLabel('Unidade').selectOption({ label: 'unidade média (45 g)' })
+  await diary.getByLabel('Quantidade').fill('2')
+  await diary.getByRole('button', { name: 'Salvar alteração' }).click()
+  await diary.getByText('Editando um alimento.').waitFor({ state: 'detached' })
 
   // Apagar o ovo.
   await diary.getByRole('button', { name: /^Apagar Ovo, de galinha, inteiro, cozido/ }).click()
