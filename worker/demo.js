@@ -13,6 +13,7 @@ import { weightMethods } from './weights.js'
 import { nutritionMethods } from './nutrition.js'
 import { bodyMethods } from './body.js'
 import { diaryMethods } from './diary.js'
+import { trainingMethods } from './training.js'
 
 const START = SPACE_ORDER[0]
 // A ilha é só cenário; a cidade onde se constrói começa aberta no Rio de Janeiro.
@@ -54,6 +55,11 @@ const routes = [
   // Composição corporal da aba Fitness (worker/body.js).
   [/^\/api\/personal\/body-composition$/, { GET: 'bodyComposition', POST: 'addBodyComposition' }],
   [/^\/api\/personal\/body-composition\/([a-f0-9-]{36})$/, { PUT: 'editBodyComposition', DELETE: 'removeBodyComposition' }],
+  // Treino de musculação da aba Fitness (worker/training.js): plano sugerido, sessões e estatísticas.
+  [/^\/api\/personal\/training$/, { GET: 'training' }],
+  [/^\/api\/personal\/training\/setup$/, { PUT: 'saveTrainingSetup' }],
+  [/^\/api\/personal\/training\/sessions$/, { POST: 'addWorkout' }],
+  [/^\/api\/personal\/training\/sessions\/([a-f0-9-]{36})$/, { PUT: 'editWorkout', DELETE: 'removeWorkout' }],
   // Alimentação: diário de refeições (worker/diary.js). A busca usa a base de alimentos do próprio servidor.
   [/^\/api\/personal\/diary$/, { GET: 'diary', POST: 'addDiary' }],
   [/^\/api\/personal\/diary\/foods$/, { GET: 'diaryFoods' }],
@@ -694,4 +700,4 @@ export class DemoSession {
   }
 }
 
-Object.assign(DemoSession.prototype, agendaMethods, projectMethods, weightMethods, nutritionMethods, bodyMethods, diaryMethods)
+Object.assign(DemoSession.prototype, agendaMethods, projectMethods, weightMethods, nutritionMethods, bodyMethods, diaryMethods, trainingMethods)

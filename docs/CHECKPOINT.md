@@ -15,6 +15,7 @@ Antes de começar uma etapa, escreva aqui o branch e a etapa. Ao fechar o PR, ap
 
 | Branch | O que está fazendo | Desde |
 |---|---|---|
+| `claude/treino-sugerido` | Fitness: treino de musculação sugerido (meta da base calórica + dias por semana), registro de carga e repetições, volume, 1RM estimado e próxima carga; regras provisórias até os artigos do dono (sem PR ainda) | 15/11/2026 |
 | `claude/ecstatic-gauss-q22jcx` | Painel pessoal com visual de dashboard: pílula no menu, "Ir para…", cartões de métrica, gráfico de área e barra por área no Seu dia (sem PR ainda) | 15/11/2026 |
 | `claude/alimentacao-calculo` | Alimentação: base calórica completa (cálculo, rotas no Durable Object, cartão na aba, testes), PR #45 | 14/11/2026 |
 | `claude/etapa-4-painel-sem-iframe` | Etapa 4: painel sem iframe do Fifones, aba Conta, Salvo/Salvando…/Sem conexão, "Em breve" (Agenda, Projetos, Fitness, Biblioteca, Estudos), Sair em todas as páginas, `next` do login validado | 13/11/2026 |

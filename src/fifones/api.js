@@ -187,4 +187,10 @@ const BODY = '/api/personal/body-composition'
 export const loadBodyComposition = () => api(BODY)
 export const addBodyComposition = body => api(BODY, 'POST', body)
 export const editBodyComposition = (id, body) => api(`${BODY}/${encodeURIComponent(id)}`, 'PUT', body)
+const TRAINING = '/api/personal/training'
+export const loadTraining = () => api(TRAINING)
+export const saveTrainingSetup = body => api(TRAINING + '/setup', 'PUT', body)
+export const addWorkout = body => api(TRAINING + '/sessions', 'POST', body)
+export const editWorkout = (id, body) => api(`${TRAINING}/sessions/${encodeURIComponent(id)}`, 'PUT', body)
+export const removeWorkout = id => api(`${TRAINING}/sessions/${encodeURIComponent(id)}`, 'DELETE')
 export const removeBodyComposition = id => api(`${BODY}/${encodeURIComponent(id)}`, 'DELETE')
