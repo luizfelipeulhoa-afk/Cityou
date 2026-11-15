@@ -743,7 +743,8 @@ function communityHill(group, layout) {
   const earth = new THREE.Color(0xb07a4f), grass = new THREE.Color(0x4e9f5d)
   // Mais alto, mais terra à mostra: o morro vai da mata para a terra batida.
   const tops = [1, 2, 3].map(level => grass.clone().lerp(earth, 0.28 + level * 0.12))
-  const wall = earth.clone().lerp(new THREE.Color(0xa9a9b8), 0.3)
+  // Arrimo de pedra, no cinza do granito do Pão de Açúcar ao lado (16/11/2026): o morro e a pedra se misturam.
+  const wall = earth.clone().lerp(new THREE.Color(0x9a9aa6), 0.65)
   const color = new THREE.Color()
   const push = (point, rgb, tone) => { vertices.push(point[0], point[1], point[2]); colors.push(rgb.r * tone, rgb.g * tone, rgb.b * tone) }
   for (const [tx, ty, level] of layout.hillTiles) {

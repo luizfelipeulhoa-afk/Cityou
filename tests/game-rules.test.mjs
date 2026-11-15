@@ -267,7 +267,10 @@ test('Rio: o morro da comunidade tem patamares, fica fora das áreas protegidas 
   assert.deepEqual(house.road.tiles, [])
   assert.equal(house.cost, getBuilding('rio-casa').cost)
   assert.equal(previewBuild(city, { kind: 'rio-comunidade', x: 13, y: -8, rotation: 0 }).error, undefined) // 3 × 3 num patamar de 3 fileiras
-  assert.equal(previewBuild(city, { kind: 'rio-comunidade', x: -8, y: -8, rotation: 0 }).error, undefined)
+  assert.equal(previewBuild(city, { kind: 'rio-comunidade', x: -8, y: -4, rotation: 0 }).error, undefined)
+  // O canto de trás da esquerda é o Pão de Açúcar (16/11/2026): pedra, não patamar.
+  assert.equal(hillLevelAt('cristo-redentor', -8, -8), 0)
+  assert.match(previewBuild(city, { kind: 'rio-casa', x: -7, y: -7, rotation: 0 }).error, /áreas protegidas/)
   // Atravessar dois patamares, prédio de fora da comunidade e rua no morro: recusados.
   assert.match(previewBuild(city, { kind: 'rio-casa', x: 14, y: -6, rotation: 0 }).error, /mesmo patamar/)
   assert.match(previewBuild(city, { kind: 'rio-hospital', x: 17, y: -8, rotation: 0 }).error, /No morro só cabem/)
