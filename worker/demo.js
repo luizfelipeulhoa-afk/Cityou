@@ -469,7 +469,9 @@ export class DemoSession {
     const proofResult = done && proof ? this.saveProof(entry, day, proof) : null
     this.write('checkin', `${id}:${day}`, { entry_id: id, day, done: Number(done) })
     if (done && entry.kind === 'habit') this.reward('habit', day, id, `Hábito concluído: ${entry.title}`)
-    if (done && entry.kind === 'goal') this.rewardGoal(entry, day)
+    // A fila de ontem vem antes da meta de agora, para a nova não tomar o lugar das que já esperam.
+    if (done && entry.kind === 'goal') { this.settleGoals(day); this.rewardGoal(entry, day) }
+    if (!done && entry.kind === 'goal' && !this.read('reward:goal', id)) this.rewardGoal(entry, day)
     const overview = this.overview()
     return json(proofResult ? { ...overview, proof_result: proofResult } : overview)
   }
