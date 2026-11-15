@@ -181,3 +181,12 @@ Fechada em 13/11/2026 e implementada:
 - [x] **Prédios da ilha.** Farol, Cabana e Píer são prédios que o jogador constrói na ilha. A ilha segue sem praça, sede, ruas e prédios de atividade; só esses três tipos são aceitos (`scenicBuildable` em `shared/game/city-layout.js`). Os GLB estão em `public-fifones/models/island/`. Ainda faltam as miniaturas do menu de construção, que a ferramenta `tools/catalog-previews.mjs` não gera para a ilha.
 
 Mudanças neste sistema: editar este arquivo por pull request. A versão compartilhada no Claude da empresa (Claude Docs, "Design system Cityou") tem o mesmo conteúdo; as duas precisam ser mantidas juntas.
+
+
+## Página de apresentação (16/11/2026)
+
+Tokens em `:root` de `src/landing/landing.css`, inspirados na gramática do contiant.com: roxo de ação `#8247ff` (escuro
+`#3f27ac`), blocos pastel lavanda `#dfd1f4`, areia `#f1d9d0` e gelo `#dff3f6`, sálvia `#a9cecc` para o círculo
+rabiscado, painel final `#1f2933`, texto `#0d0d0c` sobre branco. Fonte da marca (Fifones) em peso 400 nos títulos.
+Cartões com raio de 24 a 40 px, botões em pílula com um tique que desliza ao passar o mouse, rabiscos SVG desenhados
+por `stroke-dashoffset` uma vez quando entram na tela. O painel do app segue com a própria paleta (azul-marinho e lilás).

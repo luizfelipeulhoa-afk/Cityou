@@ -1,4 +1,5 @@
-// Página de apresentação: animações de entrada, demonstração do ciclo do jogo e a janela de entrar / criar conta.
+// Página de apresentação: palavra que gira, rabiscos que se desenham, diagrama vivo, demonstração do ciclo do jogo,
+// abas das áreas e a janela de entrar / criar conta.
 // Sem framework e sem biblioteca de animação: CSS, IntersectionObserver e um pouco de estado.
 import './landing.css'
 import { clearCache, safeNext, topWindow } from '../fifones/api.js'
@@ -33,29 +34,84 @@ for (const group of new Set($$('[data-reveal]').map(element => element.parentEle
   })
 }
 
-// --- Abertura: a moldura e as etiquetas acompanham o ponteiro ---
-const stage = $('[data-tilt]')
-if (stage && !reduced && matchMedia('(hover: hover) and (pointer: fine)').matches) {
-  const frame = $('.hero-frame', stage), chips = $$('.chip', stage)
-  let pending = 0
-  stage.addEventListener('pointermove', (event) => {
-    cancelAnimationFrame(pending)
-    pending = requestAnimationFrame(() => {
-      const box = stage.getBoundingClientRect()
-      const x = (event.clientX - box.left) / box.width - 0.5, y = (event.clientY - box.top) / box.height - 0.5
-      frame.style.setProperty('--tilt-x', `${(-y * 5).toFixed(2)}deg`)
-      frame.style.setProperty('--tilt-y', `${(x * 7).toFixed(2)}deg`)
-      for (const chip of chips) {
-        const depth = Number(chip.dataset.depth)
-        chip.style.setProperty('--px', `${(x * depth).toFixed(1)}px`)
-        chip.style.setProperty('--py', `${(y * depth).toFixed(1)}px`)
-      }
+// --- Topo: palavra que gira no título (a cada 2,5 s) ---
+const rotator = $('[data-rotator]')
+if (rotator && !reduced) {
+  const words = $$('.rotator-word', rotator)
+  let current = 0
+  setInterval(() => {
+    const leaving = words[current]
+    current = (current + 1) % words.length
+    leaving.classList.remove('is-on'); leaving.classList.add('is-out')
+    words[current].classList.remove('is-out'); words[current].classList.add('is-on')
+    setTimeout(() => leaving.classList.remove('is-out'), 750)
+  }, 2500)
+}
+
+// --- Rabiscos: o sublinhado do topo se desenha logo; os outros, quando o título entra na tela (uma vez só) ---
+const drawn = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    if (!entry.isIntersecting) continue
+    entry.target.classList.add('is-drawn')
+    drawn.unobserve(entry.target)
+  }
+}, { rootMargin: '0px 0px -25% 0px' })
+for (const scribble of $$('.scribble')) {
+  if (scribble.closest('.hero')) setTimeout(() => scribble.classList.add('is-drawn'), reduced ? 0 : 900)
+  else drawn.observe(scribble)
+}
+
+// --- Diagrama vivo: cada cartão anda com o ponteiro na sua profundidade (eixos trocados, como na referência) ---
+const diagram = $('[data-diagram]')
+if (diagram) {
+  for (const node of $$('[data-depth]', diagram)) node.style.setProperty('--d', `${node.dataset.depth}px`)
+  if (!reduced && matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    const hero = $('[data-hero]')
+    let pending = 0
+    hero.addEventListener('pointermove', (event) => {
+      cancelAnimationFrame(pending)
+      pending = requestAnimationFrame(() => {
+        diagram.style.setProperty('--mx', ((event.clientX / innerWidth) - 0.5).toFixed(3))
+        diagram.style.setProperty('--my', ((event.clientY / innerHeight) - 0.5).toFixed(3))
+      })
+    })
+    hero.addEventListener('pointerleave', () => { diagram.style.setProperty('--mx', 0); diagram.style.setProperty('--my', 0) })
+  }
+  // A carteira do centro sobe a cada pulso que chega (50 a 90, em laço), como moedas caindo.
+  const wallet = $('[data-wallet]', diagram)
+  if (wallet && !reduced) {
+    let coins = 50
+    setTimeout(() => setInterval(() => {
+      coins = coins >= 90 ? 50 : coins + [10, 5, 25][Math.floor(Math.random() * 3)]
+      wallet.textContent = Math.min(coins, 95)
+    }, 1400), 3200)
+  }
+}
+
+// --- Abas das áreas da vida (setas do teclado mudam de aba) ---
+const tabs = $('[data-tabs]')
+if (tabs) {
+  const buttons = $$('[role="tab"]', tabs)
+  const select = (button, focus) => {
+    for (const other of buttons) {
+      const on = other === button
+      other.setAttribute('aria-selected', String(on))
+      other.tabIndex = on ? 0 : -1
+      document.getElementById(other.getAttribute('aria-controls')).hidden = !on
+    }
+    if (focus) button.focus()
+  }
+  buttons.forEach((button, index) => {
+    button.addEventListener('click', () => select(button))
+    button.addEventListener('keydown', (event) => {
+      const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key]
+      if (step) { event.preventDefault(); select(buttons[(index + step + buttons.length) % buttons.length], true) }
     })
   })
-  stage.addEventListener('pointerleave', () => {
-    for (const element of [frame, ...chips]) for (const name of ['--tilt-x', '--tilt-y', '--px', '--py']) element.style.removeProperty(name)
-  })
 }
+
+const year = $('[data-year]')
+if (year) year.textContent = new Date().getFullYear()
 
 // --- Faixa dos prédios: a lista é duplicada para o movimento não ter emenda ---
 const track = $('.marquee-track')
