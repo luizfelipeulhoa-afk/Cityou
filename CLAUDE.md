@@ -84,7 +84,8 @@ O app nasceu de uma cópia do Fifones e ainda tem botões, rotas e prédios que 
 
 ## Design system
 
-Cores, tipografia, forma, topografia do globo e os prompts de imagem e 3D dos prédios estão em `docs/DESIGN-SYSTEM.md`. Antes de criar uma cor, fonte ou prompt novo, leia esse arquivo; se a cor já existe em `:root` ou em `PALETTE`, use a existente. A mesma versão está no Claude Docs da empresa ("Design system Cityou"): mudanças entram pelos dois lados.
+Cores, tipografia, forma, topografia do globo e os prompts de imagem e 3D dos prédios estão em `docs/DESIGN-SYSTEM.md`.
+**Painel pessoal com visual de dashboard (15/11/2026, pedido do dono, a partir de uma referência de UI):** o "Seu dia" ganhou cartões de métrica com minigráfico, gráfico de área "Passos dados" (7, 30 ou 90 dias) e barra "Tarefas por área"; o menu ganhou a pílula que desliza e estica (`src/personal/navPill.js`, sem GSAP: bordas em variáveis CSS `@property`), e a barra do topo, o "Ir para…" com Ctrl ou ⌘ + K (`src/personal/JumpBar.vue`), o selo de estado e o avatar. Estilo novo em `src/personal/dashboard.css` (depois de `personal.css`; a paleta ficou azul-marinho, o lilás segue como ação). As contas das séries são puras e testadas em `src/personal/dashboardData.js` (`tests/dashboard-data.test.mjs`). Regra de todo gráfico novo do painel: série acumulada (nunca cai), só dado real, escala honesta (`zero`, `minSpan`), sem vermelho. Nada de crédito, nível ou bônus no topo ainda: isso é a fase D1 de `docs/DASHBOARD.md`, que pede a revisão ética antes. Antes de criar uma cor, fonte ou prompt novo, leia esse arquivo; se a cor já existe em `:root` ou em `PALETTE`, use a existente. A mesma versão está no Claude Docs da empresa ("Design system Cityou"): mudanças entram pelos dois lados.
 
 ## Mapa-mundo (`src/world/`)
 
