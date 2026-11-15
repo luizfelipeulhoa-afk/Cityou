@@ -250,17 +250,40 @@ function pickItem(item) {
   rotation.value = 0
   updateTool()
 }
+// Escrita otimista (docs/LATENCIA.md, item 4): construir, mover e girar aparecem na hora, com a mesma revisão, e a
+// resposta do servidor (revisão maior) confirma. Moedas, XP e o que depende de regra do servidor (desfazer, refazer,
+// demolir, melhorar, ruas desenhadas) esperam a resposta. Em erro, a cidade volta ao estado de antes.
+function predict(action) {
+  const city = state.value
+  if (!city) return null
+  if (action.type === 'build') {
+    const placement = { id: `pendente-${crypto.randomUUID()}`, kind: action.kind, x: action.x, y: action.y, rotation: action.rotation || 0, level: 1 }
+    const quote = previewBuild(city, placement)
+    if (quote.error || quote.cost > city.credits) return null
+    const roads = quote.road.tiles.map(({ x, y }, index) => ({ id: `pendente-rua-${index}-${placement.id}`, kind: 'road', x, y, rotation: 0, level: 1 }))
+    return { ...city, placements: [...city.placements, placement, ...roads], credits: city.credits - quote.cost }
+  }
+  if (action.type === 'move' || action.type === 'rotate') {
+    const moved = item => action.type === 'move' ? { ...item, x: action.x, y: action.y, rotation: action.rotation ?? item.rotation } : { ...item, rotation: action.rotation }
+    return { ...city, placements: city.placements.map(item => item.id === action.placement_id ? moved(item) : item) }
+  }
+  return null
+}
 // `send` é a chamada ao servidor (padrão: a ação nova). Desfazer e refazer passam `cityUndo` e `cityRedo`, com o mesmo tratamento.
 async function performAction(action, message, send = cityAction) {
   if (saving.value || refreshing.value || !state.value) return false
   saving.value = true
+  const before = state.value
+  const guess = send === cityAction ? predict(action) : null
+  if (guess) { state.value = guess; engine?.setState(guess) }
   try {
-    const result = await send({ ...action, expected_revision: state.value.revision })
+    const result = await send({ ...action, expected_revision: before.revision })
     applySnapshot(result)
     notify(message)
     return true
   }
   catch (error) {
+    if (guess && state.value === guess) { state.value = before; engine?.setState(before) }
     const refreshed = applySnapshot(error.details?.city)
     if (error.status === 409) {
       if (!refreshed) {
