@@ -71,6 +71,14 @@ também cavavam o chão em volta, porque o chão dos lotes era forçado a y = 0.
   relógio da espuma (`CityWorld.foams`). A cidade cobre a tela até o terreno real entrar
   (`CityWorld.sceneReady`, `.city-cover` em `CityApp.vue`).
 
+## Montanhas de trás rebaixadas (16/11/2026)
+
+Pedido do dono: as montanhas atrás da grade escondiam o Cristo. `region.soften` (`terrainData.js`) vale atrás de uma
+linha (`edge`, com `blend` de mistura) e achata o que passa de `knee` numa curva suave (`tanh`) até no máximo `cap`, sem
+virar mesa. Ficam de fora os círculos de `keep` (a montanha do Cristo) e os blocos transplantados (Pão e Urca). Em
+`rio-cidade.js`: linha em z −11 da cena, `knee` 1,6 e `cap` 3, perto do topo dos patamares. O teste do corte do maciço
+(`crop.keep`) roda sem o rebaixamento, porque agora o maciço fica baixo de propósito.
+
 ## Onde ver e como conferir
 
 - **Página de teste:** `/terrain.html` (no `npm run dev` e no site publicado; sem link no app, `noindex`). Tem as vistas dos marcos, a sobreposição das zonas bloqueadas e o toque num lote para assentar um prédio.

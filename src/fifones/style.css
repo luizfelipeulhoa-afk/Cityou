@@ -110,3 +110,10 @@
 .city-cover-leave-active{transition:opacity .55s ease}
 .city-cover-leave-to{opacity:0}
 @media(prefers-reduced-motion:reduce){.city-cover-leave-active{transition:none}}
+
+/* "Sua próxima construção" recolhido (16/11/2026): só a linha de cima e o nome da construção. */
+.goal-topline{align-items:center}
+.goal-collapse{margin-left:6px;min-width:26px;min-height:26px;flex:none}
+.next-build.collapsed{min-height:0!important;padding-bottom:12px}
+.next-build.collapsed .goal-collapse{transform:rotate(180deg)}
+.goal-mini{display:block;margin-top:4px;font-size:13px;font-weight:600;color:#2f5146;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

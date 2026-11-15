@@ -138,6 +138,30 @@ export function createTerrainData(region, values) {
     }
   }
 
+  // ---- Rebaixamento (`region.soften`): atrás de uma linha (z menor que `edge`), o relevo acima de `knee` é achatado aos
+  // poucos até no máximo `cap`, numa curva suave (sem platô de mesa). Fica de fora o que está em `keep` (círculos
+  // { x, z, radius, blend }) e os blocos transplantados. No Rio, as montanhas atrás da grade ficam na altura da base de
+  // construção e o Cristo, o Pão de Açúcar e a Urca seguem inteiros (16/11/2026, pedido do dono).
+  if (region.soften) {
+    const { edge, blend: band = 4, knee, cap, keep = [] } = region.soften
+    const circles = [...keep, ...(region.transplant ?? []).map(block => ({ x: block.to.x, z: block.to.z, radius: block.radius + (block.blend ?? 3), blend: 3 }))]
+    const squash = h => (h <= knee ? h : knee + (cap - knee) * Math.tanh((h - knee) / (cap - knee)))
+    for (let j = 0; j < size; j++) {
+      const wz = originZ + j * spacing
+      const behind = smoothstep(edge, edge - band, wz)
+      if (behind <= 0) continue
+      for (let i = 0; i < size; i++) {
+        const index = j * size + i, h = heights[index]
+        if (h <= knee) continue
+        const wx = originX + i * spacing
+        let kept = 0
+        for (const c of circles) kept = Math.max(kept, 1 - smoothstep(c.radius, c.radius + (c.blend ?? 3), Math.hypot(wx - c.x, wz - c.z)))
+        const weight = behind * (1 - kept)
+        if (weight > 0) heights[index] = h + (squash(h) - h) * weight
+      }
+    }
+  }
+
   // ---- Corte (`region.crop`): além deste raio do centro dado, o relevo real vira mar liso, com uma faixa de mistura.
   // Mais barato que só apertar `detail.maxTriangles`: tira de vez a praia e os morros reais distantes que a câmera e a
   // névoa da cidade (CityWorld, src/terrain/lighting.js) nunca mostravam mesmo, e corta os triângulos de lá também.
