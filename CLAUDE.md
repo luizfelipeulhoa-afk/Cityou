@@ -62,7 +62,7 @@ O objetivo final é entregar o **MVP do Cityou**. Ao fechar cada rodada, atualiz
 | `world.html` | `src/world-main.js` → `src/WorldApp.vue` | mapa-mundo BuildU |
 | `terrain.html` | `src/terrain-main.js` → `src/terrain/TerrainLab.vue` | página de teste do terreno do Rio (sem link no app, `noindex`) |
 
-A página de apresentação e a de teste do terreno são construídas à parte (`vite.landing.config.js`, `vite.terrain.config.js`). Não as ponha nas entradas do `vite.config.js`: isso redistribui os pacotes compartilhados e cada página de produção passa a pedir de 1 a 3 arquivos a mais (medido).
+**Página de apresentação refeita (16/11/2026, pedido do dono, a partir da gramática de design do contiant.com):** fundo branco, blocos em tons pastel, títulos grandes e leves com rabiscos à mão que se desenham no scroll, palavra que gira no título e um diagrama vivo no topo (o que você faz → moedas → a cidade → os prédios) com pulsos em SMIL nos caminhos e paralaxe do mouse; faixa dos prédios, demonstração do ciclo, antes e depois, cartões empilhados (`position: sticky`) e abas das áreas da vida. Tudo em `index.html`, `src/landing/landing.css` (tokens em `:root`) e `src/landing/landing.js`, sem biblioteca nova; o diálogo de entrar e criar conta não mudou. Com movimento reduzido, nada anima e tudo fica visível. A página de apresentação e a de teste do terreno são construídas à parte (`vite.landing.config.js`, `vite.terrain.config.js`). Não as ponha nas entradas do `vite.config.js`: isso redistribui os pacotes compartilhados e cada página de produção passa a pedir de 1 a 3 arquivos a mais (medido).
 
 ## Plano em andamento: sair do Fifones
 
