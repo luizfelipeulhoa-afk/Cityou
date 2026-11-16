@@ -18,6 +18,7 @@ Nenhum branch em andamento em 15/11/2026 (conferido pelo `git log origin/main..o
 
 | Branch | O que está fazendo | Desde |
 |---|---|---|
+| `codex/fase0-reconciliacao` | Fase 0 do app: separar dados do mapa das dependências visuais e proteger as camadas e a inclusão de testes na CI | 15/11/2026 |
 
 ## O que já entrou na `main` (PR → etapa)
 | PR | O que entrou | Etapa do plano |

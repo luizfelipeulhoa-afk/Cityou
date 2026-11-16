@@ -38,7 +38,7 @@ Não conferi quanto cada opção custa em créditos; o número aparece ao lado d
 
 ## Limite de faces de cada modelo
 
-Os oito modelos são os oito espaços de `src/world/worldSpaces.js`; não há outro monumento no mapa. Cada um tem o seu limite, que é o valor de `MAX_TRIANGLES` em `tools/check-world-models.mjs` (o verificador reprova o GLB que passar do seu). Conferido em 11/11/2026:
+Os oito modelos são os oito espaços de `shared/world/spaces.js`; não há outro monumento no mapa. Cada um tem o seu limite, que é o valor de `MAX_TRIANGLES` em `tools/check-world-models.mjs` (o verificador reprova o GLB que passar do seu). Conferido em 11/11/2026:
 
 | Modelo | Arquivo | Limite de faces | GLB publicado |
 |---|---|---|---|
@@ -72,7 +72,7 @@ e compare, no mapa com `?debug=1`, com o monumento em código. Se o do Tripo nã
 Depois de gerar cada um:
 
 1. Salve com o nome indicado em `public-fifones/models/world/`.
-2. Se vier de costas, ajuste `rotacaoY` (180) em `src/world/worldSpaces.js`.
+2. Se vier de costas, ajuste `rotacaoY` (180) em `shared/world/spaces.js`.
 3. Se o arquivo passar de 2 MB ou a textura de 1024 px: `node tools/optimize-world-models.mjs <arquivo.glb> <id> --ratio 1 --error 0` (mantém a malha, só comprime e reduz a textura).
 
 > A **Ilha Inicial** já está pronta (`ilha-inicial.glb`, gerada por você) e não precisa de novo prompt.

@@ -29,11 +29,11 @@ Para usar o Vite com HMR, execute `npm run dev` após abrir o Worker local em `h
 | `src/world/terrain.worker.js`, `terrainClient.js`, `terrain.js` | Rodam o núcleo num Web Worker (com reserva síncrona) e montam a geometria do three. |
 | `src/world/continents.js` | Contornos simplificados dos continentes, mares interiores, cordilheiras e zonas de bioma (em lon/lat). |
 | `src/world/geo.js` | `latLonToVector3(lat, lon, raio)` e a orientação na superfície (`surfaceQuaternion`). |
-| `src/world/worldSpaces.js` | Dados dos 8 espaços `{ id, nome, lat, lon, glbPath, desbloqueado, concluido, ... }`. |
+| `shared/world/spaces.js` | Dados dos 8 espaços `{ id, nome, lat, lon, glbPath, desbloqueado, concluido, ... }`. |
 | `src/world/SpaceMarker.js` | Marcador: carrega o GLB (ou o monumento em código), normaliza a escala, mede a base do modelo e cuida dos estados, do anel de chão e das animações de cada espaço. |
 | `src/world/models.js` | Decide de onde vem cada GLB: `models.json` (arquivo com hash no nome, gerado no build) ou `manifest.json` (lista de ids). |
 | `src/world/monuments.js` | Os 8 monumentos low poly construídos em código (caixas, cilindros, cones), nítidos, de 300 a 2.500 triângulos e poucos KB. |
-| `src/world/progress.js` | Progresso em `localStorage` (`unlock`, `complete`, `reset`, mais funções puras de fusão). |
+| `shared/world/progress.js` (reexportado por `src/world/progress.js`) | Progresso em `localStorage` (`unlock`, `complete`, `reset`, mais funções puras de fusão). |
 | `src/world/progressSync.js` | Sincronização local-first com o backend. |
 | `worker/demo.js` | Progresso regional e viagens persistidos por sessão no Durable Object. |
 | `src/components/WorldMap.vue` | Componente: monta a cena, recebe o progresso por props, emite eventos e tem o painel de debug. |
@@ -154,7 +154,7 @@ Para comparar: os GLB dos prédios da cidade (`public-fifones/models/`) têm 10�
 1. Exporte do Tripo em GLB e renomeie com o id (ex.: `coliseu.glb`).
 2. Copie para `public-fifones/models/world/`.
 3. Recarregue a página. No debug (tecla D), a linha do espaço passa de "placeholder" para "GLB".
-4. Ajuste fino em `src/world/worldSpaces.js`, se precisar: `escala` (1 = padrão; 1.2 = 20% maior) e `rotacaoY` (graus; 180 se o modelo vier de costas).
+4. Ajuste fino em `shared/world/spaces.js`, se precisar: `escala` (1 = padrão; 1.2 = 20% maior) e `rotacaoY` (graus; 180 se o modelo vier de costas).
 
 Não é preciso mexer no código. Enquanto o arquivo não existe, o placeholder aparece. Depois de trocar um GLB, rode `npm run build`: é o build que publica a cópia com hash (veja "Endereço e cache dos modelos"). O Vite mantém `public-fifones/models/world/manifest.json` com a lista dos GLB (ao iniciar o dev server, a cada arquivo adicionado e no build); se você copiar um GLB sem o Vite rodando, gere a lista com `node tools/world-models-manifest.mjs`.
 

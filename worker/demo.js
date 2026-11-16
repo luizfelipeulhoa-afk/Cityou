@@ -1,5 +1,5 @@
-import { normalizeProgress, unlockSpace } from '../src/world/progress.js'
-import { SPACE_ORDER } from '../src/world/worldSpaces.js'
+import { normalizeProgress, unlockSpace } from '../shared/world/progress.js'
+import { SPACE_ORDER } from '../shared/world/spaces.js'
 import { DOMAINS, RULES, goalCredits } from '../shared/game/rules.js'
 import { ProofError, parseProof, sha256Hex } from '../shared/game/proof.js'
 import { buildSummary } from '../shared/game/summary.js'

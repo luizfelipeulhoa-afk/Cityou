@@ -96,7 +96,7 @@ Cores, tipografia, forma, topografia do globo e os prompts de imagem e 3D dos pr
 - `SpaceMarker.js`: GLB ou monumento em código, normalização de escala, medida da base, anel de chão, estados e animações de cada espaço.
 - `models.js`: de onde vem cada GLB (`models.json` do build, com hash no nome e cache imutável, ou `manifest.json`).
 - `monuments.js`: os 8 monumentos low poly feitos em código, usados quando não há GLB. Ilha Inicial, Cristo Redentor, Machu Picchu, Chichén Itzá, Coliseu, Taj Mahal e Grande Muralha já têm GLB do Tripo (só o Petra usa o de código); o GLB, quando existe, tem prioridade.
-- `worldSpaces.js`: os 8 espaços. `progress.js`: progresso (funções puras + localStorage). `geo.js`: `latLonToVector3`.
+- `worldSpaces.js`: reexporta os 8 espaços de `shared/world/spaces.js` e a geometria do cliente. `progress.js`: reexporta `shared/world/progress.js` (funções de progresso e localStorage). O Worker usa os módulos compartilhados, sem depender de `src/`. `geo.js`: `latLonToVector3`.
 - `src/components/WorldMap.vue`: componente (`v-model:progress`, evento `open-world`, painel de debug com a tecla D ou `?debug=1`).
 - `src/components/WorldMapHud.vue`: etiqueta do destino, seta de borda, controles da câmera e aviso de carga.
 - Guia: `docs/WORLD-MAP.md`.

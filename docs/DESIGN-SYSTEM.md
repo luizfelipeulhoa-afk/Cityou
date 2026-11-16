@@ -31,7 +31,7 @@ A paleta do terreno está em `PALETTE` (`src/world/terrainCore.js`). O mar profu
 
 Destaques que não são bioma: verde vivo #5fdc6e, mar claro #5ff2e6 e areia ensolarada #fff0b8. Em 10% das faces entram flores pastel: #ff7eb0, #ffd166, #ffffff, #c792ff, #ff9f6b.
 
-Cada espaço tem a sua cor em `src/world/worldSpaces.js`, por exemplo Chichén Itzá #ffb347, Coliseu #ff8a7a e Petra #ff7eb3.
+Cada espaço tem a sua cor em `shared/world/spaces.js`, por exemplo Chichén Itzá #ffb347, Coliseu #ff8a7a e Petra #ff7eb3.
 
 ## Cores das telas
 
