@@ -47,3 +47,37 @@ test('CSP_ENFORCE="true" troca o Report-Only pelo cabeçalho que bloqueia, só n
   assert.equal(blocking.headers.get('Content-Security-Policy'), CSP_REPORT_ONLY)
   assert.equal(blocking.headers.get('Content-Security-Policy-Report-Only'), null)
 })
+
+// Para decidir se a semana passou limpa sem depender de ficar olhando o log ao vivo (worker/csp.js).
+test('relatório grava o resumo (reenvio soma, não duplica) e /api/admin/csp-violations lista, só com o segredo', async () => {
+  const report = blockedUri => JSON.stringify({ 'csp-report': {
+    'violated-directive': 'script-src', 'blocked-uri': blockedUri, 'document-uri': ORIGIN + '/app',
+  } })
+  await harness.fetch(ORIGIN + '/api/csp-report', { method: 'POST', body: report('https://exemplo.test/um.js') })
+  await harness.fetch(ORIGIN + '/api/csp-report', { method: 'POST', body: report('https://exemplo.test/um.js') })
+  const { default: worker } = await import('../worker/index.js')
+  const env = await harness.getWorker().getEnv()
+  const TOKEN = 'segredo-de-teste-com-dezesseis'
+  const request = headers => new Request(ORIGIN + '/api/admin/csp-violations', { headers })
+  assert.equal((await worker.fetch(request({}), env)).status, 404, 'sem CITYOU_ADMIN_TOKEN configurado, a rota some')
+  const adminEnv = { ...env, CITYOU_ADMIN_TOKEN: TOKEN }
+  assert.equal((await worker.fetch(request({}), adminEnv)).status, 403, 'sem o cabeçalho, recusa')
+  const response = await worker.fetch(request({ 'X-Cityou-Admin': TOKEN }), adminEnv)
+  assert.equal(response.status, 200)
+  const body = await response.json()
+  const row = body.violations.find(item => item.blocked_uri === 'https://exemplo.test/um.js')
+  assert.ok(row, 'violação não apareceu na lista')
+  assert.equal(row.count, 2)
+  assert.equal(row.violated_directive, 'script-src')
+  assert.ok(body.last_seen)
+})
+
+test('teto de violações únicas: reenvio em massa não ultrapassa o limite guardado', async () => {
+  const { recordCspViolation, CSP_VIOLATIONS_CAP } = await import('../worker/csp.js')
+  const env = await harness.getWorker().getEnv()
+  for (let i = 0; i < CSP_VIOLATIONS_CAP + 5; i++) {
+    await recordCspViolation(env, JSON.stringify({ 'csp-report': { 'violated-directive': 'script-src', 'blocked-uri': `https://enchente.test/${i}.js` } }))
+  }
+  const { results } = await env.DB.prepare('SELECT count(*) AS n FROM csp_violations').all()
+  assert.ok(results[0].n <= CSP_VIOLATIONS_CAP, `esperava no máximo ${CSP_VIOLATIONS_CAP}, veio ${results[0].n}`)
+})

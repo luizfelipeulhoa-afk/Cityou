@@ -1,9 +1,9 @@
 // API do Cityou e início da sessão nas páginas do app.
 // Contrato em docs/API.md.
-import { HttpError, createTiming, errorResponse } from './http.js'
+import { HttpError, createTiming, errorResponse, json } from './http.js'
 import { health } from './routes/health.js'
-import { CSP_REPORT_ONLY, CSP_REPORT_MAX } from './csp.js'
-import { accountKey, demoApi, demoKeyOf, sessionCookie, sessionToken } from './demo.js'
+import { CSP_REPORT_ONLY, CSP_REPORT_MAX, cspViolationsSummary, recordCspViolation } from './csp.js'
+import { accountKey, demoApi, demoKeyOf, requireAdmin, sessionCookie, sessionToken } from './demo.js'
 import { cachedRead, invalidate, isCacheableRead, markWrite, recentWrite } from './edge-cache.js'
 import { accountsEnabled, authApi, sessionTokenOf, sessionUser } from './auth.js'
 import { bootEligible, bootEmbedJson, embedBoot } from './boot.js'
@@ -16,11 +16,12 @@ const routes = [
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 
-/** Relatório de violação do navegador: só registra no log (sem gravar nada), tamanho limitado, sem exigir cabeçalho de escrita. */
-async function cspReport(request) {
+/** Relatório de violação do navegador: log de sempre + resumo no banco (se houver), tamanho limitado, sem exigir cabeçalho de escrita. */
+async function cspReport(request, env) {
   if (request.method !== 'POST') throw new HttpError(405, 'Use POST.')
   const text = (await request.text()).slice(0, CSP_REPORT_MAX)
   console.warn(JSON.stringify({ message: 'csp: violação (Report-Only)', report: text }))
+  await recordCspViolation(env, text)
   return new Response(null, { status: 204 })
 }
 
@@ -52,7 +53,11 @@ function securityHeaders(response, env) {
 const loginRequired = env => accountsEnabled(env) && env.REQUIRE_LOGIN === 'true'
 
 async function handleApi(request, env, ctx, url, timing) {
-  if (url.pathname === '/api/csp-report') return cspReport(request)
+  if (url.pathname === '/api/csp-report') return cspReport(request, env)
+  if (url.pathname === '/api/admin/csp-violations' && request.method === 'GET') {
+    await requireAdmin(request, env) // sem o segredo, 404: a rota nem parece existir
+    return json(await cspViolationsSummary(env))
+  }
   guardWrite(request, url)
   const matches = routes.filter(([, path]) => path === url.pathname)
   if (!matches.length) {

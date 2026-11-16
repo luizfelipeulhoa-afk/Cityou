@@ -282,3 +282,22 @@ fetch('/api/admin/credits', { method: 'POST', headers: { 'Content-Type': 'applic
 
 Para criar o segredo: `npx wrangler secret put CITYOU_ADMIN_TOKEN` (ou Cloudflare → Workers → cityou → Settings → Variables and Secrets).
 Se o cookie `cityou_demo` expirar ou for apagado, a sessão é outra e a pessoa pode rodar de novo.
+
+## Violações de CSP (`GET /api/admin/csp-violations`)
+
+Para decidir se a semana em `Content-Security-Policy-Report-Only` (etapa 6) passou limpa, sem precisar ficar
+olhando o log ao vivo (`wrangler tail`). Toda violação que o navegador reporta (`POST /api/csp-report`, sem
+sessão, é o mecanismo nativo do navegador) grava um resumo no D1: uma linha por diretiva + endereço bloqueado
+(`csp_violations`, migração `0004_csp_violations.sql`), com contagem e primeiro/último visto; reenvio da mesma
+violação soma a contagem em vez de criar outra linha, e o total fica limitado a 200 linhas únicas (`CSP_VIOLATIONS_CAP`
+em `worker/csp.js`), para o endpoint sem sessão não virar um jeito de encher o banco. Sem `env.DB` (sem conta
+ligada), só o log de sempre.
+
+Mesmo segredo e cabeçalho das moedas de teste (`CITYOU_ADMIN_TOKEN`, `X-Cityou-Admin`); sem o segredo, 404.
+
+```js
+fetch('/api/admin/csp-violations', { headers: { 'X-Cityou-Admin': 'COLE_O_TOKEN' } }).then(r => r.json()).then(console.log)
+// { violations: [{ violated_directive, blocked_uri, document_uri, count, first_seen, last_seen }, ...], last_seen }
+```
+
+`violations: []` e `last_seen: null` depois de uma semana de produção é o sinal para ligar `CSP_ENFORCE="true"`.

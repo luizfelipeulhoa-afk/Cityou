@@ -50,6 +50,8 @@ test('health: banco sem migrações responde no_schema; com migrações, ok', as
   await applyMigration(env.DB, '0002_account_data.sql')
   assert.equal((await (await call('/api/health')).json()).db, 'no_schema')
   await applyMigration(env.DB, '0003_invites_ip_limits.sql')
+  assert.equal((await (await call('/api/health')).json()).db, 'no_schema')
+  await applyMigration(env.DB, '0004_csp_violations.sql')
   const response = await call('/api/health')
   assert.equal((await response.json()).db, 'ok')
 })
